@@ -1,0 +1,42 @@
+simple-declaration:
+  decl-specifier-seq[opt] init-declarator-list[opt]
+
+  specifiers - type name, keyword modifiers
+  declarators - names of things being declared, prefixed by
+    optional *& and cv's
+
+  ansi153 for declators
+
+cp_parser_ptr_operator
+  the ONLY place in the parse that takes CPP_AND for a reference decl.
+  parses * & and following cv qualifiers.
+
+  called in the following contexts
+
+  cp_parser_new_type_id
+    [follows "new" keyword and placement shits]
+    cp_parser_type_specifier_seq
+    cp_parser_new_declarator_opt
+      **cp_parser_ptr_operator**
+
+  cp_parser_conversion_type_id
+    [follows "operator" keyword for user-defined conversion declarations]
+    cp_parser_type_specifier_seq
+    cp_parser_conversion_declarator_opt
+      **cp_parser_ptr_operator**
+    grokdeclarator
+
+  cp_parser_declarator
+    [gets types]
+    **cp_parser_ptr_operator**
+    cp_parser_direct_declarator
+
+cp_parser_parameter_declaration
+  parses parameter lists in function declarations
+
+grokdeclarator (decl.c)
+  enormous function that seems to be responsible for
+  turning declarators into normal tree nodes
+
+parser.c line 11322
+
