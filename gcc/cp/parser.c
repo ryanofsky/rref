@@ -1762,6 +1762,8 @@ static bool cp_parser_is_keyword
   (cp_token *, enum rid);
 static tree cp_parser_make_typename_type
   (cp_parser *, tree, tree);
+static cp_declarator * cp_parser_make_indirect_declarator
+  (enum tree_code, tree, cp_cv_quals, cp_declarator *);
 
 /* Returns nonzero if we are parsing tentatively.  */
 
@@ -2344,6 +2346,25 @@ cp_parser_make_typename_type (cp_parser *parser, tree scope, tree id)
   return make_typename_type (scope, id, typename_type, tf_error);
 }
 
+/* This is a wrapper around make_{pointer,ptrmem,reference}_declarator
+   functions that decides which one to call depending on the tree_code
+   and class_type parameters. Those values should have come from parsing
+   a "ptr-operator" */
+
+static cp_declarator *
+cp_parser_make_indirect_declarator (enum tree_code code, tree class_type,
+                                    cp_cv_quals cv_qualifiers,
+                                    cp_declarator *target)
+{
+  if (code == INDIRECT_REF)
+    if (class_type == NULL_TREE)
+      return make_pointer_declarator (cv_qualifiers, target);
+    else
+      return make_ptrmem_declarator (cv_qualifiers, class_type, target);
+  else if (code == ADDR_EXPR && class_type == NULL_TREE)
+    return make_reference_declarator (cv_qualifiers, target);
+  gcc_unreachable ();
+}
 
 /* Create a new C++ parser.  */
 
@@ -5049,15 +5070,8 @@ cp_parser_new_declarator_opt (cp_parser* parser)
       /* Parse another optional declarator.  */
       declarator = cp_parser_new_declarator_opt (parser);
 
-      /* Create the representation of the declarator.  */
-      if (type)
-	declarator = make_ptrmem_declarator (cv_quals, type, declarator);
-      else if (code == INDIRECT_REF)
-	declarator = make_pointer_declarator (cv_quals, declarator);
-      else
-	declarator = make_reference_declarator (cv_quals, declarator);
-
-      return declarator;
+      return cp_parser_make_indirect_declarator
+               (code, type, cv_quals, declarator);
     }
 
   /* If the next token is a `[', there is a direct-new-declarator.  */
@@ -7607,17 +7621,9 @@ cp_parser_conversion_declarator_opt (cp_parser* parser)
       /* Parse another optional declarator.  */
       declarator = cp_parser_conversion_declarator_opt (parser);
 
-      /* Create the representation of the declarator.  */
-      if (class_type)
-	declarator = make_ptrmem_declarator (cv_quals, class_type,
-					     declarator);
-      else if (code == INDIRECT_REF)
-	declarator = make_pointer_declarator (cv_quals, declarator);
-      else
-	declarator = make_reference_declarator (cv_quals, declarator);
-
-      return declarator;
-   }
+      return cp_parser_make_indirect_declarator
+               (code, class_type, cv_quals, declarator);
+    }
 
   return NULL;
 }
@@ -10893,15 +10899,8 @@ cp_parser_declarator (cp_parser* parser,
 	  && !cp_parser_parse_definitely (parser))
 	declarator = NULL;
 
-      /* Build the representation of the ptr-operator.  */
-      if (class_type)
-	declarator = make_ptrmem_declarator (cv_quals,
-					     class_type,
-					     declarator);
-      else if (code == INDIRECT_REF)
-	declarator = make_pointer_declarator (cv_quals, declarator);
-      else
-	declarator = make_reference_declarator (cv_quals, declarator);
+      declarator = cp_parser_make_indirect_declarator
+                     (code, class_type, cv_quals, declarator);
     }
   /* Everything else is a direct-declarator.  */
   else
@@ -11334,10 +11333,11 @@ cp_parser_ptr_operator (cp_parser* parser,
   /* Peek at the next token.  */
   token = cp_lexer_peek_token (parser->lexer);
   /* If it's a `*' or `&' we have a pointer or reference.  */
-  if (token->type == CPP_MULT || token->type == CPP_AND)
+  if (token->type == CPP_MULT || token->type == CPP_AND 
+      || token->type == CPP_AND_AND)
     {
       /* Remember which ptr-operator we were processing.  */
-      code = (token->type == CPP_AND ? ADDR_EXPR : INDIRECT_REF);
+      code = (token->type == CPP_MULT ? INDIRECT_REF : ADDR_EXPR);
 
       /* Consume the `*' or `&'.  */
       cp_lexer_consume_token (parser->lexer);
