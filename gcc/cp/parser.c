@@ -2346,11 +2346,11 @@ cp_parser_make_typename_type (cp_parser *parser, tree scope, tree id)
   return make_typename_type (scope, id, typename_type, tf_error);
 }
 
-/* This is a wrapper around make_{pointer,ptrmem,reference}_declarator
-   functions that decides which one to call depending on the tree_code
-   and class_type parameters. Those values should have come from parsing
-   a "ptr-operator" */
-
+/* This is a wrapper around the
+   make_{pointer,ptrmem,reference}_declarator functions that decides
+   which one to call based on the CODE and CLASS_TYPE arguments. The
+   CODE argument should be one of the values returned by
+   cp_parser_ptr_operator. */
 static cp_declarator *
 cp_parser_make_indirect_declarator (enum tree_code code, tree class_type,
                                     cp_cv_quals cv_qualifiers,
@@ -2362,6 +2362,8 @@ cp_parser_make_indirect_declarator (enum tree_code code, tree class_type,
     else
       return make_ptrmem_declarator (cv_qualifiers, class_type, target);
   else if (code == ADDR_EXPR && class_type == NULL_TREE)
+    return make_reference_declarator (cv_qualifiers, target);
+  else if (code == NON_LVALUE_EXPR && class_type == NULL_TREE);
     return make_reference_declarator (cv_qualifiers, target);
   gcc_unreachable ();
 }
@@ -11311,12 +11313,15 @@ cp_parser_direct_declarator (cp_parser* parser,
      & cv-qualifier-seq [opt]
 
    Returns INDIRECT_REF if a pointer, or pointer-to-member, was used.
-   Returns ADDR_EXPR if a reference was used.  In the case of a
-   pointer-to-member, *TYPE is filled in with the TYPE containing the
-   member.  *CV_QUALS is filled in with the cv-qualifier-seq, or
-   TYPE_UNQUALIFIED, if there are no cv-qualifiers.  Returns
-   ERROR_MARK if an error occurred.  */
-
+   Returns ADDR_EXPR if a reference was used, or NON_LVALUE_EXPR for
+   an rvalue reference. In the case of a pointer-to-member, *TYPE is
+   filled in with the TYPE containing the member.  *CV_QUALS is
+   filled in with the cv-qualifier-seq, or TYPE_UNQUALIFIED, if there
+   are no cv-qualifiers.  Returns ERROR_MARK if an error occurred.
+   Note that the tree codes returned by this function have nothing
+   to do with the types of trees that will be eventually be created
+   to represent the pointer or reference type being parsed. They are
+   just constants with suggestive names. */
 static enum tree_code
 cp_parser_ptr_operator (cp_parser* parser,
                         tree* type,
@@ -11332,14 +11337,18 @@ cp_parser_ptr_operator (cp_parser* parser,
 
   /* Peek at the next token.  */
   token = cp_lexer_peek_token (parser->lexer);
-  /* If it's a `*' or `&' we have a pointer or reference.  */
-  if (token->type == CPP_MULT || token->type == CPP_AND 
-      || token->type == CPP_AND_AND)
-    {
-      /* Remember which ptr-operator we were processing.  */
-      code = (token->type == CPP_MULT ? INDIRECT_REF : ADDR_EXPR);
 
-      /* Consume the `*' or `&'.  */
+  /* If it's a `*', `&' or `&&' we have a pointer or reference.  */
+  if (token->type == CPP_MULT)
+    code = INDIRECT_REF;
+  else if (token->type == CPP_AND)
+    code = ADDR_EXPR;
+  else if (token->type == CPP_AND_AND)
+    code = NON_LVALUE_EXPR;
+
+  if (code != ERROR_MARK)
+    {
+      /* Consume the `*', `&' or `&&'.  */
       cp_lexer_consume_token (parser->lexer);
 
       /* A `*' can be followed by a cv-qualifier-seq, and so can a
