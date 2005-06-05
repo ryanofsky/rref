@@ -3633,6 +3633,7 @@ struct cp_declarator {
       cp_cv_quals qualifiers;
       /* For cdk_ptrmem, the class type containing the member.  */
       tree class_type;
+      bool rvalue_ref;
     } pointer;
   } u;
 };

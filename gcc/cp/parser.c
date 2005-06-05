@@ -758,7 +758,7 @@ static cp_declarator *make_array_declarator
 static cp_declarator *make_pointer_declarator
   (cp_cv_quals, cp_declarator *);
 static cp_declarator *make_reference_declarator
-  (cp_cv_quals, cp_declarator *);
+  (cp_cv_quals, cp_declarator *, bool);
 static cp_parameter_declarator *make_parameter_declarator
   (cp_decl_specifier_seq *, cp_declarator *, tree);
 static cp_declarator *make_ptrmem_declarator
@@ -844,7 +844,8 @@ make_pointer_declarator (cp_cv_quals cv_qualifiers, cp_declarator *target)
 /* Like make_pointer_declarator -- but for references.  */
 
 cp_declarator *
-make_reference_declarator (cp_cv_quals cv_qualifiers, cp_declarator *target)
+make_reference_declarator (cp_cv_quals cv_qualifiers, cp_declarator *target,
+                           bool rvalue_ref)
 {
   cp_declarator *declarator;
 
@@ -852,6 +853,7 @@ make_reference_declarator (cp_cv_quals cv_qualifiers, cp_declarator *target)
   declarator->declarator = target;
   declarator->u.pointer.qualifiers = cv_qualifiers;
   declarator->u.pointer.class_type = NULL_TREE;
+  declarator->u.pointer.rvalue_ref = rvalue_ref;
 
   return declarator;
 }
@@ -2362,9 +2364,9 @@ cp_parser_make_indirect_declarator (enum tree_code code, tree class_type,
     else
       return make_ptrmem_declarator (cv_qualifiers, class_type, target);
   else if (code == ADDR_EXPR && class_type == NULL_TREE)
-    return make_reference_declarator (cv_qualifiers, target);
-  else if (code == NON_LVALUE_EXPR && class_type == NULL_TREE);
-    return make_reference_declarator (cv_qualifiers, target);
+    return make_reference_declarator (cv_qualifiers, target, false);
+  else if (code == NON_LVALUE_EXPR && class_type == NULL_TREE)
+    return make_reference_declarator (cv_qualifiers, target, true);
   gcc_unreachable ();
 }
 

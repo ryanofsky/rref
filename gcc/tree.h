@@ -351,6 +351,8 @@ struct tree_common GTY(())
 	   ..._DECL
        CALL_FROM_THUNK_P in
            CALL_EXPR
+       TYPE_REF_IS_RVALUE in
+         REFERENCE_TYPE
 
    side_effects_flag:
 
@@ -1002,6 +1004,10 @@ extern void tree_operand_check_failed (int, enum tree_code,
 /* In a CALL_EXPR, means that the call is the jump from a thunk to the
    thunked-to function.  */
 #define CALL_FROM_THUNK_P(NODE) ((NODE)->common.protected_flag)
+
+/* In a REFERENCE_TYPE, means that reference is an rvalue reference */
+#define TYPE_REF_IS_RVALUE(NODE) \
+  (REFERENCE_TYPE_CHECK (NODE)->common.protected_flag)
 
 /* In a type, nonzero means that all objects of the type are guaranteed by the
    language or front-end to be properly aligned, so we can indicate that a MEM
@@ -2893,7 +2899,10 @@ extern void set_sizetype (tree);
 extern void fixup_unsigned_type (tree);
 extern tree build_pointer_type_for_mode (tree, enum machine_mode, bool);
 extern tree build_pointer_type (tree);
+extern tree build_rval_reference_type_for_mode
+  (tree, enum machine_mode, bool, bool);
 extern tree build_reference_type_for_mode (tree, enum machine_mode, bool);
+extern tree build_rval_reference_type (tree);
 extern tree build_reference_type (tree);
 extern tree build_vector_type_for_mode (tree, enum machine_mode);
 extern tree build_vector_type (tree innertype, int nunits);

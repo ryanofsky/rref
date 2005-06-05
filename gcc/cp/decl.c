@@ -7251,6 +7251,8 @@ grokdeclarator (const cp_declarator *declarator,
 
 	  if (TREE_CODE (type) == REFERENCE_TYPE)
 	    {
+              /* ### implement reference collapsing here? where else? 
+                 what about template type deduction? ### */
 	      error (declarator->kind == cdk_reference
 		     ? "cannot declare reference to %q#T"
 		     : "cannot declare pointer to %q#T", type);
@@ -7290,7 +7292,12 @@ grokdeclarator (const cp_declarator *declarator,
 	  if (declarator->kind == cdk_reference)
 	    {
 	      if (!VOID_TYPE_P (type))
-		type = build_reference_type (type);
+                {
+                  if (declarator->u.pointer.rvalue_ref)
+                    type = build_rvalue_reference_type (type);
+                  else
+                    type = build_reference_type (type);
+                }
 	    }
 	  else if (TREE_CODE (type) == METHOD_TYPE)
 	    type = build_ptrmemfunc_type (build_pointer_type (type));
