@@ -1,5 +1,45 @@
+-----------------------------------------------------------
+overload resolution stuff
+
+compare_ics
+  target_type# - type of reference if a reference parameter
+  from_type# - if user conv or standard conv, type being converted from
+                 skips up ics chain to user conv or non-identity conv
+  to_type - ics#->type
+  deref_from_type
+
+
+  build_new_function_call (call.c)
+    perform_overload_resolution (static)
+      add_candidates (static)
+        add_function_candidate (static)
+          implicit_conversion (static)
+            reference_binding (static)
+            standard_conversion
+            build_user_type_conversion_1
+          add_candidate
+        add_template_candidate (static)
+          add_template_candidate_real (static)
+            fn_type_unification
+            instantiate_template
+      splice_viable (static)
+      tourney (static)
+        joust (static)
+          compare_ics
+            maybe_handle_implicit_object
+            maybe_handle_ref_bind
+            is_subseq
+            comp_cv_qual_signature
+            comp_cv_qualification
+
+-----------------------------------------------------------
+reference binding stuff
+
 reference_binding (call.c, static) called by
   implicit_conversion (call.c)*
+    perform_implicit_conversion (call.c)
+    can_convert_arg (call.c)
+    conditional_expression (call.c)
   initialize_reference (call.c)
     grok_reference_init (decl.c, static)
       check_initializer (decl.c, static)

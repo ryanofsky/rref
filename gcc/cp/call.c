@@ -174,7 +174,7 @@ static conversion *standard_conversion (tree, tree, tree, int);
 static conversion *reference_binding (tree, tree, tree, int);
 static conversion *build_conv (conversion_kind, tree, conversion *);
 static bool is_subseq (conversion *, conversion *);
-static tree maybe_handle_ref_bind (conversion **);
+static void maybe_handle_ref_bind (conversion **, tree *, tree *);
 static void maybe_handle_implicit_object (conversion **);
 static struct z_candidate *add_candidate 
         (struct z_candidate **, tree, tree, size_t, 
@@ -5522,23 +5522,25 @@ maybe_handle_implicit_object (conversion **ics)
 }
 
 /* If *ICS is a REF_BIND set *ICS to the remainder of the conversion,
-   and return the type to which the reference refers.  Otherwise,
-   leave *ICS unchanged and return NULL_TREE.  */
+   and return the type to which the reference refers, and the
+   reference itself.  Otherwise leave *ICS unchanged and return
+   NULL_TREE's.  */
 
-static tree
-maybe_handle_ref_bind (conversion **ics)
+static void
+maybe_handle_ref_bind (conversion **ics, tree *reftype, tree *ref)
 {
+  /* Assume ICS is not a reference conversion */
+  *reftype = *ref = NULL_TREE;
+
   if ((*ics)->kind == ck_ref_bind)
     {
       conversion *old_ics = *ics;
-      tree type = TREE_TYPE (old_ics->type);
       *ics = old_ics->u.next;
       (*ics)->user_conv_p = old_ics->user_conv_p;
       (*ics)->bad_p = old_ics->bad_p;
-      return type;
+      *reftype = TREE_TYPE (old_ics->type);
+      *ref = old_ics->type;
     }
-
-  return NULL_TREE;
 }
 
 /* Compare two implicit conversion sequences according to the rules set out in
@@ -5553,6 +5555,7 @@ compare_ics (conversion *ics1, conversion *ics2)
 {
   tree from_type1;
   tree from_type2;
+  tree from_expr = NULL_TREE;
   tree to_type1;
   tree to_type2;
   tree deref_from_type1 = NULL_TREE;
@@ -5562,18 +5565,20 @@ compare_ics (conversion *ics1, conversion *ics2)
   conversion_rank rank1, rank2;
 
   /* REF_BINDING is nonzero if the result of the conversion sequence
-     is a reference type.   In that case TARGET_TYPE is the
-     type referred to by the reference.  */
+     is a reference type.   In that case TARGET_TYPE is the type
+     referred to by the reference and TARGET_REF is the reference */
   tree target_type1;
   tree target_type2;
+  tree target_ref1;
+  tree target_ref2;
 
   /* Handle implicit object parameters.  */
   maybe_handle_implicit_object (&ics1);
   maybe_handle_implicit_object (&ics2);
 
   /* Handle reference parameters.  */
-  target_type1 = maybe_handle_ref_bind (&ics1);
-  target_type2 = maybe_handle_ref_bind (&ics2);
+  maybe_handle_ref_bind (&ics1, &target_type1, &target_ref1);
+  maybe_handle_ref_bind (&ics2, &target_type2, &target_ref2);
 
   /* [over.ics.rank]
 
@@ -5667,6 +5672,9 @@ compare_ics (conversion *ics1, conversion *ics2)
       while (t2->kind != ck_identity)
 	t2 = t2->u.next;
       from_type2 = t2->type;
+
+      from_expr = t1->u.expr;
+      gcc_assert (from_expr == t2->u.expr);
     }
 
   if (same_type_p (from_type1, from_type2))
@@ -5869,11 +5877,33 @@ compare_ics (conversion *ics1, conversion *ics2)
      top-level cv-qualifiers, and the type to which the reference
      initialized by S2 refers is more cv-qualified than the type to
      which the reference initialized by S1 refers */
-      
+
+  /* Before checking the reference types' cv-qualifiers, check for
+     rvalue references as proposed in N1377.
+     
+       rvalues will prefer rvalue references. lvalues will prefer
+       lvalue references. CV qualification conversions are
+       considered secondary relative to r/l-value conversions. 
+       rvalues can still bind to a const lvalue reference
+       (const A&), but only if there is not a more attractive
+       rvalue reference in the overload set. lvalues can bind to an
+       rvalue reference, but will prefer an lvalue reference if it
+       exists in the overload set. The rule that a more cv-qualified
+       object can not bind to a less cv-qualified reference stands 
+       ... both for lvalue and rvalue references. */
+
   if (target_type1 && target_type2
       && same_type_ignoring_top_level_qualifiers_p (to_type1, to_type2))
-    return comp_cv_qualification (target_type2, target_type1);
+    {
+      if (TYPE_REF_IS_RVALUE(target_ref1) && 
+          !TYPE_REF_IS_RVALUE(target_ref2))
+        return real_lvalue_p(from_expr) ? -1 : 1;
+      else if (!TYPE_REF_IS_RVALUE(target_ref1) && 
+               TYPE_REF_IS_RVALUE(target_ref2))
+        return real_lvalue_p(from_expr) ? 1 : -1;
 
+      return comp_cv_qualification (target_type2, target_type1);
+    }
   /* Neither conversion sequence is better than the other.  */
   return 0;
 }
