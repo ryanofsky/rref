@@ -7294,7 +7294,7 @@ grokdeclarator (const cp_declarator *declarator,
 	      if (!VOID_TYPE_P (type))
                 {
                   if (declarator->u.pointer.rvalue_ref)
-                    type = build_rvalue_reference_type (type);
+                    type = build_rval_reference_type (type);
                   else
                     type = build_reference_type (type);
                 }

@@ -4339,7 +4339,7 @@ build_reference_type (tree to_type)
 /* Build the node for rvalue references. */
 
 tree
-build_rvalue_reference_type (tree to_type)
+build_rval_reference_type (tree to_type)
 {
   return build_rval_reference_type_for_mode (to_type, ptr_mode, false, true);
 }
