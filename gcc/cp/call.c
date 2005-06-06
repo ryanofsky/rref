@@ -1066,6 +1066,7 @@ reference_binding (tree rto, tree rfrom, tree expr, int flags)
   bool related_p;
   bool compatible_p;
   cp_lvalue_kind lvalue_p = clk_none;
+  bool rvalue_p = TYPE_REF_IS_RVALUE(rto);
 
   if (TREE_CODE (to) == FUNCTION_TYPE && expr && type_unknown_p (expr))
     {
@@ -1090,7 +1091,7 @@ reference_binding (tree rto, tree rfrom, tree expr, int flags)
   related_p = reference_related_p (to, from);
   compatible_p = reference_compatible_p (to, from);
 
-  if (lvalue_p && compatible_p)
+  if ((lvalue_p || rvalue_p) && compatible_p)
     {
       /* [dcl.init.ref]
 

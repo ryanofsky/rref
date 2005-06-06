@@ -1,3 +1,14 @@
+reference_binding (call.c, static) called by
+  implicit_conversion (call.c)*
+  initialize_reference (call.c)
+    grok_reference_init (decl.c, static)
+      check_initializer (decl.c, static)
+        cp_finish_decl (decl.c)*
+    convert_for_initialization (typeck.c)*
+
+-----------------------------------------------------------
+parsing stuff
+
 simple-declaration:
   decl-specifier-seq[opt] init-declarator-list[opt]
 
