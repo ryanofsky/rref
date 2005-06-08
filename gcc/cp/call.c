@@ -868,15 +868,16 @@ reference_compatible_p (tree t1, tree t2)
    converted to T as in [over.match.ref].  */
 
 static conversion *
-convert_class_to_reference (tree t, tree s, tree expr)
+convert_class_to_reference (tree reference_type, tree s, tree expr)
 {
   tree conversions;
   tree arglist;
   conversion *conv;
-  tree reference_type;
+  tree t;
   struct z_candidate *candidates;
   struct z_candidate *cand;
   bool any_viable_p;
+
 
   conversions = lookup_conversions (s);
   if (!conversions)
@@ -907,7 +908,7 @@ convert_class_to_reference (tree t, tree s, tree expr)
   arglist = build_int_cst (build_pointer_type (s), 0);
   arglist = build_tree_list (NULL_TREE, arglist);
 
-  reference_type = build_reference_type (t);
+  t = TREE_TYPE (reference_type);
 
   while (conversions)
     {
@@ -1136,7 +1137,7 @@ reference_binding (tree rto, tree rfrom, tree expr, int flags)
 
         the reference is bound to the lvalue result of the conversion
 	in the second case.  */
-      conv = convert_class_to_reference (to, from, expr);
+      conv = convert_class_to_reference (rto, from, expr);
       if (conv)
 	return conv;
     }
@@ -5555,7 +5556,6 @@ compare_ics (conversion *ics1, conversion *ics2)
 {
   tree from_type1;
   tree from_type2;
-  tree from_expr = NULL_TREE;
   tree to_type1;
   tree to_type2;
   tree deref_from_type1 = NULL_TREE;
@@ -5672,9 +5672,6 @@ compare_ics (conversion *ics1, conversion *ics2)
       while (t2->kind != ck_identity)
 	t2 = t2->u.next;
       from_type2 = t2->type;
-
-      from_expr = t1->u.expr;
-      gcc_assert (from_expr == t2->u.expr);
     }
 
   if (same_type_p (from_type1, from_type2))
@@ -5895,12 +5892,51 @@ compare_ics (conversion *ics1, conversion *ics2)
   if (target_type1 && target_type2
       && same_type_ignoring_top_level_qualifiers_p (to_type1, to_type2))
     {
-      if (TYPE_REF_IS_RVALUE(target_ref1) && 
-          !TYPE_REF_IS_RVALUE(target_ref2))
-        return real_lvalue_p(from_expr) ? -1 : 1;
-      else if (!TYPE_REF_IS_RVALUE(target_ref1) && 
-               TYPE_REF_IS_RVALUE(target_ref2))
-        return real_lvalue_p(from_expr) ? 1 : -1;
+      bool rval_parm1 = TYPE_REF_IS_RVALUE(target_ref1);
+      bool rval_parm2 = TYPE_REF_IS_RVALUE(target_ref2);
+
+      /* Only try to compute lvalued-ness of arguments when one 
+         parameter is an rvalue reference and the other is an 
+         lvalue reference */
+      if (rval_parm1 != rval_parm2)
+      {
+        bool rval_arg1, rval_arg2;
+        if (ics1->user_conv_p)
+        {
+          gcc_assert (ics2->user_conv_p);
+          /* just check types returned by conversion functions */
+          rval_arg1 = (TREE_CODE (ics1->type) != REFERENCE_TYPE
+                       || TYPE_REF_IS_RVALUE(ics1->type));
+          rval_arg2 = (TREE_CODE (ics2->type) != REFERENCE_TYPE
+                       || TYPE_REF_IS_RVALUE(ics2->type));
+        }
+        else
+        {
+          conversion * c = ics1;
+          while (c->kind != ck_identity)
+	    c = c->u.next;
+          /* expr pointer can be NULL due to maybe_handle_implicit_object
+             nonsense. For now, just assume lvalue when this happens */
+          rval_arg1 = c->u.expr && !real_lvalue_p(c->u.expr);
+
+          c = ics2;
+          while (c->kind != ck_identity)
+	    c = c->u.next;
+           /* expr pointer can be NULL due to maybe_handle_implicit_object
+             nonsense. For now, just assume lvalue when this happens */
+          rval_arg2 = c->u.expr && !real_lvalue_p(c->u.expr);
+        }
+
+        bool match1 = ((rval_parm1 && rval_arg1) 
+                        || (!rval_parm1 && !rval_arg1));
+        bool match2 = ((rval_parm2 && rval_arg2) 
+                        || (!rval_parm2 && !rval_arg2));
+
+        if (match1 && !match2)
+          return 1;
+        else if (match2 && !match1)
+          return -1;
+      }
 
       return comp_cv_qualification (target_type2, target_type1);
     }
