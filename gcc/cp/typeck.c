@@ -1029,8 +1029,12 @@ comptypes (tree t1, tree t2, int strict)
 	return false;
       break;
 
-    case POINTER_TYPE:
     case REFERENCE_TYPE:
+      if (TYPE_REF_IS_RVALUE(t1) != TYPE_REF_IS_RVALUE(t2))
+        return false;
+      /* fall through to checks for pointer types */
+
+    case POINTER_TYPE:
       if (TYPE_MODE (t1) != TYPE_MODE (t2)
 	  || TYPE_REF_CAN_ALIAS_ALL (t1) != TYPE_REF_CAN_ALIAS_ALL (t2)
 	  || !same_type_p (TREE_TYPE (t1), TREE_TYPE (t2)))
