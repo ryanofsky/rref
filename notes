@@ -1,13 +1,10 @@
 -----------------------------------------------------------
 overload resolution stuff
 
-compare_ics
-  target_type# - type of reference if a reference parameter
-  from_type# - if user conv or standard conv, type being converted from
-                 skips up ics chain to user conv or non-identity conv
-  to_type - ics#->type
-  deref_from_type
-
+  finish_call_expr (semantics.c)
+    build_new_method_call
+    build_new_function_call
+    build_new_op
 
   build_new_function_call (call.c)
     perform_overload_resolution (static)
@@ -36,10 +33,24 @@ compare_ics
 reference binding stuff
 
 reference_binding (call.c, static) called by
-  implicit_conversion (call.c)*
-    perform_implicit_conversion (call.c)
-    can_convert_arg (call.c)
-    conditional_expression (call.c)
+  implicit_conversion (call.c, static)
+    reference_binding...
+    add_function_candidate (call.c, static)*
+    add_conv_candidate (call.c, static)*
+    build_builtin_candidate (call.c, static)*
+    build_user_type_conversion_1 (call.c, static)
+      implicit_conversion...
+      build_user_type_conversion (call.c)*
+        convert_like_real (call.c, static)
+          convert_like_real...
+          perform_direct_initialization_if_possible (call.c)*
+          initialize_reference (call.c)*
+    conditional_conversion (call.c, static)*
+    can_convert_arg (call.c)*
+    can_convert_arg_bad (call.c)*
+    perform_implicit_conversion (call.c)*
+    perform_direct_initialization_if_possible (call.c)*
+    conditional_expression (call.c)*
   initialize_reference (call.c)
     grok_reference_init (decl.c, static)
       check_initializer (decl.c, static)
