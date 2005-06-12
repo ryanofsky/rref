@@ -39,6 +39,9 @@ void l1101(S&) {};
 void l1101(const S&);
 void l1101(const S&&);
 
+void l0011(S&&) {};
+void l0011(const S&&);
+
 void l1011(S&) {};
 void l1011(S&&);
 void l1011(const S&&);
@@ -114,6 +117,13 @@ void r0001(const S&&) {};
 void r1001(S&);
 void r1001(const S&&) {};
 
+void r0101(const S&);
+void r0101(const S&&) {};
+
+void r1101(S&);
+void r1101(const S&);
+void r1101(const S&&) {};
+
 void r0011(S&&) {};
 void r0011(const S&&);
 
@@ -147,12 +157,28 @@ void cr0001(const S&&) {};
 void cr1001(S&);
 void cr1001(const S&&) {};
 
+void cr0101(const S&);
+void cr0101(const S&&) {};
+
+void cr1101(S&);
+void cr1101(const S&);
+void cr1101(const S&&) {};
+
 void cr0011(S&&);
 void cr0011(const S&&) {};
 
 void cr1011(S&);
 void cr1011(S&&);
 void cr1011(const S&&) {};
+
+void cr0111(const S&);
+void cr0111(S&&);
+void cr0111(const S&&) {};
+
+void cr1111(S&);
+void cr1111(const S&);
+void cr1111(S&&);
+void cr1111(const S&&) {};
 
 
 int main()
@@ -168,6 +194,7 @@ int main()
   l1001(s);
   l0101(s);
   l1101(s);
+  l0011(s);
   l1011(s);
   l0111(s);
   l1111(s);
@@ -191,6 +218,8 @@ int main()
   r1110(f());
   r0001(f());
   r1001(f());
+  r0101(f());
+  r1101(f());
   r0011(f());
   r1011(f());
   r0111(f());
@@ -201,8 +230,12 @@ int main()
   cr1110(cf());
   cr0001(cf());
   cr1001(cf());
+  cr0101(cf());
+  cr1101(cf());
   cr0011(cf());
   cr1011(cf());
+  cr0111(cf());
+  cr1111(cf());
 
   return 0;
 }

@@ -5907,7 +5907,7 @@ compare_ics (conversion *ics1, conversion *ics2)
           && !ref_conv2->valuedness_matches_p)
         return 1;
       else if (!ref_conv1->valuedness_matches_p 
-          && !ref_conv2->valuedness_matches_p)
+          && ref_conv2->valuedness_matches_p)
         return -1;
 
       return comp_cv_qualification (TREE_TYPE (ref_conv2->type),

@@ -42,7 +42,7 @@ answers = [
    0, #l1001
    1, #l0101
    0, #l1101
-  -2, #l0011
+   2, #l0011
    0, #l1011
    1, #l0111
    0, #l1111
@@ -70,8 +70,8 @@ answers = [
    2, #r1110
    3, #r0001
    3, #r1001
-  -3, #r0101
-  -3, #r1101
+   3, #r0101
+   3, #r1101
    2, #r0011
    2, #r1011
    2, #r0111
@@ -85,12 +85,12 @@ answers = [
    1, #cr1110
    3, #cr0001
    3, #cr1001
-  -3, #cr0101
-  -3, #cr1101
+   3, #cr0101
+   3, #cr1101
    3, #cr0011
    3, #cr1011
-  -3, #cr0111
-  -3, #cr1111
+   3, #cr0111
+   3, #cr1111
 ]
 
 funcs = StringIO.StringIO()
@@ -99,7 +99,7 @@ calls = StringIO.StringIO()
 for arg_idx in range(len(args)):
   for param_set in range(1, 1<<len(params)):
     answer = answers[arg_idx * ((1<<len(params))-1) + param_set - 1]
-    if answer is None or answer < 0:
+    if answer is None:
       continue
 
     func_name = []
