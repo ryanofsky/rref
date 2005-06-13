@@ -8,10 +8,18 @@ template = """\
 
 struct S{};
 
-S s;                         // non-const lvalue
-S const cs = s;              // const lvalue
-S f() { return S(); }        // non-const rvalue
-S const cf() { return S(); } // const rvalue
+S l;                             // lvalue (l)
+S const cl = l;                  // const lvalue (cl)
+S r() { return l; }              // rvalue (r)
+S const cr() { return l; }       // const rvalue (cr)
+S & nl = l;                      // named lvalue reference (nl)
+S const & ncl = l;               // named const lvalue reference (ncl)
+S && nr = l;                     // named rvalue reference (nr)
+S const && ncr = l;              // named const rvalue reference (ncr)
+S & ul() { return l; }           // unnamed lvalue reference (ul)
+S const & ucl() { return l; }    // unnamed const lvalue reference (ucl)
+S && ur() { return l; }          // unnamed rvalue reference (ur)
+S const && ucr() { return l; }   // unnamed const rvalue reference (ucr)
 
 %(funcs)s
 int main()
@@ -22,103 +30,126 @@ int main()
 """
 
 # parameters to overload on
-params = ['S&', 'const S&', 'S&&', 'const S&&']
+params = ('S&', 'const S&', 'S&&', 'const S&&')
 
-# arguments to test overloads on: lvalues, const lvalues, rvalues,
-# and non-const rvalues
-args = ['s', 'cs', 'f()', 'cf()']
-function_prefixes = ['l', 'cl', 'r', 'cr']
+# arguments to test overloads on in (function prefix, argument) tuples
+args = (
+  ('l', 'l'),
+  ('cl', 'cl'),
+  ('r', 'r()'),
+  ('cr', 'cr()'),
+  ('nl', 'nl'),
+  ('ncl', 'ncl'),
+  ('nr', 'nr'),
+  ('ncr', 'ncr'),
+  ('ul', 'ul()'),
+  ('ucl', 'ucl()'),
+#  ('ur', 'ur()'),
+#  ('ucr', 'ucr()'),
+)
 
 # everybody get out your sharpened number 2 pencils
-answers = [
-   0, #l1000
-   1, #l0100
-   0, #l1100
-   2, #l0010
-   0, #l1010
-   1, #l0110
-   0, #l1110
-   3, #l0001
-   0, #l1001
-   1, #l0101
-   0, #l1101
-   2, #l0011
-   0, #l1011
-   1, #l0111
-   0, #l1111
-   None, #cl1000
-   1, #cl0100
-   1, #cl1100
-   None, #cl0010
-   None, #cl1010
-   1, #cl0110
-   1, #cl1110
-   3, #cl0001
-   3, #cl1001
-   1, #cl0101
-   1, #cl1101
-   3, #cl0011
-   3, #cl1011
-   1, #cl0111
-   1, #cl1111
-   None, #r1000
-   1, #r0100
-   1, #r1100
-   2, #r0010
-   2, #r1010
-   2, #r0110
-   2, #r1110
-   3, #r0001
-   3, #r1001
-   3, #r0101
-   3, #r1101
-   2, #r0011
-   2, #r1011
-   2, #r0111
-   2, #r1111
-   None, #cr1000
-   1, #cr0100
-   1, #cr1100
-   None, #cr0010
-   None, #cr1010
-   1, #cr0110
-   1, #cr1110
-   3, #cr0001
-   3, #cr1001
-   3, #cr0101
-   3, #cr1101
-   3, #cr0011
-   3, #cr1011
-   3, #cr0111
-   3, #cr1111
-]
+answers = {
+  'l':  ( 3, #0001
+          2, #0010
+          2, #0011
+          1, #0100
+          1, #0101
+          1, #0110
+          1, #0111
+          0, #1000
+          0, #1001
+          0, #1010
+          0, #1011
+          0, #1100
+          0, #1101
+          0, #1110
+          0, #1111
+        ),
+  'cl': ( 3, #0001
+          None, #0010
+          3, #0011
+          1, #0100
+          1, #0101
+          1, #0110
+          1, #0111
+          None, #1000
+          3, #1001
+          None, #1010
+          3, #1011
+          1, #1100
+          1, #1101
+          1, #1110
+          1, #1111
+        ),
+   'r': (3, #0001
+          2, #0010
+          2, #0011
+          1, #0100
+          3, #0101
+          2, #0110
+          2, #0111
+          None, #1000
+          3, #1001
+          2, #1010
+          2, #1011
+          1, #1100
+          3, #1101
+          2, #1110
+          2, #1111
+        ),
+  'cr': ( 3, #0001
+          None, #0010
+          3, #0011
+          1, #0100
+          3, #0101
+          1, #0110
+          3, #0111
+          None, #1000
+          3, #1001
+          None, #1010
+          3, #1011
+          1, #1100
+          3, #1101
+          1, #1110
+          3, #1111
+        )}
+answers['nl'] = answers['l']
+answers['ncl'] = answers['cl']
+answers['nr'] = answers['l']
+answers['ncr'] = answers['cl']
+answers['ul'] = answers['l']
+answers['ucl'] = answers['cl']
+answers['ur'] = answers['r']
+answers['ucr'] = answers['cr']
+
 
 funcs = StringIO.StringIO()
 calls = StringIO.StringIO()
 
-for arg_idx in range(len(args)):
+for func_prefix, arg in args:
   for param_set in range(1, 1<<len(params)):
-    answer = answers[arg_idx * ((1<<len(params))-1) + param_set - 1]
+    answer = answers[func_prefix][param_set-1]
     if answer is None:
       continue
 
     func_name = []
     func_params = []
     for param_idx in range(len(params)):
-      if param_set & (1 << param_idx):
+      if param_set & (1 << (len(params)-param_idx-1)):
         func_params.append(param_idx)
         func_name.append('1')
       else:
         func_name.append('0')
 
-    func_name = function_prefixes[arg_idx] + ''.join(func_name)
+    func_name = func_prefix + ''.join(func_name)
 
     for param_idx in func_params:
       body = param_idx == answer and ' {};' or ';'
       funcs.write('void %s(%s)%s\n' % (func_name, params[param_idx], body))
     funcs.write('\n')
 
-    calls.write('  %s(%s);\n' % (func_name, args[arg_idx]))
+    calls.write('  %s(%s);\n' % (func_name, arg))
 
 sys.stdout.write(template % { 'funcs': funcs.getvalue(),
                               'calls': calls.getvalue()})
