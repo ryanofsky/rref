@@ -44,8 +44,8 @@ args = (
   ('ncr', 'ncr'),
   ('ul', 'ul()'),
   ('ucl', 'ucl()'),
-#  ('ur', 'ur()'),
-#  ('ucr', 'ucr()'),
+  ('ur', 'ur()'),
+  ('ucr', 'ucr()'),
 )
 
 # everybody get out your sharpened number 2 pencils
@@ -122,7 +122,6 @@ answers['ul'] = answers['l']
 answers['ucl'] = answers['cl']
 answers['ur'] = answers['r']
 answers['ucr'] = answers['cr']
-
 
 funcs = StringIO.StringIO()
 calls = StringIO.StringIO()

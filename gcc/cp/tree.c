@@ -120,6 +120,12 @@ lvalue_p_1 (tree ref,
     case ARRAY_REF:
     case PARM_DECL:
     case RESULT_DECL:
+      /* If a call to a function returning an rvalue reference */
+      if (TREE_CODE (ref) == INDIRECT_REF
+          && TREE_CODE (TREE_OPERAND (ref, 0)) == CALL_EXPR
+          && TREE_CODE (TREE_TYPE (TREE_OPERAND (ref, 0))) == REFERENCE_TYPE
+          && TYPE_REF_IS_RVALUE (TREE_TYPE (TREE_OPERAND (ref, 0))))
+        return clk_none;
       if (TREE_CODE (TREE_TYPE (ref)) != METHOD_TYPE)
 	return clk_ordinary;
       break;

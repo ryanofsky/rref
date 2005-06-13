@@ -449,6 +449,91 @@ void ucl1111(const S&) {};
 void ucl1111(S&&);
 void ucl1111(const S&&);
 
+void ur0001(const S&&) {};
+
+void ur0010(S&&) {};
+
+void ur0011(S&&) {};
+void ur0011(const S&&);
+
+void ur0100(const S&) {};
+
+void ur0101(const S&);
+void ur0101(const S&&) {};
+
+void ur0110(const S&);
+void ur0110(S&&) {};
+
+void ur0111(const S&);
+void ur0111(S&&) {};
+void ur0111(const S&&);
+
+void ur1001(S&);
+void ur1001(const S&&) {};
+
+void ur1010(S&);
+void ur1010(S&&) {};
+
+void ur1011(S&);
+void ur1011(S&&) {};
+void ur1011(const S&&);
+
+void ur1100(S&);
+void ur1100(const S&) {};
+
+void ur1101(S&);
+void ur1101(const S&);
+void ur1101(const S&&) {};
+
+void ur1110(S&);
+void ur1110(const S&);
+void ur1110(S&&) {};
+
+void ur1111(S&);
+void ur1111(const S&);
+void ur1111(S&&) {};
+void ur1111(const S&&);
+
+void ucr0001(const S&&) {};
+
+void ucr0011(S&&);
+void ucr0011(const S&&) {};
+
+void ucr0100(const S&) {};
+
+void ucr0101(const S&);
+void ucr0101(const S&&) {};
+
+void ucr0110(const S&) {};
+void ucr0110(S&&);
+
+void ucr0111(const S&);
+void ucr0111(S&&);
+void ucr0111(const S&&) {};
+
+void ucr1001(S&);
+void ucr1001(const S&&) {};
+
+void ucr1011(S&);
+void ucr1011(S&&);
+void ucr1011(const S&&) {};
+
+void ucr1100(S&);
+void ucr1100(const S&) {};
+
+void ucr1101(S&);
+void ucr1101(const S&);
+void ucr1101(const S&&) {};
+
+void ucr1110(S&);
+void ucr1110(const S&) {};
+void ucr1110(S&&);
+
+void ucr1111(S&);
+void ucr1111(const S&);
+void ucr1111(S&&);
+void ucr1111(const S&&) {};
+
 
 int main()
 {
@@ -586,6 +671,32 @@ int main()
   ucl1101(ucl());
   ucl1110(ucl());
   ucl1111(ucl());
+  ur0001(ur());
+  ur0010(ur());
+  ur0011(ur());
+  ur0100(ur());
+  ur0101(ur());
+  ur0110(ur());
+  ur0111(ur());
+  ur1001(ur());
+  ur1010(ur());
+  ur1011(ur());
+  ur1100(ur());
+  ur1101(ur());
+  ur1110(ur());
+  ur1111(ur());
+  ucr0001(ucr());
+  ucr0011(ucr());
+  ucr0100(ucr());
+  ucr0101(ucr());
+  ucr0110(ucr());
+  ucr0111(ucr());
+  ucr1001(ucr());
+  ucr1011(ucr());
+  ucr1100(ucr());
+  ucr1101(ucr());
+  ucr1110(ucr());
+  ucr1111(ucr());
 
   return 0;
 }
