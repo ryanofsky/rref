@@ -16,523 +16,523 @@ S const & ucl() { return l; }    // unnamed const lvalue reference (ucl)
 S && ur() { return l; }          // unnamed rvalue reference (ur)
 S const && ucr() { return l; }   // unnamed const rvalue reference (ucr)
 
-void l0001(const S&&) {};
+void l0001(const S&&) {}
 
-void l0010(S&&) {};
+void l0010(S&&) {}
 
-void l0011(S&&) {};
+void l0011(S&&) {}
 void l0011(const S&&);
 
-void l0100(const S&) {};
+void l0100(const S&) {}
 
-void l0101(const S&) {};
+void l0101(const S&) {}
 void l0101(const S&&);
 
-void l0110(const S&) {};
+void l0110(const S&) {}
 void l0110(S&&);
 
-void l0111(const S&) {};
+void l0111(const S&) {}
 void l0111(S&&);
 void l0111(const S&&);
 
-void l1000(S&) {};
+void l1000(S&) {}
 
-void l1001(S&) {};
+void l1001(S&) {}
 void l1001(const S&&);
 
-void l1010(S&) {};
+void l1010(S&) {}
 void l1010(S&&);
 
-void l1011(S&) {};
+void l1011(S&) {}
 void l1011(S&&);
 void l1011(const S&&);
 
-void l1100(S&) {};
+void l1100(S&) {}
 void l1100(const S&);
 
-void l1101(S&) {};
+void l1101(S&) {}
 void l1101(const S&);
 void l1101(const S&&);
 
-void l1110(S&) {};
+void l1110(S&) {}
 void l1110(const S&);
 void l1110(S&&);
 
-void l1111(S&) {};
+void l1111(S&) {}
 void l1111(const S&);
 void l1111(S&&);
 void l1111(const S&&);
 
-void cl0001(const S&&) {};
+void cl0001(const S&&) {}
 
 void cl0011(S&&);
-void cl0011(const S&&) {};
+void cl0011(const S&&) {}
 
-void cl0100(const S&) {};
+void cl0100(const S&) {}
 
-void cl0101(const S&) {};
+void cl0101(const S&) {}
 void cl0101(const S&&);
 
-void cl0110(const S&) {};
+void cl0110(const S&) {}
 void cl0110(S&&);
 
-void cl0111(const S&) {};
+void cl0111(const S&) {}
 void cl0111(S&&);
 void cl0111(const S&&);
 
 void cl1001(S&);
-void cl1001(const S&&) {};
+void cl1001(const S&&) {}
 
 void cl1011(S&);
 void cl1011(S&&);
-void cl1011(const S&&) {};
+void cl1011(const S&&) {}
 
 void cl1100(S&);
-void cl1100(const S&) {};
+void cl1100(const S&) {}
 
 void cl1101(S&);
-void cl1101(const S&) {};
+void cl1101(const S&) {}
 void cl1101(const S&&);
 
 void cl1110(S&);
-void cl1110(const S&) {};
+void cl1110(const S&) {}
 void cl1110(S&&);
 
 void cl1111(S&);
-void cl1111(const S&) {};
+void cl1111(const S&) {}
 void cl1111(S&&);
 void cl1111(const S&&);
 
-void r0001(const S&&) {};
+void r0001(const S&&) {}
 
-void r0010(S&&) {};
+void r0010(S&&) {}
 
-void r0011(S&&) {};
+void r0011(S&&) {}
 void r0011(const S&&);
 
-void r0100(const S&) {};
+void r0100(const S&) {}
 
 void r0101(const S&);
-void r0101(const S&&) {};
+void r0101(const S&&) {}
 
 void r0110(const S&);
-void r0110(S&&) {};
+void r0110(S&&) {}
 
 void r0111(const S&);
-void r0111(S&&) {};
+void r0111(S&&) {}
 void r0111(const S&&);
 
 void r1001(S&);
-void r1001(const S&&) {};
+void r1001(const S&&) {}
 
 void r1010(S&);
-void r1010(S&&) {};
+void r1010(S&&) {}
 
 void r1011(S&);
-void r1011(S&&) {};
+void r1011(S&&) {}
 void r1011(const S&&);
 
 void r1100(S&);
-void r1100(const S&) {};
+void r1100(const S&) {}
 
 void r1101(S&);
 void r1101(const S&);
-void r1101(const S&&) {};
+void r1101(const S&&) {}
 
 void r1110(S&);
 void r1110(const S&);
-void r1110(S&&) {};
+void r1110(S&&) {}
 
 void r1111(S&);
 void r1111(const S&);
-void r1111(S&&) {};
+void r1111(S&&) {}
 void r1111(const S&&);
 
-void cr0001(const S&&) {};
+void cr0001(const S&&) {}
 
 void cr0011(S&&);
-void cr0011(const S&&) {};
+void cr0011(const S&&) {}
 
-void cr0100(const S&) {};
+void cr0100(const S&) {}
 
 void cr0101(const S&);
-void cr0101(const S&&) {};
+void cr0101(const S&&) {}
 
-void cr0110(const S&) {};
+void cr0110(const S&) {}
 void cr0110(S&&);
 
 void cr0111(const S&);
 void cr0111(S&&);
-void cr0111(const S&&) {};
+void cr0111(const S&&) {}
 
 void cr1001(S&);
-void cr1001(const S&&) {};
+void cr1001(const S&&) {}
 
 void cr1011(S&);
 void cr1011(S&&);
-void cr1011(const S&&) {};
+void cr1011(const S&&) {}
 
 void cr1100(S&);
-void cr1100(const S&) {};
+void cr1100(const S&) {}
 
 void cr1101(S&);
 void cr1101(const S&);
-void cr1101(const S&&) {};
+void cr1101(const S&&) {}
 
 void cr1110(S&);
-void cr1110(const S&) {};
+void cr1110(const S&) {}
 void cr1110(S&&);
 
 void cr1111(S&);
 void cr1111(const S&);
 void cr1111(S&&);
-void cr1111(const S&&) {};
+void cr1111(const S&&) {}
 
-void nl0001(const S&&) {};
+void nl0001(const S&&) {}
 
-void nl0010(S&&) {};
+void nl0010(S&&) {}
 
-void nl0011(S&&) {};
+void nl0011(S&&) {}
 void nl0011(const S&&);
 
-void nl0100(const S&) {};
+void nl0100(const S&) {}
 
-void nl0101(const S&) {};
+void nl0101(const S&) {}
 void nl0101(const S&&);
 
-void nl0110(const S&) {};
+void nl0110(const S&) {}
 void nl0110(S&&);
 
-void nl0111(const S&) {};
+void nl0111(const S&) {}
 void nl0111(S&&);
 void nl0111(const S&&);
 
-void nl1000(S&) {};
+void nl1000(S&) {}
 
-void nl1001(S&) {};
+void nl1001(S&) {}
 void nl1001(const S&&);
 
-void nl1010(S&) {};
+void nl1010(S&) {}
 void nl1010(S&&);
 
-void nl1011(S&) {};
+void nl1011(S&) {}
 void nl1011(S&&);
 void nl1011(const S&&);
 
-void nl1100(S&) {};
+void nl1100(S&) {}
 void nl1100(const S&);
 
-void nl1101(S&) {};
+void nl1101(S&) {}
 void nl1101(const S&);
 void nl1101(const S&&);
 
-void nl1110(S&) {};
+void nl1110(S&) {}
 void nl1110(const S&);
 void nl1110(S&&);
 
-void nl1111(S&) {};
+void nl1111(S&) {}
 void nl1111(const S&);
 void nl1111(S&&);
 void nl1111(const S&&);
 
-void ncl0001(const S&&) {};
+void ncl0001(const S&&) {}
 
 void ncl0011(S&&);
-void ncl0011(const S&&) {};
+void ncl0011(const S&&) {}
 
-void ncl0100(const S&) {};
+void ncl0100(const S&) {}
 
-void ncl0101(const S&) {};
+void ncl0101(const S&) {}
 void ncl0101(const S&&);
 
-void ncl0110(const S&) {};
+void ncl0110(const S&) {}
 void ncl0110(S&&);
 
-void ncl0111(const S&) {};
+void ncl0111(const S&) {}
 void ncl0111(S&&);
 void ncl0111(const S&&);
 
 void ncl1001(S&);
-void ncl1001(const S&&) {};
+void ncl1001(const S&&) {}
 
 void ncl1011(S&);
 void ncl1011(S&&);
-void ncl1011(const S&&) {};
+void ncl1011(const S&&) {}
 
 void ncl1100(S&);
-void ncl1100(const S&) {};
+void ncl1100(const S&) {}
 
 void ncl1101(S&);
-void ncl1101(const S&) {};
+void ncl1101(const S&) {}
 void ncl1101(const S&&);
 
 void ncl1110(S&);
-void ncl1110(const S&) {};
+void ncl1110(const S&) {}
 void ncl1110(S&&);
 
 void ncl1111(S&);
-void ncl1111(const S&) {};
+void ncl1111(const S&) {}
 void ncl1111(S&&);
 void ncl1111(const S&&);
 
-void nr0001(const S&&) {};
+void nr0001(const S&&) {}
 
-void nr0010(S&&) {};
+void nr0010(S&&) {}
 
-void nr0011(S&&) {};
+void nr0011(S&&) {}
 void nr0011(const S&&);
 
-void nr0100(const S&) {};
+void nr0100(const S&) {}
 
-void nr0101(const S&) {};
+void nr0101(const S&) {}
 void nr0101(const S&&);
 
-void nr0110(const S&) {};
+void nr0110(const S&) {}
 void nr0110(S&&);
 
-void nr0111(const S&) {};
+void nr0111(const S&) {}
 void nr0111(S&&);
 void nr0111(const S&&);
 
-void nr1000(S&) {};
+void nr1000(S&) {}
 
-void nr1001(S&) {};
+void nr1001(S&) {}
 void nr1001(const S&&);
 
-void nr1010(S&) {};
+void nr1010(S&) {}
 void nr1010(S&&);
 
-void nr1011(S&) {};
+void nr1011(S&) {}
 void nr1011(S&&);
 void nr1011(const S&&);
 
-void nr1100(S&) {};
+void nr1100(S&) {}
 void nr1100(const S&);
 
-void nr1101(S&) {};
+void nr1101(S&) {}
 void nr1101(const S&);
 void nr1101(const S&&);
 
-void nr1110(S&) {};
+void nr1110(S&) {}
 void nr1110(const S&);
 void nr1110(S&&);
 
-void nr1111(S&) {};
+void nr1111(S&) {}
 void nr1111(const S&);
 void nr1111(S&&);
 void nr1111(const S&&);
 
-void ncr0001(const S&&) {};
+void ncr0001(const S&&) {}
 
 void ncr0011(S&&);
-void ncr0011(const S&&) {};
+void ncr0011(const S&&) {}
 
-void ncr0100(const S&) {};
+void ncr0100(const S&) {}
 
-void ncr0101(const S&) {};
+void ncr0101(const S&) {}
 void ncr0101(const S&&);
 
-void ncr0110(const S&) {};
+void ncr0110(const S&) {}
 void ncr0110(S&&);
 
-void ncr0111(const S&) {};
+void ncr0111(const S&) {}
 void ncr0111(S&&);
 void ncr0111(const S&&);
 
 void ncr1001(S&);
-void ncr1001(const S&&) {};
+void ncr1001(const S&&) {}
 
 void ncr1011(S&);
 void ncr1011(S&&);
-void ncr1011(const S&&) {};
+void ncr1011(const S&&) {}
 
 void ncr1100(S&);
-void ncr1100(const S&) {};
+void ncr1100(const S&) {}
 
 void ncr1101(S&);
-void ncr1101(const S&) {};
+void ncr1101(const S&) {}
 void ncr1101(const S&&);
 
 void ncr1110(S&);
-void ncr1110(const S&) {};
+void ncr1110(const S&) {}
 void ncr1110(S&&);
 
 void ncr1111(S&);
-void ncr1111(const S&) {};
+void ncr1111(const S&) {}
 void ncr1111(S&&);
 void ncr1111(const S&&);
 
-void ul0001(const S&&) {};
+void ul0001(const S&&) {}
 
-void ul0010(S&&) {};
+void ul0010(S&&) {}
 
-void ul0011(S&&) {};
+void ul0011(S&&) {}
 void ul0011(const S&&);
 
-void ul0100(const S&) {};
+void ul0100(const S&) {}
 
-void ul0101(const S&) {};
+void ul0101(const S&) {}
 void ul0101(const S&&);
 
-void ul0110(const S&) {};
+void ul0110(const S&) {}
 void ul0110(S&&);
 
-void ul0111(const S&) {};
+void ul0111(const S&) {}
 void ul0111(S&&);
 void ul0111(const S&&);
 
-void ul1000(S&) {};
+void ul1000(S&) {}
 
-void ul1001(S&) {};
+void ul1001(S&) {}
 void ul1001(const S&&);
 
-void ul1010(S&) {};
+void ul1010(S&) {}
 void ul1010(S&&);
 
-void ul1011(S&) {};
+void ul1011(S&) {}
 void ul1011(S&&);
 void ul1011(const S&&);
 
-void ul1100(S&) {};
+void ul1100(S&) {}
 void ul1100(const S&);
 
-void ul1101(S&) {};
+void ul1101(S&) {}
 void ul1101(const S&);
 void ul1101(const S&&);
 
-void ul1110(S&) {};
+void ul1110(S&) {}
 void ul1110(const S&);
 void ul1110(S&&);
 
-void ul1111(S&) {};
+void ul1111(S&) {}
 void ul1111(const S&);
 void ul1111(S&&);
 void ul1111(const S&&);
 
-void ucl0001(const S&&) {};
+void ucl0001(const S&&) {}
 
 void ucl0011(S&&);
-void ucl0011(const S&&) {};
+void ucl0011(const S&&) {}
 
-void ucl0100(const S&) {};
+void ucl0100(const S&) {}
 
-void ucl0101(const S&) {};
+void ucl0101(const S&) {}
 void ucl0101(const S&&);
 
-void ucl0110(const S&) {};
+void ucl0110(const S&) {}
 void ucl0110(S&&);
 
-void ucl0111(const S&) {};
+void ucl0111(const S&) {}
 void ucl0111(S&&);
 void ucl0111(const S&&);
 
 void ucl1001(S&);
-void ucl1001(const S&&) {};
+void ucl1001(const S&&) {}
 
 void ucl1011(S&);
 void ucl1011(S&&);
-void ucl1011(const S&&) {};
+void ucl1011(const S&&) {}
 
 void ucl1100(S&);
-void ucl1100(const S&) {};
+void ucl1100(const S&) {}
 
 void ucl1101(S&);
-void ucl1101(const S&) {};
+void ucl1101(const S&) {}
 void ucl1101(const S&&);
 
 void ucl1110(S&);
-void ucl1110(const S&) {};
+void ucl1110(const S&) {}
 void ucl1110(S&&);
 
 void ucl1111(S&);
-void ucl1111(const S&) {};
+void ucl1111(const S&) {}
 void ucl1111(S&&);
 void ucl1111(const S&&);
 
-void ur0001(const S&&) {};
+void ur0001(const S&&) {}
 
-void ur0010(S&&) {};
+void ur0010(S&&) {}
 
-void ur0011(S&&) {};
+void ur0011(S&&) {}
 void ur0011(const S&&);
 
-void ur0100(const S&) {};
+void ur0100(const S&) {}
 
 void ur0101(const S&);
-void ur0101(const S&&) {};
+void ur0101(const S&&) {}
 
 void ur0110(const S&);
-void ur0110(S&&) {};
+void ur0110(S&&) {}
 
 void ur0111(const S&);
-void ur0111(S&&) {};
+void ur0111(S&&) {}
 void ur0111(const S&&);
 
 void ur1001(S&);
-void ur1001(const S&&) {};
+void ur1001(const S&&) {}
 
 void ur1010(S&);
-void ur1010(S&&) {};
+void ur1010(S&&) {}
 
 void ur1011(S&);
-void ur1011(S&&) {};
+void ur1011(S&&) {}
 void ur1011(const S&&);
 
 void ur1100(S&);
-void ur1100(const S&) {};
+void ur1100(const S&) {}
 
 void ur1101(S&);
 void ur1101(const S&);
-void ur1101(const S&&) {};
+void ur1101(const S&&) {}
 
 void ur1110(S&);
 void ur1110(const S&);
-void ur1110(S&&) {};
+void ur1110(S&&) {}
 
 void ur1111(S&);
 void ur1111(const S&);
-void ur1111(S&&) {};
+void ur1111(S&&) {}
 void ur1111(const S&&);
 
-void ucr0001(const S&&) {};
+void ucr0001(const S&&) {}
 
 void ucr0011(S&&);
-void ucr0011(const S&&) {};
+void ucr0011(const S&&) {}
 
-void ucr0100(const S&) {};
+void ucr0100(const S&) {}
 
 void ucr0101(const S&);
-void ucr0101(const S&&) {};
+void ucr0101(const S&&) {}
 
-void ucr0110(const S&) {};
+void ucr0110(const S&) {}
 void ucr0110(S&&);
 
 void ucr0111(const S&);
 void ucr0111(S&&);
-void ucr0111(const S&&) {};
+void ucr0111(const S&&) {}
 
 void ucr1001(S&);
-void ucr1001(const S&&) {};
+void ucr1001(const S&&) {}
 
 void ucr1011(S&);
 void ucr1011(S&&);
-void ucr1011(const S&&) {};
+void ucr1011(const S&&) {}
 
 void ucr1100(S&);
-void ucr1100(const S&) {};
+void ucr1100(const S&) {}
 
 void ucr1101(S&);
 void ucr1101(const S&);
-void ucr1101(const S&&) {};
+void ucr1101(const S&&) {}
 
 void ucr1110(S&);
-void ucr1110(const S&) {};
+void ucr1110(const S&) {}
 void ucr1110(S&&);
 
 void ucr1111(S&);
 void ucr1111(const S&);
 void ucr1111(S&&);
-void ucr1111(const S&&) {};
+void ucr1111(const S&&) {}
 
 
 int main()

@@ -144,7 +144,7 @@ for func_prefix, arg in args:
     func_name = func_prefix + ''.join(func_name)
 
     for param_idx in func_params:
-      body = param_idx == answer and ' {};' or ';'
+      body = param_idx == answer and ' {}' or ';'
       funcs.write('void %s(%s)%s\n' % (func_name, params[param_idx], body))
     funcs.write('\n')
 

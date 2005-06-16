@@ -7,7 +7,7 @@ struct S
 };
 
 void f(const S&);
-void f(S&&) {};
+void f(S&&) {}
 
 int main()
 {

@@ -13,9 +13,9 @@ struct U
 };
 
 void f(const S&);
-void f(S&&) {};
+void f(S&&) {}
 
-void g(const S&) {};
+void g(const S&) {}
 void g(S&&);
 
 int main()
