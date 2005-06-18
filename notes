@@ -1,4 +1,32 @@
 -----------------------------------------------------------
+lvalue/rvalue stuff
+
+3.10 basic.lval (81-82)
+4/3 conv (83) result of implicit conversion
+4.2 conv.lval (83) lvalue to rvalue conversion
+8.5 dcl.init (167)
+8.5.3 reference initialization
+12.2 temporaries
+12.8 direct initizliation
+
+8.3.3/3 A pointer to member shall not point to ... a member with
+reference type.
+
+  lvalue_p_1 (static, tree.c)
+    real_lvalue_p (tree.c)
+      build_conditional_expr (call.c)
+      make_temporary_var_for_ref_to_temp (call.c)
+      convert_to_reference (cvt.c)
+      convert_member_func_to_ptr (typeck.c)
+    lvalue_p (tree.c)
+      standard_conversion (call.c)
+      convert_to_reference (cvt.c)
+      build_array_ref (typeck.c)
+      build_unary_op (typeck.c)
+      convert_for_assignment (typeck.c)
+      default_function_array_conversion (typeck.c)
+
+-----------------------------------------------------------
 overload resolution stuff
 
   finish_call_expr (semantics.c)

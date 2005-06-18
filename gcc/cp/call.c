@@ -187,7 +187,7 @@ static tree source_type (conversion *);
 static void add_warning (struct z_candidate *, struct z_candidate *);
 static bool reference_related_p (tree, tree);
 static bool reference_compatible_p (tree, tree);
-static conversion *convert_class_to_reference (tree, tree, tree, bool);
+static conversion *convert_class_to_reference (tree, tree, tree);
 static conversion *direct_reference_binding (tree, conversion *, bool);
 static bool promoted_arithmetic_type_p (tree);
 static conversion *conditional_conversion (tree, tree);
@@ -872,12 +872,12 @@ reference_compatible_p (tree t1, tree t2)
    converted to T as in [over.match.ref].  */
 
 static conversion *
-convert_class_to_reference (tree t, tree s, tree expr, bool rvalue_ref)
+convert_class_to_reference (tree rt, tree s, tree expr)
 {
   tree conversions;
   tree arglist;
   conversion *conv;
-  tree reference_type;
+  tree t;
   struct z_candidate *candidates;
   struct z_candidate *cand;
   bool any_viable_p;
@@ -911,7 +911,7 @@ convert_class_to_reference (tree t, tree s, tree expr, bool rvalue_ref)
   arglist = build_int_cst (build_pointer_type (s), 0);
   arglist = build_tree_list (NULL_TREE, arglist);
 
-  reference_type = build_reference_type (t);
+  t = TREE_TYPE (rt);
 
   while (conversions)
     {
@@ -932,7 +932,7 @@ convert_class_to_reference (tree t, tree s, tree expr, bool rvalue_ref)
 					     f, s,
 					     NULL_TREE,
 					     arglist,
-					     reference_type,
+					     rt,
 					     TYPE_BINFO (s),
 					     TREE_PURPOSE (conversions),
 					     LOOKUP_NORMAL,
@@ -971,13 +971,12 @@ convert_class_to_reference (tree t, tree s, tree expr, bool rvalue_ref)
 		= build_identity_conv (TREE_TYPE (TREE_TYPE 
 						  (TREE_TYPE (cand->fn))),
 				       NULL_TREE);
-              /* XXX: This code treats the references returned by the
-                 conversions functions as lvalues, not handling the case
-                 when they return rvalue references. Need to take this
-                 into account when computing valuedness_matches_p */
 	      cand->second_conv
 		= (direct_reference_binding 
-		   (reference_type, identity_conv, !rvalue_ref));
+		   (rt, identity_conv, TYPE_REF_IS_RVALUE
+                                       (TREE_TYPE
+                                        (TREE_TYPE (cand->fn)))
+                                       == TYPE_REF_IS_RVALUE(rt)));
 	      cand->second_conv->bad_p |= cand->convs[0]->bad_p;
 	    }
 	}
@@ -1103,7 +1102,7 @@ reference_binding (tree rto, tree rfrom, tree expr, int flags)
   related_p = reference_related_p (to, from);
   compatible_p = reference_compatible_p (to, from);
 
-  if ((lvalue_p || rvalue_p) && compatible_p)
+  if (lvalue_p && compatible_p)
     {
       /* [dcl.init.ref]
 
@@ -1115,9 +1114,7 @@ reference_binding (tree rto, tree rfrom, tree expr, int flags)
 	 the reference is bound directly to the initializer expression
 	 lvalue.  */
       conv = build_identity_conv (from, expr);
-      conv = direct_reference_binding (rto, conv,
-                                       ((rvalue_p && !lvalue_p)
-                                        || (!rvalue_p && lvalue_p)));
+      conv = direct_reference_binding (rto, conv, !rvalue_p);
       if ((lvalue_p & clk_bitfield) != 0
 	  || ((lvalue_p & clk_packed) != 0 && !TYPE_PACKED (to)))
 	/* For the purposes of overload resolution, we ignore the fact
@@ -1150,7 +1147,7 @@ reference_binding (tree rto, tree rfrom, tree expr, int flags)
 
         the reference is bound to the lvalue result of the conversion
 	in the second case.  */
-      conv = convert_class_to_reference (to, from, expr, rvalue_p);
+      conv = convert_class_to_reference (rto, from, expr);
       if (conv)
 	return conv;
     }

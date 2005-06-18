@@ -63,8 +63,26 @@ lvalue_p_1 (tree ref,
   cp_lvalue_kind op1_lvalue_kind = clk_none;
   cp_lvalue_kind op2_lvalue_kind = clk_none;
 
+  /* Expressions of reference type are sometimes wrapped in
+     INDIRECT_REFs */
+  if (TREE_CODE (ref) == INDIRECT_REF
+      && TREE_CODE (TREE_TYPE (TREE_OPERAND (ref, 0)))
+         == REFERENCE_TYPE)
+    return lvalue_p_1(TREE_OPERAND (ref, 0),
+                      treat_class_rvalues_as_lvalues);
+
   if (TREE_CODE (TREE_TYPE (ref)) == REFERENCE_TYPE)
-    return clk_ordinary;
+    {
+       /* unnamed rvalue references are rvalues */
+       if (TYPE_REF_IS_RVALUE (TREE_TYPE (ref))
+           && TREE_CODE (ref) != PARM_DECL
+           && TREE_CODE (ref) != VAR_DECL
+           && TREE_CODE (ref) != COMPONENT_REF)
+         return clk_none;
+
+       /* lvalue references and named rvalue refences are lvalues */
+       return clk_ordinary;
+     }
 
   if (ref == current_class_ptr)
     return clk_none;
@@ -120,12 +138,6 @@ lvalue_p_1 (tree ref,
     case ARRAY_REF:
     case PARM_DECL:
     case RESULT_DECL:
-      /* If a call to a function returning an rvalue reference */
-      if (TREE_CODE (ref) == INDIRECT_REF
-          && TREE_CODE (TREE_OPERAND (ref, 0)) == CALL_EXPR
-          && TREE_CODE (TREE_TYPE (TREE_OPERAND (ref, 0))) == REFERENCE_TYPE
-          && TYPE_REF_IS_RVALUE (TREE_TYPE (TREE_OPERAND (ref, 0))))
-        return clk_none;
       if (TREE_CODE (TREE_TYPE (ref)) != METHOD_TYPE)
 	return clk_ordinary;
       break;
