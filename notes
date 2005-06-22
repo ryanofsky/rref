@@ -1,4 +1,10 @@
 -----------------------------------------------------------
+reference collapsing
+
+8.3.2/1 dcl.ref (158)
+  cv-qualified references
+
+-----------------------------------------------------------
 lvalue/rvalue stuff
 
 3.10 basic.lval (81-82)
