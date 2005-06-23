@@ -6877,33 +6877,18 @@ grokdeclarator (const cp_declarator *declarator,
         }
       type_quals = TYPE_UNQUALIFIED;
     }
+  type_quals |= cp_type_quals (type);
+  type = cp_build_qualified_type_real
+    (type, type_quals, (tf_error | tf_warning
+                        | (typedef_decl && !DECL_ARTIFICIAL (typedef_decl)
+ 			   ? tf_ignore_bad_quals | tf_allow_cv_ref : 0)
+                        | (TREE_CODE (type) == REFERENCE_TYPE
+                           && declarator
+                           && declarator->kind == cdk_reference
+                           ? tf_fold_cv_ref | tf_allow_cv_ref : 0)));
 
-  /* Can't apply cv-qualifiers yet on reference to reference types
-     because their cv-qualifiers get folded into the types they refer
-     to. This is different from cv-qualifiers on regular references
-     which are just ignored. Example:
-
-       typedef int & int_ref;
-     
-       // normally qualifiers on reference types are ignored, the 
-       // following is equivalent to "void f(int &)"
-       void f(const int_ref);
-  
-       // the rules for reference collapsing fold qualifiers into
-       // the reference type, so the following is equivalent to
-       // "void f(const int &)"
-       void f(const int_ref &);
-  */
-  if (!(TREE_CODE (type) == REFERENCE_TYPE && declarator
-        && declarator->kind == cdk_reference))
-    {
-      type_quals |= cp_type_quals (type);
-      type = cp_build_qualified_type_real
-      (type, type_quals, ((typedef_decl && !DECL_ARTIFICIAL (typedef_decl)
-			   ? tf_ignore_bad_quals : 0) | tf_error | tf_warning));
-      /* We might have ignored or rejected some of the qualifiers.  */
-      type_quals = cp_type_quals (type);
-    }
+  /* We might have ignored or rejected some of the qualifiers.  */
+  type_quals = cp_type_quals (type);
 
   staticp = 0;
   inlinep = !! declspecs->specs[(int)ds_inline];
@@ -7285,6 +7270,10 @@ grokdeclarator (const cp_declarator *declarator,
 		error ("cannot declare pointer to %q#T member", type);
 	    }
 
+	  /* We now know that the TYPE_QUALS don't apply to the decl,
+	     but to the target of the pointer.  */
+	  type_quals = TYPE_UNQUALIFIED;
+
 	  if (declarator->kind == cdk_ptrmem
 	      && (TREE_CODE (type) == FUNCTION_TYPE
 		  || (quals && TREE_CODE (type) == METHOD_TYPE)))
@@ -7308,18 +7297,15 @@ grokdeclarator (const cp_declarator *declarator,
 	    {
 	      if (!VOID_TYPE_P (type))
                 {
-                  tree ref_type = NULL_TREE;
-                  if (TREE_CODE (type) == REFERENCE_TYPE)
-                    {
-                      ref_type = type;
-                      type = TREE_TYPE (type);
-                      type_quals |= cp_type_quals (type);
-                      type = cp_build_qualified_type 
-                             (type, type_quals);
-                    }
+                  bool rval_ref = 
+                    (declarator->u.pointer.rvalue_ref
+                     && (TREE_CODE(type) != REFERENCE_TYPE
+                         || TYPE_REF_IS_RVALUE (type)));
 
-                  if (declarator->u.pointer.rvalue_ref &&
-                      (!ref_type || TYPE_REF_IS_RVALUE (ref_type)))
+                  if (TREE_CODE (type) == REFERENCE_TYPE)
+                    type = TREE_TYPE (type);
+
+                  if (rval_ref)
                     type = build_rval_reference_type (type);
                   else
                     type = build_reference_type (type);
@@ -7351,30 +7337,15 @@ grokdeclarator (const cp_declarator *declarator,
 	     const or volatile) that were given inside the `*' or `&'.  */
 	  if (declarator->u.pointer.qualifiers)
 	    {
-              /* If this is going to be a reference to reference type
-                 just stow qualifiers in type_quals to be processed in
-                 the next iteration of the loop instead of applying them
-                 here. See comment above for why reference to reference
-                 types need to be treated specially */
-              if (TREE_CODE (type) == REFERENCE_TYPE
-                  && declarator->declarator 
-                  && declarator->declarator-> kind == cdk_reference)
-                {
-                  type_quals = declarator->u.pointer.qualifiers;
-                }
-              else
-                {
-                  type = cp_build_qualified_type 
-                         (type,declarator->u.pointer.qualifiers);
-	          type_quals = cp_type_quals (type);
-                }
+              type = cp_build_qualified_type_real
+                (type, declarator->u.pointer.qualifiers,
+                 (tf_error | tf_warning
+                  | (declarator->kind == cdk_reference
+                     && declarator->declarator
+                     && declarator->declarator->kind == cdk_reference
+                     ? tf_fold_cv_ref | tf_allow_cv_ref : 0)));
+	      type_quals = cp_type_quals (type);
 	    }
-          else
-            /* The old TYPE_QUALS don't apply to the decl,
-	       but to the target of the pointer.  */
-	    type_quals = TYPE_UNQUALIFIED;
-
-
 	  ctype = NULL_TREE;
 	  break;
 

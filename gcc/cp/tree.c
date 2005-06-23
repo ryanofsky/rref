@@ -518,11 +518,9 @@ cp_build_qualified_type_real (tree type,
       return build_ptrmemfunc_type (t);
     }
 
-  /* A reference or method type shall not be cv qualified.
-     [dcl.ref], [dct.fct]  */
+  /* A method type shall not be cv qualified [dct.fct]  */
   if (type_quals & (TYPE_QUAL_CONST | TYPE_QUAL_VOLATILE)
-      && (TREE_CODE (type) == REFERENCE_TYPE
-	  || TREE_CODE (type) == METHOD_TYPE))
+      && TREE_CODE (type) == METHOD_TYPE)
     {
       bad_quals |= type_quals & (TYPE_QUAL_CONST | TYPE_QUAL_VOLATILE);
       type_quals &= ~(TYPE_QUAL_CONST | TYPE_QUAL_VOLATILE);
@@ -558,6 +556,63 @@ cp_build_qualified_type_real (tree type,
  	    error ("%qV qualifiers cannot be applied to %qT",
 		   bad_type, type);
  	}
+    }
+
+  /* C++ doesn't have a consistent way of handling cv-qualifiers on
+     reference types. They are not allowed in normal type expressions,
+     for example:
+
+       void f(int & const); // const qualifier cannot be applied
+
+     But there is an exception to allow them, and ignore them for
+     references which are typedefs or template parameters.
+
+       typedef int & int_ref;
+       void f(int_ref const); // legal, treated like f(int &)
+
+     The proposed "reference collapsing" solution to CWG Defect 106
+     creates an exception to the exception for references which are part
+     of reference to reference expressions. There, a reference type that
+     is cv-qualified and followed by an extra reference declarator has its
+     cv-qualifiers applied to the type it refers to, instead of ignored.
+
+       void f(int_ref const &); // treated like f(int const &)
+
+     The COMPLAIN argument determines which way to handle the qualifiers.
+     By default, specifying any cv-qualifiers will cause errors, unless the
+     "tf_allow_cv_ref" flag is enabled. If the "tf_fold_cv_ref" flag is
+     enabled, the cv-qualifiers will be applied to the type the reference
+     refers to, otherwise they'll have no effect.
+   */
+  if (TREE_CODE (type) == REFERENCE_TYPE)
+    {
+      int cv_quals = type_quals & (TYPE_QUAL_CONST | TYPE_QUAL_VOLATILE);
+
+      /* emit error */
+      if (cv_quals && !(complain & tf_allow_cv_ref))
+        {
+          tree bad_type = build_qualified_type (ptr_type_node, type_quals);
+           if (!(complain & tf_ignore_bad_quals))
+ 	     error ("%qV qualifiers cannot be applied to reference type "
+                   "%qT in this context",
+		   bad_type, type);
+        }
+
+      /* fold in cv-qualifiers */
+      if (cv_quals && (complain & tf_fold_cv_ref))
+        {
+          type = build_rval_reference_type_for_mode
+          (cp_build_qualified_type_real
+           (TREE_TYPE (type),
+            cv_quals | cp_type_quals (TREE_TYPE (type)),
+            complain),
+           TYPE_MODE (type),
+           TYPE_REF_CAN_ALIAS_ALL (type),
+           TYPE_REF_IS_RVALUE(type));
+        }
+
+       /* drop cv-qualifiers */
+       type_quals &= ~cv_quals;
     }
 
   /* Retrieve (or create) the appropriately qualified variant.  */

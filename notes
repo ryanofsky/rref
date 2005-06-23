@@ -3,6 +3,13 @@ reference collapsing
 
 8.3.2/1 dcl.ref (158)
   cv-qualified references
+8.3.2/4 dcl.ref (159)
+  no refereces to references
+
+reference to references
+7.1.3/6 new para allowing for typedefs
+14.3.1/4 new para allowing for template parameters
+14.8.2/2 changed para allowing in template deduction
 
 -----------------------------------------------------------
 lvalue/rvalue stuff

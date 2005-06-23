@@ -3049,10 +3049,18 @@ typedef enum tsubst_flags_t {
 				   instantiate_type use) */
   tf_user = 1 << 5,		/* found template must be a user template
 				   (lookup_template_class use) */
-  tf_conv = 1 << 6              /* We are determining what kind of
+  tf_conv = 1 << 6,             /* We are determining what kind of
 				   conversion might be permissible,
 				   not actually performing the
 				   conversion.  */
+  tf_allow_cv_ref = 1 << 7,     /* allow constant / volatile qualifiers
+                                   on reference types instead of giving
+                                   errors (cp_build_qualified_type use) */
+  tf_fold_cv_ref = 1 << 8,      /* apply cv qualifiers on reference types
+                                   to the types the references refer to,
+                                   instead of directly to the reference
+                                   types where they have no effect
+                                   (used with tf_allow_cv_ref) */
 } tsubst_flags_t;
 
 /* The kind of checking we can do looking in a class hierarchy.  */
