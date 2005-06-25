@@ -1,4 +1,56 @@
 -----------------------------------------------------------
+templates
+
+TEMPLATE_DECL
+  DECL_ARGUMENTS - param vector
+  DECL_TEMPLATE_INFO - ?
+  DECL_VINDEX - instantiation list
+  DECL_INITIAL - for classes ?
+  DECL_TEMPLATE_RESULT - for functions, FUNCTION_DECL with substituted params
+  TREE_TYPE - for functions ?
+
+TEMPLATE_PARM_INDEX
+TEMPLATE_PARM_LEVEL
+  numeric indices into param lists
+
+// template parameters
+TEMPLATE_TEMPLATE_PARM
+  TYPE_FIELDS a is TEMPLATE_PARM_INDEX
+TEMPLATE_TYPE_PARAM
+  type parm, type.value field is a TEMPLATE_PARM_INDEX
+
+TYPENAME_TYPE
+  for "typename T::t"
+  TYPE_CONTEXT is "T"
+  TYPE_NAME is IDENTIFIER_NODE for "t"
+TYPEOF_TYPE_PARM
+  for typeof expressions
+
+BOUND_TEMPLATE_TEMPLATE_PARAM
+  for "TT<int>"
+  TEMPLATE_TEMPLATE_PARM_TEMPLATE_INFO holds name & args
+  TYPE_NAME is a TYPE_DECL
+
+UNBOUND_CLASS_TEMPLATE
+  for "T::template C"
+  TYPE_CONTEXT is "T"
+  TYPE_NAME is "IDENTIFIER_NODE" for "C"
+
+TEMPLATE_ID_EXPR
+  for "foo<int>"
+  first operand is template
+  second operand is NULL for no explicit arguments or a TREE_VEC of arguments
+
+TINST_LEVEL
+  node pointing to template declaration and location of instantiation, kept
+  in a global stack
+
+Members
+  CLASSTYPE_TEMPLATE_INFO - template info from classtype
+  DECL_TI_TEMPLATE(node) - TEMPLATE_DECL of instaniated/specialized NODE
+  DECL_TI_ARGS(node) - full set of args passed to above to get NODE
+
+-----------------------------------------------------------
 reference collapsing
 
 8.3.2/1 dcl.ref (158)

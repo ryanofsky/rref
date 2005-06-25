@@ -7163,8 +7163,12 @@ tsubst (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 
 	   -- Attempting to create a pointer to reference type.
 	   -- Attempting to create a reference to a reference type or
-	      a reference to void.  */
-	if (TREE_CODE (type) == REFERENCE_TYPE
+	      a reference to void
+
+           However, references to references are allowed in the proposed
+           resolution to DR 106.  */
+
+	if ((code == POINTER_TYPE && TREE_CODE (type) == REFERENCE_TYPE)
 	    || (code == REFERENCE_TYPE && TREE_CODE (type) == VOID_TYPE))
 	  {
 	    static location_t last_loc;
@@ -7198,9 +7202,22 @@ tsubst (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 	    if (TREE_CODE (type) == METHOD_TYPE)
 	      r = build_ptrmemfunc_type (r);
 	  }
-	else
-	  r = build_reference_type (type);
-	r = cp_build_qualified_type_real (r, TYPE_QUALS (t), complain);
+        else if (TREE_CODE (type) == REFERENCE_TYPE)
+          /* collapse reference */
+          r = build_rval_reference_type_for_mode
+              (TREE_TYPE (type), TYPE_MODE (t),
+               TYPE_REF_CAN_ALIAS_ALL (t),
+               TYPE_REF_IS_RVALUE (t) && TYPE_REF_IS_RVALUE (type));
+        else
+          r = build_rval_reference_type_for_mode
+              (type, TYPE_MODE (t), TYPE_REF_CAN_ALIAS_ALL (t),
+               TYPE_REF_IS_RVALUE (t));
+        if (code == REFERENCE_TYPE && TREE_CODE (type) == REFERENCE_TYPE)
+          r = cp_build_qualified_type_real (r, TYPE_QUALS (TREE_TYPE (t)),
+                                            complain | tf_allow_cv_ref
+                                            | tf_fold_cv_ref);
+        else
+          r = cp_build_qualified_type_real (r, TYPE_QUALS (t), complain);
 
 	if (r != error_mark_node)
 	  /* Will this ever be needed for TYPE_..._TO values?  */
