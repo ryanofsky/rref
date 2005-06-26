@@ -2902,7 +2902,7 @@ extern tree build_pointer_type (tree);
 extern tree build_rval_reference_type_for_mode
   (tree, enum machine_mode, bool, bool);
 extern tree build_reference_type_for_mode (tree, enum machine_mode, bool);
-extern tree build_rval_reference_type (tree);
+extern tree build_rval_reference_type (tree, bool);
 extern tree build_reference_type (tree);
 extern tree build_vector_type_for_mode (tree, enum machine_mode);
 extern tree build_vector_type (tree innertype, int nunits);

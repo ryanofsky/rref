@@ -4331,17 +4331,17 @@ build_reference_type_for_mode (tree to_type, enum machine_mode mode,
    in ptr_mode.  */
 
 tree
+build_rval_reference_type (tree to_type, bool rval)
+{
+  return build_rval_reference_type_for_mode (to_type, ptr_mode, false, rval);
+}
+
+/* Build the node for lvalue references. */
+
+tree
 build_reference_type (tree to_type)
 {
   return build_reference_type_for_mode (to_type, ptr_mode, false);
-}
-
-/* Build the node for rvalue references. */
-
-tree
-build_rval_reference_type (tree to_type)
-{
-  return build_rval_reference_type_for_mode (to_type, ptr_mode, false, true);
 }
 
 

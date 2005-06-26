@@ -7204,14 +7204,12 @@ tsubst (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 	  }
         else if (TREE_CODE (type) == REFERENCE_TYPE)
           /* collapse reference */
-          r = build_rval_reference_type_for_mode
-              (TREE_TYPE (type), TYPE_MODE (t),
-               TYPE_REF_CAN_ALIAS_ALL (t),
+          r = build_rval_reference_type
+              (TREE_TYPE (type),
                TYPE_REF_IS_RVALUE (t) && TYPE_REF_IS_RVALUE (type));
         else
-          r = build_rval_reference_type_for_mode
-              (type, TYPE_MODE (t), TYPE_REF_CAN_ALIAS_ALL (t),
-               TYPE_REF_IS_RVALUE (t));
+          r = build_rval_reference_type (type, TYPE_REF_IS_RVALUE (t));
+
         if (code == REFERENCE_TYPE && TREE_CODE (type) == REFERENCE_TYPE)
           r = cp_build_qualified_type_real (r, TYPE_QUALS (TREE_TYPE (t)),
                                             complain | tf_allow_cv_ref

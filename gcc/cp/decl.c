@@ -7296,20 +7296,12 @@ grokdeclarator (const cp_declarator *declarator,
 	  if (declarator->kind == cdk_reference)
 	    {
 	      if (!VOID_TYPE_P (type))
-                {
-                  bool rval_ref = 
-                    (declarator->u.pointer.rvalue_ref
-                     && (TREE_CODE(type) != REFERENCE_TYPE
-                         || TYPE_REF_IS_RVALUE (type)));
-
-                  if (TREE_CODE (type) == REFERENCE_TYPE)
-                    type = TREE_TYPE (type);
-
-                  if (rval_ref)
-                    type = build_rval_reference_type (type);
-                  else
-                    type = build_reference_type (type);
-                }
+                type = build_rval_reference_type
+                       ((TREE_CODE (type) == REFERENCE_TYPE
+                         ? TREE_TYPE (type) : type),
+                        (declarator->u.pointer.rvalue_ref
+                         && (TREE_CODE(type) != REFERENCE_TYPE
+                             || TYPE_REF_IS_RVALUE (type))));
 
               /* Disallow direct reference to reference declarations,
                  Reference to reference declarations are only allowed
