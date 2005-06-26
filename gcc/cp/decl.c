@@ -7310,6 +7310,21 @@ grokdeclarator (const cp_declarator *declarator,
                   else
                     type = build_reference_type (type);
                 }
+
+              /* Disallow direct reference to reference declarations,
+                 Reference to reference declarations are only allowed
+                 indirectly through typedefs or template type arguments.
+                 Example:
+
+                   void foo(int & &);      // invalid ref-to-ref decl
+
+                   typedef int & int_ref;
+                   void foo(int_ref &);    // valid ref-to-ref decl
+              */
+              if (declarator->declarator &&
+                  declarator->declarator->kind == cdk_reference)
+                error ("cannot declare reference to %q#T, which is not "
+                       "a typedef or a template type argument", type);
 	    }
 	  else if (TREE_CODE (type) == METHOD_TYPE)
 	    type = build_ptrmemfunc_type (build_pointer_type (type));
