@@ -6907,7 +6907,11 @@ tsubst (tree t, tree args, tsubst_flags_t complain, tree in_decl)
       && TREE_CODE (t) != IDENTIFIER_NODE
       && TREE_CODE (t) != FUNCTION_TYPE
       && TREE_CODE (t) != METHOD_TYPE)
-    type = tsubst (type, args, complain, in_decl);
+    type = tsubst (type, args,
+                   complain |
+                   (TREE_CODE (t) == REFERENCE_TYPE
+                    ? tf_allow_cv_ref | tf_fold_cv_ref: 0),
+                   in_decl);
   if (type == error_mark_node)
     return error_mark_node;
 
@@ -7210,12 +7214,7 @@ tsubst (tree t, tree args, tsubst_flags_t complain, tree in_decl)
         else
           r = build_rval_reference_type (type, TYPE_REF_IS_RVALUE (t));
 
-        if (code == REFERENCE_TYPE && TREE_CODE (type) == REFERENCE_TYPE)
-          r = cp_build_qualified_type_real (r, TYPE_QUALS (TREE_TYPE (t)),
-                                            complain | tf_allow_cv_ref
-                                            | tf_fold_cv_ref);
-        else
-          r = cp_build_qualified_type_real (r, TYPE_QUALS (t), complain);
+        r = cp_build_qualified_type_real (r, TYPE_QUALS (t), complain);
 
 	if (r != error_mark_node)
 	  /* Will this ever be needed for TYPE_..._TO values?  */
