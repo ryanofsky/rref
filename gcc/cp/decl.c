@@ -6879,13 +6879,9 @@ grokdeclarator (const cp_declarator *declarator,
     }
   type_quals |= cp_type_quals (type);
   type = cp_build_qualified_type_real
-    (type, type_quals, (tf_error | tf_warning
-                        | (typedef_decl && !DECL_ARTIFICIAL (typedef_decl)
- 			   ? tf_ignore_bad_quals | tf_allow_cv_ref : 0)
-                        | (TREE_CODE (type) == REFERENCE_TYPE
-                           && declarator
-                           && declarator->kind == cdk_reference
-                           ? tf_fold_cv_ref | tf_allow_cv_ref : 0)));
+    (type, type_quals, ((typedef_decl && !DECL_ARTIFICIAL (typedef_decl)
+                         ? tf_ignore_bad_quals : 0) | tf_error | tf_warning),
+     declarator && declarator->kind == cdk_reference);
 
   /* We might have ignored or rejected some of the qualifiers.  */
   type_quals = cp_type_quals (type);
@@ -7346,11 +7342,10 @@ grokdeclarator (const cp_declarator *declarator,
 	    {
               type = cp_build_qualified_type_real
                 (type, declarator->u.pointer.qualifiers,
-                 (tf_error | tf_warning
-                  | (declarator->kind == cdk_reference
-                     && declarator->declarator
-                     && declarator->declarator->kind == cdk_reference
-                     ? tf_fold_cv_ref | tf_allow_cv_ref : 0)));
+                 tf_error | tf_warning,
+                 (declarator->kind == cdk_reference
+                  && declarator->declarator
+                  && declarator->declarator->kind == cdk_reference));
 	      type_quals = cp_type_quals (type);
 	    }
 	  ctype = NULL_TREE;
