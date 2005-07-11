@@ -29,7 +29,7 @@ template <typename T> void deduce_rval_const_int(T && t)
 void f()
 {
   deduce_lval_int(lval_int);
-  //deduce_rval_int(rval_int());
+  deduce_rval_int(rval_int());
   deduce_lval_const_int(lval_const_int);
-  //deduce_rval_const_int(rval_const_int());
+  deduce_rval_const_int(rval_const_int());
 }

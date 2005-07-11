@@ -6,6 +6,9 @@ template type deduction
       fn_type_unification (pt.c)
         add_template_candidate_real (call.c, static)
           add_template_candidate (call.c, static)
+            add_candidates
+              perform_overload_resolution
+                build_new_function_call
             convert_class_to_reference (call.c, static)*
             build_user_type_conversion_1 (call.c, static)*
             build_object_call (call.c, static)*
@@ -13,6 +16,13 @@ template type deduction
             build_new_method.call (call.c, static)*
           add_template_conv_candidate (call.c, static)
             build_object_call (call.c, static)*
+        get_bindings_real (pt.c, static)
+          get_bindings (pt.c, static)
+            determine_specialization (pt.c, static)*
+            most_specialized (pt.c, static)*
+          get_bindings_overload (pt.c, static)
+            resolve_overloaded_unification (pt.c, static)*
+          more_specialized (pt.c)*
         resolve_address_of_overloaded_function (class.c, static)*
           instantiate_type (class.c)*
     try_one_overload (pt.c, static)
