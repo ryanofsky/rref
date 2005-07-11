@@ -94,7 +94,7 @@ static int resolve_overloaded_unification (tree, tree, tree, tree,
 					   unification_kind_t, int);
 static int try_one_overload (tree, tree, tree, tree, tree,
 			     unification_kind_t, int, bool);
-static int unify (tree, tree, tree, tree, int);
+static int unify (tree, tree, tree, tree, int, bool, bool);
 static void add_pending_template (tree);
 static void reopen_tinst_level (tree);
 static tree classtype_mangled_name (tree);
@@ -9416,11 +9416,15 @@ type_unification_real (tree tparms,
       
       {
         int arg_strict = sub_strict;
-        
+        bool rval_ref = (TREE_CODE (parm) == REFERENCE_TYPE
+                         && TYPE_REF_IS_RVALUE (parm));
+
         if (!subr)
 	  arg_strict |= maybe_adjust_types_for_deduction (strict, &parm, &arg);
 
-        if (unify (tparms, targs, parm, arg, arg_strict))
+        /* XXX: temporarily passing wrong value for LVAL_ARG, need to write
+           code to determine correct value */
+        if (unify (tparms, targs, parm, arg, arg_strict, rval_ref, rval_ref))
           return 1;
       }
 
@@ -9603,7 +9607,7 @@ try_one_overload (tree tparms,
   nargs = TREE_VEC_LENGTH (targs);
   tempargs = make_tree_vec (nargs);
 
-  if (unify (tparms, tempargs, parm, arg, sub_strict) != 0)
+  if (unify (tparms, tempargs, parm, arg, sub_strict, false, false) != 0)
     return 0;
 
   /* First make sure we didn't deduce anything that conflicts with
@@ -9715,7 +9719,7 @@ try_class_unification (tree tparms, tree targs, tree parm, tree arg)
   
   /* If unification failed, we're done.  */
   if (unify (tparms, copy_of_targs, CLASSTYPE_TI_ARGS (parm),
-	     CLASSTYPE_TI_ARGS (arg), UNIFY_ALLOW_NONE))
+	     CLASSTYPE_TI_ARGS (arg), UNIFY_ALLOW_NONE, false, false))
     return NULL_TREE;
 
   return arg;
@@ -9858,10 +9862,16 @@ check_cv_quals_for_unify (int strict, tree arg, tree parm)
        qualified at this point.
      UNIFY_ALLOW_OUTER_LESS_CV_QUAL:
        This is the outermost level of a deduction, and PARM can be less CV
-       qualified at this point.  */
+       qualified at this point.
+
+   The RVAL_REF_PARM parameter is true if PARM was an rvalue reference before
+   being ran through maybe_adjust_types_for_deduction(). LVAL_ARG is true if
+   we are deducing types for a template function call whose ARG is an lvalue
+   expression.  */
 
 static int
-unify (tree tparms, tree targs, tree parm, tree arg, int strict)
+unify (tree tparms, tree targs, tree parm, tree arg, int strict,
+       bool rval_ref_parm, bool lval_arg)
 {
   int idx;
   tree targ;
@@ -9982,7 +9992,7 @@ unify (tree tparms, tree targs, tree parm, tree arg, int strict)
 	        if (unify (tparms, targs, 
 			   TREE_VEC_ELT (parmvec, i), 
 			   TREE_VEC_ELT (argvec, i), 
-			   UNIFY_ALLOW_NONE))
+			   UNIFY_ALLOW_NONE, false, false))
 		  return 1;
 	      }
 	  }
@@ -10018,6 +10028,13 @@ unify (tree tparms, tree targs, tree parm, tree arg, int strict)
 	    (arg, cp_type_quals (arg) & ~cp_type_quals (parm), tf_none, 0);
 	  if (arg == error_mark_node)
 	    return 1;
+
+          /* As proposed in N1770, if PARM is an rvalue-reference type of
+             the form cv T&& where T is a template type-parameter, and the
+             argument is an lvalue, the deduced template argument value for
+             T is ARG&.  */
+          if (rval_ref_parm && lval_arg)
+            arg = build_reference_type (arg);
 
 	  /* Simple cases: Value already set, does match or doesn't.  */
 	  if (targ != NULL_TREE && same_type_p (targ, arg))
@@ -10105,7 +10122,7 @@ unify (tree tparms, tree targs, tree parm, tree arg, int strict)
 
          Unification of &A::x and &B::x must succeed.  */
       return unify (tparms, targs, PTRMEM_CST_MEMBER (parm),
-                    PTRMEM_CST_MEMBER (arg), strict);
+                    PTRMEM_CST_MEMBER (arg), strict, false, false);
      }
 
     case POINTER_TYPE:
@@ -10129,14 +10146,14 @@ unify (tree tparms, tree targs, tree parm, tree arg, int strict)
 	  strict |= (strict_in & UNIFY_ALLOW_DERIVED);
 
 	return unify (tparms, targs, TREE_TYPE (parm), 
-		      TREE_TYPE (arg), strict);
+		      TREE_TYPE (arg), strict, false, false);
       }
 
     case REFERENCE_TYPE:
       if (TREE_CODE (arg) != REFERENCE_TYPE)
 	return 1;
       return unify (tparms, targs, TREE_TYPE (parm), TREE_TYPE (arg),
-		    strict & UNIFY_ALLOW_MORE_CV_QUAL);
+		    strict & UNIFY_ALLOW_MORE_CV_QUAL, false, false);
 
     case ARRAY_TYPE:
       if (TREE_CODE (arg) != ARRAY_TYPE)
@@ -10164,11 +10181,12 @@ unify (tree tparms, tree targs, tree parm, tree arg, int strict)
 	      parm_max = TREE_OPERAND (parm_max, 0);
 	    }
 
-	  if (unify (tparms, targs, parm_max, arg_max, UNIFY_ALLOW_INTEGER))
+	  if (unify (tparms, targs, parm_max, arg_max, UNIFY_ALLOW_INTEGER,
+                     false, false))
 	    return 1;
 	}
       return unify (tparms, targs, TREE_TYPE (parm), TREE_TYPE (arg),
-		    strict & UNIFY_ALLOW_MORE_CV_QUAL);
+		    strict & UNIFY_ALLOW_MORE_CV_QUAL, false, false);
 
     case REAL_TYPE:
     case COMPLEX_TYPE:
@@ -10209,7 +10227,7 @@ unify (tree tparms, tree targs, tree parm, tree arg, int strict)
 	for (i = 0; i < TREE_VEC_LENGTH (parm); ++i)
 	  if (unify (tparms, targs,
 		     TREE_VEC_ELT (parm, i), TREE_VEC_ELT (arg, i),
-		     UNIFY_ALLOW_NONE))
+		     UNIFY_ALLOW_NONE, false, false))
 	    return 1;
 	return 0;
       }
@@ -10227,7 +10245,7 @@ unify (tree tparms, tree targs, tree parm, tree arg, int strict)
 	  return unify (tparms, targs, 
 			TYPE_PTRMEMFUNC_FN_TYPE (parm),
 			TYPE_PTRMEMFUNC_FN_TYPE (arg),
-			strict);
+			strict, false, false);
 	}
 
       if (CLASSTYPE_TEMPLATE_INFO (parm))
@@ -10268,7 +10286,7 @@ unify (tree tparms, tree targs, tree parm, tree arg, int strict)
 	    return 1;
 
 	  return unify (tparms, targs, CLASSTYPE_TI_ARGS (parm),
-			CLASSTYPE_TI_ARGS (t), UNIFY_ALLOW_NONE);
+			CLASSTYPE_TI_ARGS (t), UNIFY_ALLOW_NONE, false, false);
 	}
       else if (!same_type_ignoring_top_level_qualifiers_p (parm, arg))
 	return 1;
@@ -10280,7 +10298,7 @@ unify (tree tparms, tree targs, tree parm, tree arg, int strict)
 	return 1;
 
       if (unify (tparms, targs, TREE_TYPE (parm),
-		 TREE_TYPE (arg), UNIFY_ALLOW_NONE))
+		 TREE_TYPE (arg), UNIFY_ALLOW_NONE, false, false))
 	return 1;
       return type_unification_real (tparms, targs, TYPE_ARG_TYPES (parm),
 				    TYPE_ARG_TYPES (arg), 1, 
@@ -10300,7 +10318,8 @@ unify (tree tparms, tree targs, tree parm, tree arg, int strict)
             return 1;
 
           if (unify (tparms, targs, TYPE_OFFSET_BASETYPE (parm),
-                     TYPE_PTRMEMFUNC_OBJECT_TYPE (arg), UNIFY_ALLOW_NONE))
+                     TYPE_PTRMEMFUNC_OBJECT_TYPE (arg), UNIFY_ALLOW_NONE,
+                     false, false))
             return 1;
 
           /* Determine the type of the function we are unifying against. */
@@ -10315,20 +10334,22 @@ unify (tree tparms, tree targs, tree parm, tree arg, int strict)
           cv_quals = 
             cp_type_quals(TREE_TYPE (TREE_VALUE (TYPE_ARG_TYPES (method_type))));
           fntype = build_qualified_type (fntype, cv_quals);
-          return unify (tparms, targs, TREE_TYPE (parm), fntype, strict);
+          return unify (tparms, targs, TREE_TYPE (parm), fntype, strict,
+                        false, false);
         }
 
       if (TREE_CODE (arg) != OFFSET_TYPE)
 	return 1;
       if (unify (tparms, targs, TYPE_OFFSET_BASETYPE (parm),
-		 TYPE_OFFSET_BASETYPE (arg), UNIFY_ALLOW_NONE))
+		 TYPE_OFFSET_BASETYPE (arg), UNIFY_ALLOW_NONE, false, false))
 	return 1;
       return unify (tparms, targs, TREE_TYPE (parm), TREE_TYPE (arg),
-		    strict);
+		    strict, false, false);
 
     case CONST_DECL:
       if (DECL_TEMPLATE_PARM_P (parm))
-	return unify (tparms, targs, DECL_INITIAL (parm), arg, strict);
+	return unify (tparms, targs, DECL_INITIAL (parm), arg, strict,
+                      false, false);
       if (arg != integral_constant_value (parm)) 
 	return 1;
       return 0;
@@ -10594,7 +10615,7 @@ get_class_bindings (tree tparms, tree parms, tree args)
   tree vec = make_tree_vec (ntparms);
 
   if (unify (tparms, vec, parms, INNERMOST_TEMPLATE_ARGS (args),
-  	     UNIFY_ALLOW_NONE))
+  	     UNIFY_ALLOW_NONE, false, false))
     return NULL_TREE;
 
   for (i =  0; i < ntparms; ++i)
