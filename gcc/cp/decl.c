@@ -8506,6 +8506,7 @@ copy_fn_p (tree d)
       result = -1;
     }
   else if (TREE_CODE (arg_type) == REFERENCE_TYPE
+           && !TYPE_REF_IS_RVALUE(arg_type)
 	   && TYPE_MAIN_VARIANT (TREE_TYPE (arg_type)) == DECL_CONTEXT (d))
     {
       if (CP_TYPE_CONST_P (TREE_TYPE (arg_type)))
