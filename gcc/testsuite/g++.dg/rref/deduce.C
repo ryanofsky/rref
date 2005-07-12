@@ -9,22 +9,22 @@ int const rval_const_int();
 template <typename T> void deduce_lval_int(T && t)
 {
   same_type<T, int &>();
-};
+}
 
 template <typename T> void deduce_rval_int(T && t)
 {
   same_type<T, int>();
-};
+}
 
 template <typename T> void deduce_lval_const_int(T && t)
 {
   same_type<T, const int &>();
-};
+}
 
 template <typename T> void deduce_rval_const_int(T && t)
 {
   same_type<T, const int>();
-};
+}
 
 void f()
 {
