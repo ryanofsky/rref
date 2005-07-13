@@ -1,4 +1,132 @@
 -----------------------------------------------------------
+convert_like_real and friends
+
+convert_like_real (call.c:4124)
+  convert_like_real...
+  cp_convert (cvt.c:587)
+    ocp_convert (cvt.c:595)
+      build_type_conversion (cvt.c:1015)
+        build_user_type_conversion (call.c:2661)
+          build_user_type_conversion_1 (call.c:2489)
+            add_function_candidate
+            tourney
+          convert_like_real... via convert_like (call.c:134)
+          convert_from_reference (cvt.c:547)
+            build1(INDIRECT_REF)
+      build_special_member_call (call.c:5057)
+        build_new_method_call (call.c:5209)
+          add_function_candidate
+          tourney
+          build_over_call (call.c:4627)
+            convert_like_real... via convert_like_with_context (call.c:138)
+            check_function_arguments (../c-common.c:5320)
+            build_indirect_ref (typeck.c:2069)
+              build1(INDIRECT_REF)
+            stabilize_reference (../tree.c:2203)
+            convert (cvt.c:949)
+              ocp_convert...
+            mark_used (decl2.c:3169)
+            build_cxx_call (call.c:4934)
+              build_call (call.c:274)
+                build3(CALL_EXPR)
+              build_cplus_new (tree.c:282)
+                convert...
+                build_local_temp (tree.c:268)
+                  build_decl(VAR_DECL)
+                build_target_expr (tree.c:250)
+                  build4(TARGET_EXPR)
+              convert_from_reference...
+      build_cplus_new...
+  build_over_call...
+  build_cplus_new...
+  build_temp (call.c:4097)
+    build_special_member_call...
+  check_constructor_callable (call.c:4079)
+    build_special_member_call...
+  convert_to_base (class.c:461)
+    build_base_path(PLUS_EXPR)
+  build_indirect_ref...
+  build_target_expr_with_type (tree.c:337)
+    build_local_temp...
+    build_target_expr...
+  cp_convert...
+  decay_conversion (typeck.c:1340)
+    build_nop (typeck.c:3670)
+      build1(NOP_EXPR)
+    build_pointer_type (../tree.c:4233)
+    cp_convert...
+  ocp_convert...
+
+convert_for_initialization (typeck.c:5876)
+  decay_conversion...
+  initialize_reference (call:6467)
+  | reference_binding (call.c:1065)
+      direct_reference_binding
+  | check_constructor_callable...
+  | convert_like_real...
+  | make_temporary_var_for_ref_to_temp (call.c:6428)
+      build_decl (VAR_DECL)
+      mangle_ref_init_variable
+      pushdecl_top_level
+  | build_address (typeck.c:3653)
+      build1(ADDR_EXPR)
+  | convert_to_base...
+  | perform_implicit_conversion (call.c:6342)
+      implicit_conversion (call.c:1225)
+        reference_binding...
+        standard_conversion (call.c:583)
+          build_conv
+        build_user_type_conv...
+      convert_like...
+  | convert_like...
+  ocp_convert...
+  convert_for_assignment (typeck.c:5801)
+    cp_convert...
+    perform_implicit_conversion...
+
+-----------------------------------------------------------
+temporaries
+
+12.2 class.temporary (213) - lifetime of temporaries
+12.8/15 class.copy (233) - copy elision
+8.5.3/5 dcl.init.ref (173) - binding rvalue to reference
+6.6.3 stmt.return (124) - return statement
+4.1 conv.lval (83) - converting expression to rvalue
+5.2.9 expr.static.cast (98) - converting to rvalue, static cast
+5.4 expr.cast (108) - converting to rvalue, explicit cast
+8.5/14 dcl.init (167) - temporaries for initialization
+
+-----------------------------------------------------------
+infinite recursion bug
+
+gdb ~/devel/rref_inst/libexec/gcc/i686-pc-linux-gnu/4.0.0/cc1plus
+run -D_GNU_SOURCE cast-bug.C -o out
+
+finish_return_stmt (semantics.c) 69
+check_return_expr (typeck.c)
+convert_for_initialization (typeck.c)
+ocp_convert (cvt.c)
+
+[1]
+build_special_member_call (call.c) 65
+build_new_method_call (call.c)
+build_over_call (call.c)
+convert_like_real (call.c)
+convert_like_real (call.c)
+check_constructor_callable (call.c)
+
+[2]
+build_special_member_call (call.c)  59
+build_new_method_call (call.c)
+build_over_call (call.c)
+convert_like_real (call.c)
+build_target_expr_with_type (tree.c)
+force_rvalue (cvt.c)
+ocp_convert (cvt.c)
+
+[1][2] ...
+
+-----------------------------------------------------------
 template type deduction
 
   unify (pt.c, static)
