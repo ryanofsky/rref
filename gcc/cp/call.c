@@ -4331,7 +4331,7 @@ convert_like_real (conversion *convs, tree expr, tree fn, int argnum,
 	tree ref_type = totype;
 
 	/* If necessary, create a temporary.  */
-	if (convs->need_temporary_p || !lvalue_p (expr))
+	if (convs->need_temporary_p)
 	  {
 	    tree type = convs->u.next->type;
 	    cp_lvalue_kind lvalue = real_lvalue_p (expr);

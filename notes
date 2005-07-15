@@ -14,7 +14,10 @@ convert_like_real (call.c:4124)
           convert_from_reference (cvt.c:547)
             build1(INDIRECT_REF)
       build_special_member_call (call.c:5057)
+        lookup_fnfields
+        decay_conversion...
         build_new_method_call (call.c:5209)
+          resolve_args
           add_function_candidate
           tourney
           build_over_call (call.c:4627)
@@ -47,14 +50,17 @@ convert_like_real (call.c:4124)
     build_base_path(PLUS_EXPR)
   build_indirect_ref...
   build_target_expr_with_type (tree.c:337)
+    force_rvalue (cvt.c:576)
+      ocp_convert
+      decay_conversion (typeck.c:1340)
+        build_nop (typeck.c:3670)
+          build1(NOP_EXPR)
+        build_pointer_type (../tree.c:4233)
+         cp_convert...
     build_local_temp...
     build_target_expr...
   cp_convert...
-  decay_conversion (typeck.c:1340)
-    build_nop (typeck.c:3670)
-      build1(NOP_EXPR)
-    build_pointer_type (../tree.c:4233)
-    cp_convert...
+  decay_conversion...
   ocp_convert...
 
 convert_for_initialization (typeck.c:5876)
@@ -94,7 +100,7 @@ temporaries
 4.1 conv.lval (83) - converting expression to rvalue
 5.2.9 expr.static.cast (98) - converting to rvalue, static cast
 5.4 expr.cast (108) - converting to rvalue, explicit cast
-8.5/14 dcl.init (167) - temporaries for initialization
+8.5/14 dcl.init (169) - temporaries for initialization
 
 -----------------------------------------------------------
 infinite recursion bug
