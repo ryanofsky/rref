@@ -1,0 +1,63 @@
+This directory contains test cases for handling of rvalue reference
+(&&) types.
+
+bind.C
+  simple test to make sure rvalue references bind to rvalues
+
+overload.C
+  exhaustive test to make sure overload resolution works correctly
+  for sets of overloaded functions with rvalue and lvalue reference
+  parameters
+
+overload.py
+  python script that generates overload.C testcase
+
+overload-conv-1.C
+  test to make sure overload resolution works on arguments that use
+  operator-based user-defined conversions
+
+overload-conv-2.C
+  test to make sure overload resolution works on arguments that use
+  constructor-based user-defined conversion
+
+named.C
+  test to make sure named rvalue reference expressions are considered
+  lvalues and unnamed expressions considered rvalues.
+
+collapse.C
+  a few tests to make sure reference collapsing works like it's
+  supposed to
+
+collapse-bug.C
+  test for a bug in initial reference-collapsing implementation
+  that caused cv-qualifiers on reference types to be applied when
+  they shouldn't have been
+
+implicit-copy.C
+  test to make sure declaration of move constructor doesn't suppress
+  generation of implicit copy constructor
+
+deduce.C
+  test of the special type deduction rule for && parameters
+
+cast-bug.C
+  test for a specific gcc bug that would create temporaries whenever
+  binding rvalues to references, resulting in an infinite recursion
+  on this test case, where one of those temporaries would need to be
+  initialized by a copy constructor, which would have a reference
+  parameter, which would require another temporary to bind to the 
+  rvalue, which would need to be initialized by the copy 
+  constructor with a reference parameter, and so on...
+
+temp-constructor-bug.C
+temp-va-arg-bug.C
+  tests for two more bugs created by the fix to the cast-bug case, 
+  above. The fix stopped creating temporaries whenever an rvalue
+  was bound to a reference, and this broke the handling of va_arg
+  and compound-literal rvalue expressions which need to be put 
+  into temporaries before being bound because they aren't
+  addressable, resulting in "invalid lvalue in unary &" errors. 
+  
+  These tests are simplified versions of the g++.dg/ext/complit2.C
+  and g++.old-deja/g++.other/vaarg2.C testcases, respectively.
+
