@@ -4330,8 +4330,16 @@ convert_like_real (conversion *convs, tree expr, tree fn, int argnum,
       {
 	tree ref_type = totype;
 
-	/* If necessary, create a temporary.  */
-	if (convs->need_temporary_p)
+	/* If necessary, create a temporary.  
+           
+           ??? VA_ARG_EXPR and CONSTRUCTOR expressions are special cases
+           that seem to need temporaries, even when their types are
+           reference compatible with the type of reference being bound, 
+           so the upcoming call to build_unary_op (ADDR_EXPR, expr, ...)
+           doesn't fail.  */
+        if (convs->need_temporary_p 
+            || TREE_CODE (expr) == CONSTRUCTOR
+            || TREE_CODE (expr) == VA_ARG_EXPR)
 	  {
 	    tree type = convs->u.next->type;
 	    cp_lvalue_kind lvalue = real_lvalue_p (expr);
