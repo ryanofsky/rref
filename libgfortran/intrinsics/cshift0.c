@@ -81,19 +81,19 @@ cshift0 (gfc_array_char * ret, const gfc_array_char * array,
 	 ssize_t shift, int which)
 {
   /* r.* indicates the return array.  */
-  index_type rstride[GFC_MAX_DIMENSIONS - 1];
+  index_type rstride[GFC_MAX_DIMENSIONS];
   index_type rstride0;
   index_type roffset;
   char *rptr;
 
   /* s.* indicates the source array.  */
-  index_type sstride[GFC_MAX_DIMENSIONS - 1];
+  index_type sstride[GFC_MAX_DIMENSIONS];
   index_type sstride0;
   index_type soffset;
   const char *sptr;
 
-  index_type count[GFC_MAX_DIMENSIONS - 1];
-  index_type extent[GFC_MAX_DIMENSIONS - 1];
+  index_type count[GFC_MAX_DIMENSIONS];
+  index_type extent[GFC_MAX_DIMENSIONS];
   index_type dim;
   index_type size;
   index_type len;
@@ -148,7 +148,7 @@ cshift0 (gfc_array_char * ret, const gfc_array_char * array,
       int i;
 
       ret->data = internal_malloc_size (size * size0 ((array_t *)array));
-      ret->base = 0;
+      ret->offset = 0;
       ret->dtype = array->dtype;
       for (i = 0; i < GFC_DESCRIPTOR_RANK (array); i++)
         {

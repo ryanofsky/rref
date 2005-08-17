@@ -17,8 +17,8 @@ for more details.
 
 You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING.  If not, write to the Free
-Software Foundation, 59 Temple Place - Suite 330, Boston, MA
-02111-1307, USA.  */
+Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA
+02110-1301, USA.  */
 
 #ifndef GCC_GFORTRAN_H
 #define GCC_GFORTRAN_H
@@ -58,7 +58,6 @@ char *alloca ();
 #define GFC_MAX_LINE 132	/* Characters beyond this are not seen.  */
 #define GFC_MAX_DIMENSIONS 7	/* Maximum dimensions in an array.  */
 #define GFC_LETTERS 26		/* Number of letters in the alphabet.  */
-#define MAX_ERROR_MESSAGE 1000	/* Maximum length of an error message.  */
 
 #define free(x) Use_gfc_free_instead_of_free()
 #define gfc_is_whitespace(c) ((c==' ') || (c=='\t'))
@@ -92,13 +91,14 @@ mstring;
 
 
 /* Flags to specify which standard/extension contains a feature.  */
-#define GFC_STD_GNU                (1<<5)    /* GNU Fortran extension.  */
-#define GFC_STD_F2003             (1<<4)    /* New in F2003.  */
+#define GFC_STD_LEGACY		(1<<6) /* Backward compatibility.  */
+#define GFC_STD_GNU		(1<<5)    /* GNU Fortran extension.  */
+#define GFC_STD_F2003		(1<<4)    /* New in F2003.  */
 /* Note that no features were obsoleted nor deleted in F2003.  */
-#define GFC_STD_F95                 (1<<3)    /* New in F95.  */
-#define GFC_STD_F95_DEL         (1<<2)    /* Deleted in F95.  */
-#define GFC_STD_F95_OBS        (1<<1)    /* Obsoleted in F95.  */
-#define GFC_STD_F77                 (1<<0)    /* Up to and including F77.  */
+#define GFC_STD_F95		(1<<3)    /* New in F95.  */
+#define GFC_STD_F95_DEL		(1<<2)    /* Deleted in F95.  */
+#define GFC_STD_F95_OBS		(1<<1)    /* Obsoleted in F95.  */
+#define GFC_STD_F77		(1<<0)    /* Up to and including F77.  */
 
 /*************************** Enums *****************************/
 
@@ -126,7 +126,7 @@ gfc_source_form;
 
 typedef enum
 { BT_UNKNOWN = 1, BT_INTEGER, BT_REAL, BT_COMPLEX,
-  BT_LOGICAL, BT_CHARACTER, BT_DERIVED, BT_PROCEDURE
+  BT_LOGICAL, BT_CHARACTER, BT_DERIVED, BT_PROCEDURE, BT_HOLLERITH
 }
 bt;
 
@@ -218,7 +218,7 @@ interface_type;
 
 /* Symbol flavors: these are all mutually exclusive.
    10 elements = 4 bits.  */
-typedef enum
+typedef enum sym_flavor
 {
   FL_UNKNOWN = 0, FL_PROGRAM, FL_BLOCK_DATA, FL_MODULE, FL_VARIABLE,
   FL_PARAMETER, FL_LABEL, FL_PROCEDURE, FL_DERIVED, FL_NAMELIST
@@ -226,27 +226,27 @@ typedef enum
 sym_flavor;
 
 /* Procedure types.  7 elements = 3 bits.  */
-typedef enum
+typedef enum procedure_type
 { PROC_UNKNOWN, PROC_MODULE, PROC_INTERNAL, PROC_DUMMY,
   PROC_INTRINSIC, PROC_ST_FUNCTION, PROC_EXTERNAL
 }
 procedure_type;
 
 /* Intent types.  */
-typedef enum
+typedef enum sym_intent
 { INTENT_UNKNOWN = 0, INTENT_IN, INTENT_OUT, INTENT_INOUT
 }
 sym_intent;
 
 /* Access types.  */
-typedef enum
-{ ACCESS_UNKNOWN = 0, ACCESS_PUBLIC, ACCESS_PRIVATE, 
+typedef enum gfc_access
+{ ACCESS_UNKNOWN = 0, ACCESS_PUBLIC, ACCESS_PRIVATE
 }
 gfc_access;
 
 /* Flags to keep track of where an interface came from.
    4 elements = 2 bits.  */
-typedef enum
+typedef enum ifsrc
 { IFSRC_UNKNOWN = 0, IFSRC_DECL, IFSRC_IFBODY, IFSRC_USAGE
 }
 ifsrc;
@@ -271,6 +271,7 @@ enum gfc_generic_isym_id
   GFC_ISYM_ABS,
   GFC_ISYM_ACHAR,
   GFC_ISYM_ACOS,
+  GFC_ISYM_ACOSH,
   GFC_ISYM_ADJUSTL,
   GFC_ISYM_ADJUSTR,
   GFC_ISYM_AIMAG,
@@ -280,8 +281,10 @@ enum gfc_generic_isym_id
   GFC_ISYM_ANINT,
   GFC_ISYM_ANY,
   GFC_ISYM_ASIN,
+  GFC_ISYM_ASINH,
   GFC_ISYM_ASSOCIATED,
   GFC_ISYM_ATAN,
+  GFC_ISYM_ATANH,
   GFC_ISYM_ATAN2,
   GFC_ISYM_J0,
   GFC_ISYM_J1,
@@ -431,6 +434,9 @@ typedef struct
   /* Set if this is the master function for a procedure with multiple
      entry points.  */
   unsigned entry_master:1;
+  /* Set if this is the master function for a function with multiple
+     entry points where characteristics of the entry points differ.  */
+  unsigned mixed_entry_master:1;
 
   /* Set if a function must always be referenced by an explicit interface.  */
   unsigned always_explicit:1;
@@ -440,12 +446,12 @@ typedef struct
   unsigned referenced:1;
 
   /* Mutually exclusive multibit attributes.  */
-  gfc_access access:2;
-  sym_intent intent:2;
-  sym_flavor flavor:4;
-  ifsrc if_source:2;
+  ENUM_BITFIELD (gfc_access) access:2;
+  ENUM_BITFIELD (sym_intent) intent:2;
+  ENUM_BITFIELD (sym_flavor) flavor:4;
+  ENUM_BITFIELD (ifsrc) if_source:2;
 
-  procedure_type proc:3;
+  ENUM_BITFIELD (procedure_type) proc:3;
 
 }
 symbol_attribute;
@@ -481,6 +487,8 @@ typedef struct gfc_linebuf
   struct gfc_file *file;
   struct gfc_linebuf *next;
 
+  int truncated;
+
   char line[1];
 } gfc_linebuf;
 
@@ -491,6 +499,14 @@ typedef struct
   char *nextc;
   gfc_linebuf *lb;
 } locus;
+
+/* In order for the "gfc" format checking to work correctly, you must
+   have declared a typedef locus first.  */
+#if GCC_VERSION >= 4001
+#define ATTRIBUTE_GCC_GFC(m, n) __attribute__ ((__format__ (__gcc_gfc__, m, n))) ATTRIBUTE_NONNULL(m)
+#else
+#define ATTRIBUTE_GCC_GFC(m, n) ATTRIBUTE_NONNULL(m)
+#endif
 
 
 #include <limits.h>
@@ -815,7 +831,7 @@ typedef struct gfc_namespace
 
   gfc_charlen *cl_list;
 
-  int save_all, seen_save;
+  int save_all, seen_save, seen_implicit_none;
 
   /* Normally we don't need to refcount namespaces.  However when we read
      a module containing a function with multiple entry points, this
@@ -840,7 +856,7 @@ typedef struct gfc_gsymbol
 {
   BBT_HEADER(gfc_gsymbol);
 
-  char name[GFC_MAX_SYMBOL_LEN+1];
+  const char *name;
   enum { GSYM_UNKNOWN=1, GSYM_PROGRAM, GSYM_FUNCTION, GSYM_SUBROUTINE,
         GSYM_MODULE, GSYM_COMMON, GSYM_BLOCK_DATA } type;
 
@@ -1060,6 +1076,9 @@ typedef struct gfc_expr
 
   locus where;
 
+  /* True if it is converted from Hollerith constant.  */
+  unsigned int from_H : 1;
+
   union
   {
     int logical;
@@ -1146,7 +1165,7 @@ extern gfc_logical_info gfc_logical_kinds[];
 
 typedef struct
 {
-  mpfr_t epsilon, huge, tiny;
+  mpfr_t epsilon, huge, tiny, subnormal;
   int kind, radix, digits, min_exponent, max_exponent;
   int range, precision;
 
@@ -1414,6 +1433,8 @@ typedef struct
   int flag_no_backend;
   int flag_pack_derived;
   int flag_repack_arrays;
+  int flag_f2c;
+  int flag_backslash;
 
   int q_kind;
 
@@ -1526,25 +1547,26 @@ const char * gfc_get_string (const char *, ...) ATTRIBUTE_PRINTF_1;
 typedef struct gfc_error_buf
 {
   int flag;
-  char message[MAX_ERROR_MESSAGE];
+  size_t allocated, index;
+  char *message;
 } gfc_error_buf;
 
 void gfc_error_init_1 (void);
 void gfc_buffer_error (int);
 
-void gfc_warning (const char *, ...);
-void gfc_warning_now (const char *, ...);
+void gfc_warning (const char *, ...) ATTRIBUTE_GCC_GFC(1,2);
+void gfc_warning_now (const char *, ...) ATTRIBUTE_GCC_GFC(1,2);
 void gfc_clear_warning (void);
 void gfc_warning_check (void);
 
-void gfc_error (const char *, ...);
-void gfc_error_now (const char *, ...);
-void gfc_fatal_error (const char *, ...) ATTRIBUTE_NORETURN;
-void gfc_internal_error (const char *, ...) ATTRIBUTE_NORETURN;
+void gfc_error (const char *, ...) ATTRIBUTE_GCC_GFC(1,2);
+void gfc_error_now (const char *, ...) ATTRIBUTE_GCC_GFC(1,2);
+void gfc_fatal_error (const char *, ...) ATTRIBUTE_NORETURN ATTRIBUTE_GCC_GFC(1,2);
+void gfc_internal_error (const char *, ...) ATTRIBUTE_NORETURN ATTRIBUTE_GCC_GFC(1,2);
 void gfc_clear_error (void);
 int gfc_error_check (void);
 
-try gfc_notify_std (int, const char *, ...);
+try gfc_notify_std (int, const char *, ...) ATTRIBUTE_GCC_GFC(2,3);
 
 /* A general purpose syntax error.  */
 #define gfc_syntax_error(ST)	\
@@ -1552,6 +1574,7 @@ try gfc_notify_std (int, const char *, ...);
 
 void gfc_push_error (gfc_error_buf *);
 void gfc_pop_error (gfc_error_buf *);
+void gfc_free_error (gfc_error_buf *);
 
 void gfc_status (const char *, ...) ATTRIBUTE_PRINTF_1;
 void gfc_status_char (char);

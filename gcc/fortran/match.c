@@ -17,8 +17,8 @@ for more details.
 
 You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING.  If not, write to the Free
-Software Foundation, 59 Temple Place - Suite 330, Boston, MA
-02111-1307, USA.  */
+Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA
+02110-1301, USA.  */
 
 
 #include "config.h"
@@ -250,7 +250,6 @@ match
 gfc_match_label (void)
 {
   char name[GFC_MAX_SYMBOL_LEN + 1];
-  gfc_state_data *p;
   match m;
 
   gfc_new_block = NULL;
@@ -265,18 +264,15 @@ gfc_match_label (void)
       return MATCH_ERROR;
     }
 
-  if (gfc_new_block->attr.flavor != FL_LABEL
-      && gfc_add_flavor (&gfc_new_block->attr, FL_LABEL,
-			 gfc_new_block->name, NULL) == FAILURE)
-    return MATCH_ERROR;
+  if (gfc_new_block->attr.flavor == FL_LABEL)
+    {
+      gfc_error ("Duplicate construct label '%s' at %C", name);
+      return MATCH_ERROR;
+    }
 
-  for (p = gfc_state_stack; p; p = p->previous)
-    if (p->sym == gfc_new_block)
-      {
-	gfc_error ("Label %s at %C already in use by a parent block",
-		   gfc_new_block->name);
-	return MATCH_ERROR;
-      }
+  if (gfc_add_flavor (&gfc_new_block->attr, FL_LABEL,
+		      gfc_new_block->name, NULL) == FAILURE)
+    return MATCH_ERROR;
 
   return MATCH_YES;
 }
@@ -451,6 +447,8 @@ gfc_match_symbol (gfc_symbol ** matched_symbol, int host_assoc)
       else
         *matched_symbol = NULL;
     }
+  else
+    *matched_symbol = NULL;
   return m;
 }
 
@@ -922,6 +920,10 @@ match_arithmetic_if (void)
       return MATCH_ERROR;
     }
 
+  if (gfc_notify_std (GFC_STD_F95_DEL,
+		      "Obsolete: arithmetic IF statement at %C") == FAILURE)
+    return MATCH_ERROR;
+
   new_st.op = EXEC_ARITHMETIC_IF;
   new_st.expr = expr;
   new_st.label = l1;
@@ -993,6 +995,11 @@ gfc_match_if (gfc_statement * if_type)
 	  gfc_free_expr (expr);
 	  return MATCH_ERROR;
 	}
+      
+      if (gfc_notify_std (GFC_STD_F95_DEL,
+  		          "Obsolete: arithmetic IF statement at %C")
+	  == FAILURE)
+        return MATCH_ERROR;
 
       new_st.op = EXEC_ARITHMETIC_IF;
       new_st.expr = expr;
@@ -1974,12 +1981,7 @@ gfc_match_return (void)
   gfc_expr *e;
   match m;
   gfc_compile_state s;
-
-  gfc_enclosing_unit (&s);
-  if (s == COMP_PROGRAM
-      && gfc_notify_std (GFC_STD_GNU, "Extension: RETURN statement in "
-			 "main program at %C") == FAILURE)
-      return MATCH_ERROR;
+  int c;
 
   e = NULL;
   if (gfc_match_eos () == MATCH_YES)
@@ -1992,7 +1994,18 @@ gfc_match_return (void)
       goto cleanup;
     }
 
-  m = gfc_match ("% %e%t", &e);
+  if (gfc_current_form == FORM_FREE)
+    {
+      /* The following are valid, so we can't require a blank after the
+        RETURN keyword:
+          return+1
+          return(1)  */
+      c = gfc_peek_char ();
+      if (ISALPHA (c) || ISDIGIT (c))
+       return MATCH_NO;
+    }
+
+  m = gfc_match (" %e%t", &e);
   if (m == MATCH_YES)
     goto done;
   if (m == MATCH_ERROR)
@@ -2005,6 +2018,12 @@ cleanup:
   return MATCH_ERROR;
 
 done:
+  gfc_enclosing_unit (&s);
+  if (s == COMP_PROGRAM
+      && gfc_notify_std (GFC_STD_GNU, "Extension: RETURN statement in "
+                        "main program at %C") == FAILURE)
+      return MATCH_ERROR;
+
   new_st.op = EXEC_RETURN;
   new_st.expr = e;
 
@@ -2633,6 +2652,8 @@ gfc_match_st_function (void)
   m = gfc_match (" = %e%t", &expr);
   if (m == MATCH_NO)
     goto undo_error;
+
+  gfc_free_error (&old_error);
   if (m == MATCH_ERROR)
     return m;
 
@@ -3063,9 +3084,7 @@ match_forall_iterator (gfc_forall_iterator ** result)
     }
 
   m = gfc_match_expr (&iter->start);
-  if (m == MATCH_NO)
-    goto syntax;
-  if (m == MATCH_ERROR)
+  if (m != MATCH_YES)
     goto cleanup;
 
   if (gfc_match_char (':') != MATCH_YES)

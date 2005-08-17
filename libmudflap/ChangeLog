@@ -1,6 +1,113 @@
-2005-04-20  Release Manager
+2005-07-16  Richard Henderson  <rth@redhat.com>
 
-	* GCC 4.0.0 released.
+	* acinclude.m4: New file.
+	* configure.ac: Invoke LIBMUDFLAP_CHECK_TLS.
+	* configure, config.h.in, Makefile.in, testsuite/Makefile.in: Rebuild.
+	* mf-hooks1.c (__mf_0fn_malloc): Move body from ...
+	(__mf_0fn_calloc): ... here.
+	* mf-hooks3.c (struct pthread_info): Remove.
+	(__mf_pthread_info, __mf_pthread_info_idx): Remove.
+	(LIBMUDFLAPTH_THREADS_MAX): Set to 1021.
+	(struct mf_thread_data): New.
+	(mf_thread_data, mf_thread_data_lock): New.
+	(__mf_allocate_blank_threadinfo): Remove.
+	(__mf_find_threadinfo): Rewrite and simplify.  Only use if TLS is
+	not available.
+	(__mf_state_perthread): Remove.
+	(__mf_get_state, __mf_set_state): New.
+	(__mf_pthread_cleanup): Use &errno, rather than saved pointer.
+	Update mf_thread_data killing procedure.
+	(__mf_pthread_spawner): Similarly.
+	(__mf_0fn_pthread_create): Only use wrapper if necessary.  Remove
+	code to allocate thread stack space.
+	(__mf_0fn_pthread_join, pthread_join): Remove.
+	(__mf_0fn_pthread_exit, pthread_exit): Remove.
+	* mf-impl.h (dyn_pthread_join, dyn_pthread_exit): Remove.
+	(__mf_state_1): Rename from __mf_state; use TLS when available.
+	(__mf_get_state, __mf_set_state): New.  Update all users.
+	* mf-runtime.c (begin_recursion_protect1): New.
+	(BEGIN_RECURSION_PROTECT): Use it.
+	(__mf_state_1): Rename from __mf_state; use TLS when available.
+	(threads_active_p): Remove.
+	(__mf_usage): Compute it directly.
+
+2005-06-19  Ulrich Weigand  <uweigand@de.ibm.com>
+
+	* testsuite/libmudflap.c/externs-1.c (main): Add return statement.
+
+2005-06-15  Frank Ch. Eigler  <fche@redhat.com>
+
+	Fix for uncaching bug reported by Herman ten Brugge.
+	* mf-runtime.c (__mf_uncache_object): Search whole cache.
+	* testsuite/libmudflap.c/fail40-frag.c: New test.
+
+2005-05-23  Alfred M. Szmidt  <ams@gnu.org>
+
+	PR libmudflap/21724
+	* Makefile.am (AM_MAKEFLAGS): Pass includedir.
+	* Makefile.in: Amend.
+
+2005-06-14  Frank Ch. Eigler  <fche@redhat.com>
+
+	PR mudflap/21023
+	* testsuite/libmudflap.c/externs.exp, externs-{1,2}.c: New test files.
+	* testsuite/libmudflap.c/cfrags.exp: Bypass new sources.
+
+2005-06-14  Frank Ch. Eigler  <fche@redhat.com>
+
+	PR libmudflap/21094
+	* testsuite/libmudflap.c++/*.exp: Assert build tree g++.
+
+2005-06-14  Frank Ch. Eigler  <fche@redhat.com>
+
+	PR mudflap/22064
+	* mf-impl.h (mudflap_mode, violation_mode): Make these ordinary
+	unsigned vars with #defines instead of enums.
+
+2005-05-09  Mike Stump  <mrs@apple.com>
+
+	* configure: Regenerate.
+
+2005-04-12  Mike Stump  <mrs@apple.com>
+
+	* configure: Regenerate.
+
+2005-04-12  Frank Ch. Eigler  <fche@redhat.com>
+
+	PR mudflap/19266
+	* testsuite/libmudflap.c++/c++frags.exp: Also test -O permutation.
+	* testsuite/libmudflap.c++/pass57-frag.cxx: New test.
+
+2005-04-04  Alan Modra  <amodra@bigpond.net.au>
+
+	* mf-runtime.c (__mfu_unregister): Warning fix for char unsigned.
+
+2005-03-31  Mike Stump  <mrs@apple.com>
+
+	* mf-runtime.h: Add libmudflap copyright clause.
+
+2005-03-21  Mike Stump  <mrs@apple.com>
+
+	* mf-heuristics.c: Fix whitespace at end of line.
+	* mf-hooks1.c: Likewise.
+	* mf-hooks2.c: Likewise.
+	* mf-hooks3.c: Likewise.
+	* mf-impl.h: Likewise.
+	* mf-runtime.c: Likewise.
+	* mf-runtime.h: Likewise.
+
+2005-03-21  Zack Weinberg  <zack@codesourcery.com>
+
+	* configure.ac: Do not invoke TL_AC_GCC_VERSION.
+	In all substitutions, expand gcc_version in Makefile.
+	* aclocal.m4, configure: Regenerate.
+	* Makefile.am: Set gcc_version.
+	* Makefile.in, testsuite/Makefile.in: Regenerate.
+
+2005-03-17  Frank Ch. Eigler  <fche@redhat.com>
+
+	* mf-runtime.c (__mfu_check): Respect ignore_reads configuration.
+	* testsuite/libmudflap.c/{pass56,fail39}-frag.c: New tests.
 
 2005-02-13  Frank Ch. Eigler  <fche@redhat.com>
 
@@ -90,7 +197,7 @@
 	(fopen, setvbuf): New/revised hook functions for buffer overriding.
 	(setbuf,setlinebuf,fdopen,freopen,fopen64,freopen64,fclose): Ditto.
 	(fflush): Accept given NULL stream (means "all streams").
-	* mf-runtime.h.in: 
+	* mf-runtime.h.in:
 	* mf-runtime.c (__mfu_check): Accept accesses that span adjacent
 	HEAP/GUESS objects.
 	(LOOKUP_CACHE_SIZE_MAX): Raise to 64K entries tentatively.
@@ -139,7 +246,7 @@
 
 2004-08-03  Dale Johannesen  <dalej@apple.com>
 
-         * mf-runtime.c: Conditionalize POSIX_SOURCE for Darwin.
+	 * mf-runtime.c: Conditionalize POSIX_SOURCE for Darwin.
 
 2004-08-03  Frank Ch. Eigler  <fche@redhat.com>
 

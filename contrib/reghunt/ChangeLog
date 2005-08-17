@@ -1,6 +1,6 @@
-2005-04-20  Release Manager
+2005-07-14  Ben Elliston  <bje@au.ibm.com>
 
-	* GCC 4.0.0 released.
+	* reg_test_template: Typo fix.
 
 2005-01-17  Kazu Hirata  <kazu@cs.umass.edu>
 

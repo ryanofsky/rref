@@ -1,0 +1,16 @@
+/HeuristicCommitException.java/1.1.1.1/Sat Jul 16 00:31:59 2005/-ko/
+/HeuristicMixedException.java/1.1.1.1/Sat Jul 16 00:31:59 2005/-ko/
+/HeuristicRollbackException.java/1.1.1.1/Sat Jul 16 00:31:59 2005/-ko/
+/InvalidTransactionException.java/1.1.1.1/Sat Jul 16 00:31:59 2005/-ko/
+/NotSupportedException.java/1.1.1.1/Sat Jul 16 00:31:59 2005/-ko/
+/RollbackException.java/1.1.1.1/Sat Jul 16 00:31:59 2005/-ko/
+/Status.java/1.1.1.1/Sat Jul 16 00:31:59 2005/-ko/
+/Synchronization.java/1.1.1.1/Sat Jul 16 00:31:59 2005/-ko/
+/SystemException.java/1.1.1.1/Sat Jul 16 00:31:59 2005/-ko/
+/Transaction.java/1.1.1.1/Sat Jul 16 00:31:59 2005/-ko/
+/TransactionManager.java/1.1.1.1/Sat Jul 16 00:31:59 2005/-ko/
+/TransactionRequiredException.java/1.1.1.1/Sat Jul 16 00:31:59 2005/-ko/
+/TransactionRolledbackException.java/1.1.1.1/Sat Jul 16 00:31:59 2005/-ko/
+/UserTransaction.java/1.1.1.1/Sat Jul 16 00:31:59 2005/-ko/
+/package.html/1.1.1.1/Sat Jul 16 00:31:59 2005/-ko/
+D/xa////

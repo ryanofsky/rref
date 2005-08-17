@@ -1,0 +1,19 @@
+/aout.h/1.19/Sat Jun 25 01:21:00 2005//
+/aout.opt/1.3/Sat Jun 25 01:21:01 2005//
+/arit.c/1.4/Sat Jun 25 01:21:01 2005//
+/cris-protos.h/1.21/Sat Jul  9 01:09:47 2005//
+/cris.c/1.81/Sat Jul  9 01:09:47 2005//
+/cris.h/1.99/Sat Jul  9 01:09:48 2005//
+/cris.md/1.38/Sat Jul  9 01:09:48 2005//
+/cris.opt/1.3/Sat Jun 25 01:21:01 2005//
+/cris_abi_symbol.c/1.3/Sat Jun 25 01:21:01 2005//
+/elf.opt/1.2/Sat Jun 25 01:21:01 2005//
+/linux.h/1.12/Sat Jun 25 01:21:01 2005//
+/linux.opt/1.2/Sat Jun 25 01:21:01 2005//
+/mulsi3.asm/1.2/Mon Mar  8 00:32:37 2004//
+/predicates.md/1.3/Sat Jul  9 01:09:48 2005//
+/t-aout/1.1/Thu Oct 11 17:02:36 2001//
+/t-cris/1.4/Tue Sep 23 18:55:58 2003//
+/t-elfmulti/1.1/Thu Oct 11 17:02:36 2001//
+/t-linux/1.2/Thu May  9 21:09:27 2002//
+D

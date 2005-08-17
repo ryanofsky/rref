@@ -18,8 +18,8 @@ for more details.
 
 You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING.  If not, write to the Free
-Software Foundation, 59 Temple Place - Suite 330, Boston, MA
-02111-1307, USA.  */
+Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA
+02110-1301, USA.  */
 
 
 #include "config.h"
@@ -77,6 +77,10 @@ gfc_type_letter (bt type)
       break;
     case BT_COMPLEX:
       c = 'c';
+      break;
+
+    case BT_HOLLERITH:
+      c = 'h';
       break;
 
     default:
@@ -911,6 +915,16 @@ add_functions (void)
 
   make_generic ("acos", GFC_ISYM_ACOS, GFC_STD_F77);
 
+  add_sym_1 ("acosh", 1, 1, BT_REAL, dr, GFC_STD_GNU,
+	     gfc_check_fn_r, gfc_simplify_acosh, gfc_resolve_acosh,
+	     x, BT_REAL, dr, REQUIRED);
+
+  add_sym_1 ("dacosh", 1, 1, BT_REAL, dd, GFC_STD_GNU,
+	     NULL, gfc_simplify_acosh, gfc_resolve_acosh,
+	     x, BT_REAL, dd, REQUIRED);
+
+  make_generic ("acosh", GFC_ISYM_ACOSH, GFC_STD_GNU);
+
   add_sym_1 ("adjustl", 1, 1, BT_CHARACTER, dc, GFC_STD_F95,
 	     NULL, gfc_simplify_adjustl, NULL,
 	     stg, BT_CHARACTER, dc, REQUIRED);
@@ -980,6 +994,16 @@ add_functions (void)
 	     x, BT_REAL, dd, REQUIRED);
 
   make_generic ("asin", GFC_ISYM_ASIN, GFC_STD_F77);
+  
+  add_sym_1 ("asinh", 1, 1, BT_REAL, dr, GFC_STD_GNU,
+	     gfc_check_fn_r, gfc_simplify_asinh, gfc_resolve_asinh,
+	     x, BT_REAL, dr, REQUIRED);
+
+  add_sym_1 ("dasinh", 1, 1, BT_REAL, dd, GFC_STD_GNU,
+	     NULL, gfc_simplify_asinh, gfc_resolve_asinh,
+	     x, BT_REAL, dd, REQUIRED);
+
+  make_generic ("asinh", GFC_ISYM_ASINH, GFC_STD_GNU);
 
   add_sym_2 ("associated", 0, 1, BT_LOGICAL, dl, GFC_STD_F95,
 	     gfc_check_associated, NULL, NULL,
@@ -996,6 +1020,16 @@ add_functions (void)
 	     x, BT_REAL, dd, REQUIRED);
 
   make_generic ("atan", GFC_ISYM_ATAN, GFC_STD_F77);
+  
+  add_sym_1 ("atanh", 1, 1, BT_REAL, dr, GFC_STD_GNU,
+	     gfc_check_fn_r, gfc_simplify_atanh, gfc_resolve_atanh,
+	     x, BT_REAL, dr, REQUIRED);
+
+  add_sym_1 ("datanh", 1, 1, BT_REAL, dd, GFC_STD_GNU,
+	     NULL, gfc_simplify_atanh, gfc_resolve_atanh,
+	     x, BT_REAL, dd, REQUIRED);
+
+  make_generic ("atanh", GFC_ISYM_ATANH, GFC_STD_GNU);
 
   add_sym_2 ("atan2", 1, 1, BT_REAL, dr, GFC_STD_F77,
 	     gfc_check_atan2, gfc_simplify_atan2, gfc_resolve_atan2,
@@ -1006,7 +1040,7 @@ add_functions (void)
 	     y, BT_REAL, dd, REQUIRED, x, BT_REAL, dd, REQUIRED);
 
   make_generic ("atan2", GFC_ISYM_ATAN2, GFC_STD_F77);
-
+  
   /* Bessel and Neumann functions for G77 compatibility.  */
   add_sym_1 ("besj0", 1, 0, BT_REAL, dr, GFC_STD_GNU,
 	     gfc_check_g77_math1, NULL, gfc_resolve_g77_math1,
@@ -1342,7 +1376,7 @@ add_functions (void)
   make_generic ("huge", GFC_ISYM_NONE, GFC_STD_F95);
 
   add_sym_1 ("iachar", 1, 1, BT_INTEGER, di, GFC_STD_F95,
-	     NULL, gfc_simplify_iachar, NULL,
+	     gfc_check_ichar_iachar, gfc_simplify_iachar, NULL,
 	     c, BT_CHARACTER, dc, REQUIRED);
 
   make_generic ("iachar", GFC_ISYM_IACHAR, GFC_STD_F95);
@@ -1384,7 +1418,7 @@ add_functions (void)
   make_generic ("ibset", GFC_ISYM_IBSET, GFC_STD_F95);
 
   add_sym_1 ("ichar", 1, 0, BT_INTEGER, di, GFC_STD_F77,
-	     NULL, gfc_simplify_ichar, gfc_resolve_ichar,
+	     gfc_check_ichar_iachar, gfc_simplify_ichar, gfc_resolve_ichar,
 	     c, BT_CHARACTER, dc, REQUIRED);
 
   make_generic ("ichar", GFC_ISYM_ICHAR, GFC_STD_F77);
@@ -2227,8 +2261,7 @@ add_subroutines (void)
 /* Add a function to the list of conversion symbols.  */
 
 static void
-add_conv (bt from_type, int from_kind, bt to_type, int to_kind,
-	  gfc_expr * (*simplify) (gfc_expr *, bt, int))
+add_conv (bt from_type, int from_kind, bt to_type, int to_kind, int standard)
 {
 
   gfc_typespec from, to;
@@ -2250,9 +2283,10 @@ add_conv (bt from_type, int from_kind, bt to_type, int to_kind,
 
   sym = conversion + nconv;
 
-  sym->name =  conv_name (&from, &to);
+  sym->name = conv_name (&from, &to);
   sym->lib_name = sym->name;
-  sym->simplify.cc = simplify;
+  sym->simplify.cc = gfc_convert_constant;
+  sym->standard = standard;
   sym->elemental = 1;
   sym->ts = to;
   sym->generic_id = GFC_ISYM_CONVERSION;
@@ -2277,7 +2311,7 @@ add_conversions (void)
 	  continue;
 
 	add_conv (BT_INTEGER, gfc_integer_kinds[i].kind,
-		  BT_INTEGER, gfc_integer_kinds[j].kind, gfc_convert_constant);
+		  BT_INTEGER, gfc_integer_kinds[j].kind, GFC_STD_F77);
       }
 
   /* Integer-Real/Complex conversions.  */
@@ -2285,17 +2319,42 @@ add_conversions (void)
     for (j = 0; gfc_real_kinds[j].kind != 0; j++)
       {
 	add_conv (BT_INTEGER, gfc_integer_kinds[i].kind,
-		  BT_REAL, gfc_real_kinds[j].kind, gfc_convert_constant);
+		  BT_REAL, gfc_real_kinds[j].kind, GFC_STD_F77);
 
 	add_conv (BT_REAL, gfc_real_kinds[j].kind,
-		  BT_INTEGER, gfc_integer_kinds[i].kind, gfc_convert_constant);
+		  BT_INTEGER, gfc_integer_kinds[i].kind, GFC_STD_F77);
 
 	add_conv (BT_INTEGER, gfc_integer_kinds[i].kind,
-		  BT_COMPLEX, gfc_real_kinds[j].kind, gfc_convert_constant);
+		  BT_COMPLEX, gfc_real_kinds[j].kind, GFC_STD_F77);
 
 	add_conv (BT_COMPLEX, gfc_real_kinds[j].kind,
-		  BT_INTEGER, gfc_integer_kinds[i].kind, gfc_convert_constant);
+		  BT_INTEGER, gfc_integer_kinds[i].kind, GFC_STD_F77);
       }
+
+  if ((gfc_option.allow_std & GFC_STD_LEGACY) != 0)
+    {
+      /* Hollerith-Integer conversions.  */
+      for (i = 0; gfc_integer_kinds[i].kind != 0; i++)
+	add_conv (BT_HOLLERITH, gfc_default_character_kind,
+		  BT_INTEGER, gfc_integer_kinds[i].kind, GFC_STD_LEGACY);
+      /* Hollerith-Real conversions.  */
+      for (i = 0; gfc_real_kinds[i].kind != 0; i++)
+	add_conv (BT_HOLLERITH, gfc_default_character_kind,
+		  BT_REAL, gfc_real_kinds[i].kind, GFC_STD_LEGACY);
+      /* Hollerith-Complex conversions.  */
+      for (i = 0; gfc_real_kinds[i].kind != 0; i++)
+	add_conv (BT_HOLLERITH, gfc_default_character_kind,
+		  BT_COMPLEX, gfc_real_kinds[i].kind, GFC_STD_LEGACY);
+
+      /* Hollerith-Character conversions.  */
+      add_conv (BT_HOLLERITH, gfc_default_character_kind, BT_CHARACTER,
+		  gfc_default_character_kind, GFC_STD_LEGACY);
+
+      /* Hollerith-Logical conversions.  */
+      for (i = 0; gfc_logical_kinds[i].kind != 0; i++)
+	add_conv (BT_HOLLERITH, gfc_default_character_kind,
+		  BT_LOGICAL, gfc_logical_kinds[i].kind, GFC_STD_LEGACY);
+    }
 
   /* Real/Complex - Real/Complex conversions.  */
   for (i = 0; gfc_real_kinds[i].kind != 0; i++)
@@ -2304,17 +2363,17 @@ add_conversions (void)
 	if (i != j)
 	  {
 	    add_conv (BT_REAL, gfc_real_kinds[i].kind,
-		      BT_REAL, gfc_real_kinds[j].kind, gfc_convert_constant);
+		      BT_REAL, gfc_real_kinds[j].kind, GFC_STD_F77);
 
 	    add_conv (BT_COMPLEX, gfc_real_kinds[i].kind,
-		      BT_COMPLEX, gfc_real_kinds[j].kind, gfc_convert_constant);
+		      BT_COMPLEX, gfc_real_kinds[j].kind, GFC_STD_F77);
 	  }
 
 	add_conv (BT_REAL, gfc_real_kinds[i].kind,
-		  BT_COMPLEX, gfc_real_kinds[j].kind, gfc_convert_constant);
+		  BT_COMPLEX, gfc_real_kinds[j].kind, GFC_STD_F77);
 
 	add_conv (BT_COMPLEX, gfc_real_kinds[i].kind,
-		  BT_REAL, gfc_real_kinds[j].kind, gfc_convert_constant);
+		  BT_REAL, gfc_real_kinds[j].kind, GFC_STD_F77);
       }
 
   /* Logical/Logical kind conversion.  */
@@ -2325,8 +2384,19 @@ add_conversions (void)
 	  continue;
 
 	add_conv (BT_LOGICAL, gfc_logical_kinds[i].kind,
-		  BT_LOGICAL, gfc_logical_kinds[j].kind, gfc_convert_constant);
+		  BT_LOGICAL, gfc_logical_kinds[j].kind, GFC_STD_F77);
       }
+
+  /* Integer-Logical and Logical-Integer conversions.  */
+  if ((gfc_option.allow_std & GFC_STD_LEGACY) != 0)
+    for (i=0; gfc_integer_kinds[i].kind; i++)
+      for (j=0; gfc_logical_kinds[j].kind; j++)
+	{
+	  add_conv (BT_INTEGER, gfc_integer_kinds[i].kind,
+		    BT_LOGICAL, gfc_logical_kinds[j].kind, GFC_STD_LEGACY);
+	  add_conv (BT_LOGICAL, gfc_logical_kinds[j].kind,
+		    BT_INTEGER, gfc_integer_kinds[i].kind, GFC_STD_LEGACY);
+	}
 }
 
 
@@ -2672,6 +2742,16 @@ do_simplify (gfc_intrinsic_sym * specific, gfc_expr * e)
   gfc_expr *result, *a1, *a2, *a3, *a4, *a5;
   gfc_actual_arglist *arg;
 
+  /* Check the arguments if there are Hollerith constants. We deal with
+     them at run-time.  */
+  for (arg = e->value.function.actual; arg != NULL; arg = arg->next)
+    {
+      if (arg->expr && arg->expr->from_H)
+	{
+	  result = NULL;
+	  goto finish;
+	}
+    }
   /* Max and min require special handling due to the variable number
      of args.  */
   if (specific->simplify.f1 == gfc_simplify_min)
@@ -2903,7 +2983,7 @@ check_intrinsic_standard (const char *name, int standard, locus * where)
   if (!gfc_option.warn_nonstd_intrinsics)
     return;
 
-  gfc_notify_std (standard, "Intrinsic '%s' at %L is not included"
+  gfc_notify_std (standard, "Intrinsic '%s' at %L is not included "
 		  "in the selected standard", name, where);
 }
 
@@ -2996,16 +3076,13 @@ got_specific:
   expr->value.function.isym = specific;
   gfc_intrinsic_symbol (expr->symtree->n.sym);
 
+  gfc_suppress_error = 0;
   if (do_simplify (specific, expr) == FAILURE)
-    {
-      gfc_suppress_error = 0;
-      return MATCH_ERROR;
-    }
+    return MATCH_ERROR;
 
   /* TODO: We should probably only allow elemental functions here.  */
   flag |= (expr->ts.type != BT_INTEGER && expr->ts.type != BT_CHARACTER);
 
-  gfc_suppress_error = 0;
   if (pedantic && gfc_init_expr
       && flag && gfc_init_expr_extensions (specific))
     {
@@ -3142,7 +3219,10 @@ gfc_convert_type_warn (gfc_expr * expr, gfc_typespec * ts, int eflag,
     goto bad;
 
   /* At this point, a conversion is necessary. A warning may be needed.  */
-  if (wflag && gfc_option.warn_conversion)
+  if ((gfc_option.warn_std & sym->standard) != 0)
+    gfc_warning_now ("Extension: Conversion from %s to %s at %L",
+		     gfc_typename (&from_ts), gfc_typename (ts), &expr->where);
+  else if (wflag && gfc_option.warn_conversion)
     gfc_warning_now ("Conversion from %s to %s at %L",
 		     gfc_typename (&from_ts), gfc_typename (ts), &expr->where);
 

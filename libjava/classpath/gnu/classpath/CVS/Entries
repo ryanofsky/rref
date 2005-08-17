@@ -1,0 +1,10 @@
+/.cvsignore/1.1.1.1/Sat Jul 16 00:33:29 2005/-ko/
+/Configuration.java.in/1.1.1.1/Sat Jul 16 00:33:29 2005/-ko/
+/RawData.java/1.1.1.1/Sat Jul 16 00:33:29 2005/-ko/
+/RawData32.java/1.1.1.1/Sat Jul 16 00:33:29 2005/-ko/
+/RawData64.java/1.1.1.1/Sat Jul 16 00:33:29 2005/-ko/
+/ServiceFactory.java/1.1.1.1/Sat Jul 16 00:33:29 2005/-ko/
+/ServiceProviderLoadingAction.java/1.1.1.1/Sat Jul 16 00:33:29 2005/-ko/
+/SystemProperties.java/1.1.1.1/Sat Jul 16 00:33:29 2005/-ko/
+D/debug////
+D/jdwp////

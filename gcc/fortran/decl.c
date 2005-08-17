@@ -16,8 +16,8 @@ for more details.
 
 You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING.  If not, write to the Free
-Software Foundation, 59 Temple Place - Suite 330, Boston, MA
-02111-1307, USA.  */
+Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA
+02110-1301, USA.  */
 
 
 #include "config.h"
@@ -186,7 +186,7 @@ var_element (gfc_data_variable * new)
       return MATCH_ERROR;
     }
 
-#if 0 // TODO: Find out where to move this message
+#if 0 /* TODO: Find out where to move this message */
   if (sym->attr.in_common)
     /* See if sym is in the blank common block.  */
     for (t = &sym->ns->blank_common; t; t = t->common_next)
@@ -401,7 +401,7 @@ match_old_style_init (const char *name)
 /* Match the stuff following a DATA statement. If ERROR_FLAG is set,
    we are matching a DATA statement and are therefore issuing an error
    if we encounter something unexpected, if not, we're trying to match 
-   an old-style intialization expression of the form INTEGER I /2/.  */
+   an old-style initialization expression of the form INTEGER I /2/.  */
 
 match
 gfc_match_data (void)
@@ -949,7 +949,7 @@ variable_decl (void)
 
   /* OK, we've successfully matched the declaration.  Now put the
      symbol in the current namespace, because it might be used in the
-     optional intialization expression for this symbol, e.g. this is
+     optional initialization expression for this symbol, e.g. this is
      perfectly legal:
 
      integer, parameter :: i = huge(i)
@@ -2395,7 +2395,7 @@ gfc_match_entry (void)
   else
     {
       /* An entry in a function.  */
-      m = gfc_match_formal_arglist (entry, 0, 0);
+      m = gfc_match_formal_arglist (entry, 0, 1);
       if (m != MATCH_YES)
 	return MATCH_ERROR;
 
@@ -2407,8 +2407,7 @@ gfc_match_entry (void)
 	      || gfc_add_function (&entry->attr, entry->name, NULL) == FAILURE)
 	    return MATCH_ERROR;
 
-	  entry->result = proc->result;
-
+	  entry->result = entry;
 	}
       else
 	{
@@ -2423,6 +2422,8 @@ gfc_match_entry (void)
 	      || gfc_add_function (&entry->attr, result->name,
 				   NULL) == FAILURE)
 	    return MATCH_ERROR;
+
+	  entry->result = result;
 	}
 
       if (proc->attr.recursive && result == NULL)
@@ -3100,6 +3101,16 @@ do_parm (void)
       goto cleanup;
     }
 
+  if (sym->ts.type == BT_CHARACTER
+      && sym->ts.cl != NULL
+      && sym->ts.cl->length != NULL
+      && sym->ts.cl->length->expr_type == EXPR_CONSTANT
+      && init->expr_type == EXPR_CONSTANT
+      && init->ts.type == BT_CHARACTER
+      && init->ts.kind == 1)
+    gfc_set_constant_character_len (
+      mpz_get_si (sym->ts.cl->length->value.integer), init);
+
   sym->value = init;
   return MATCH_YES;
 
@@ -3218,7 +3229,7 @@ syntax:
 
 /* Match a module procedure statement.  Note that we have to modify
    symbols in the parent's namespace because the current one was there
-   to receive symbols that are in a interface's formal argument list.  */
+   to receive symbols that are in an interface's formal argument list.  */
 
 match
 gfc_match_modproc (void)

@@ -18,8 +18,8 @@
 
    You should have received a copy of the GNU General Public License
    along with GCC; see the file COPYING.  If not, write to
-   the Free Software Foundation, 59 Temple Place - Suite 330,
-   Boston, MA 02111-1307, USA.  */
+   the Free Software Foundation, 51 Franklin Street, Fifth Floor,
+   Boston, MA 02110-1301, USA.  */
 
 #ifndef GCC_ARM_PROTOS_H
 #define GCC_ARM_PROTOS_H
@@ -38,6 +38,9 @@ extern HOST_WIDE_INT arm_compute_initial_elimination_offset (unsigned int,
 							     unsigned int);
 extern HOST_WIDE_INT thumb_compute_initial_elimination_offset (unsigned int,
 							       unsigned int);
+extern unsigned int arm_dbx_register_number (unsigned int);
+extern void arm_output_fn_unwind (FILE *, bool);
+  
 
 #ifdef TREE_CODE
 extern int arm_return_in_memory (tree);
@@ -49,7 +52,8 @@ extern int arm_hard_regno_mode_ok (unsigned int, enum machine_mode);
 extern int const_ok_for_arm (HOST_WIDE_INT);
 extern int arm_split_constant (RTX_CODE, enum machine_mode, rtx,
 			       HOST_WIDE_INT, rtx, rtx, int);
-extern RTX_CODE arm_canonicalize_comparison (RTX_CODE, rtx *);
+extern RTX_CODE arm_canonicalize_comparison (RTX_CODE, enum machine_mode,
+					     rtx *);
 extern int legitimate_pic_operand_p (rtx);
 extern rtx legitimize_pic_address (rtx, enum machine_mode, rtx);
 extern int arm_legitimate_address_p  (enum machine_mode, rtx, RTX_CODE, int);
@@ -90,6 +94,7 @@ extern rtx arm_gen_return_addr_mask (void);
 extern void arm_reload_in_hi (rtx *);
 extern void arm_reload_out_hi (rtx *);
 extern int arm_const_double_inline_cost (rtx);
+extern bool arm_const_double_by_parts (rtx);
 extern const char *fp_immediate_constant (rtx);
 extern const char *output_call (rtx *);
 extern const char *output_call_mem (rtx *);
@@ -99,7 +104,6 @@ extern const char *output_mov_long_double_arm_from_arm (rtx *);
 extern const char *output_mov_double_fpa_from_arm (rtx *);
 extern const char *output_mov_double_arm_from_fpa (rtx *);
 extern const char *output_move_double (rtx *);
-extern const char *output_mov_immediate (rtx *);
 extern const char *output_add_immediate (rtx *);
 extern const char *arithmetic_instr (rtx, int);
 extern void output_ascii_pseudo_op (FILE *, const unsigned char *, int);
@@ -120,6 +124,8 @@ extern int arm_eliminable_register (rtx);
 #if defined TREE_CODE
 extern rtx arm_function_arg (CUMULATIVE_ARGS *, enum machine_mode, tree, int);
 extern void arm_init_cumulative_args (CUMULATIVE_ARGS *, tree, rtx, tree);
+extern bool arm_pad_arg_upward (enum machine_mode, tree);
+extern bool arm_pad_reg_upward (enum machine_mode, tree, int);
 extern bool arm_needs_doubleword_align (enum machine_mode, tree);
 extern rtx arm_function_value(tree, tree);
 #endif

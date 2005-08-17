@@ -1,0 +1,17 @@
+/ID_ASSIGNMENT_POLICY_ID.java/1.1.1.1/Sat Jul 16 00:32:16 2005/-ko/
+/ID_UNIQUENESS_POLICY_ID.java/1.1.1.1/Sat Jul 16 00:32:16 2005/-ko/
+/IMPLICIT_ACTIVATION_POLICY_ID.java/1.1.1.1/Sat Jul 16 00:32:16 2005/-ko/
+/IdAssignmentPolicyValue.java/1.1.1.1/Sat Jul 16 00:32:16 2005/-ko/
+/IdUniquenessPolicyValue.java/1.1.1.1/Sat Jul 16 00:32:16 2005/-ko/
+/ImplicitActivationPolicyValue.java/1.1.1.1/Sat Jul 16 00:32:16 2005/-ko/
+/LIFESPAN_POLICY_ID.java/1.1.1.1/Sat Jul 16 00:32:16 2005/-ko/
+/LifespanPolicyValue.java/1.1.1.1/Sat Jul 16 00:32:16 2005/-ko/
+/REQUEST_PROCESSING_POLICY_ID.java/1.1.1.1/Sat Jul 16 00:32:16 2005/-ko/
+/RequestProcessingPolicyValue.java/1.1.1.1/Sat Jul 16 00:32:16 2005/-ko/
+/SERVANT_RETENTION_POLICY_ID.java/1.1.1.1/Sat Jul 16 00:32:16 2005/-ko/
+/ServantRetentionPolicyValue.java/1.1.1.1/Sat Jul 16 00:32:16 2005/-ko/
+/THREAD_POLICY_ID.java/1.1.1.1/Sat Jul 16 00:32:16 2005/-ko/
+D/CurrentPackage////
+D/POAManagerPackage////
+D/POAPackage////
+D/ServantLocatorPackage////

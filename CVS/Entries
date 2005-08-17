@@ -1,0 +1,55 @@
+/.cvsignore/1.7/Wed Jun 19 18:10:09 2002//
+/ABOUT-NLS/1.1/Fri Jul  4 18:18:42 2003//
+/COPYING/1.5/Thu Jul 14 01:08:12 2005//
+/COPYING.LIB/1.5/Thu Jul 14 01:41:53 2005//
+/ChangeLog/1.1134/Thu Jul 28 03:47:14 2005//
+/ChangeLog.tree-ssa/1.2/Thu May 13 06:39:06 2004//
+/MAINTAINERS/1.433/Thu Jul 28 03:47:15 2005//
+/Makefile.def/1.56/Wed Jul 27 20:20:08 2005//
+/Makefile.in/1.273/Wed Jul 27 20:20:09 2005//
+/Makefile.tpl/1.139/Wed Jul 27 20:20:07 2005//
+/README/1.5/Wed Jun 13 18:48:09 2001//
+/README.SCO/1.4/Sun May  8 17:49:46 2005//
+/compile/1.4/Thu Jul 14 01:08:13 2005//
+/config-ml.in/1.34/Thu Jul 14 01:08:13 2005//
+/config.guess/1.68/Thu Jul 14 01:08:13 2005//
+/config.rpath/1.2/Sat Jul 16 02:30:52 2005//
+/config.sub/1.85/Thu Jul 14 01:08:13 2005//
+/configure/1.225/Tue Jul 26 15:56:54 2005//
+/configure.in/1.361/Tue Jul 26 15:56:54 2005//
+/depcomp/1.4/Mon Jun 13 08:26:04 2005//
+/install-sh/1.10/Thu Jul 14 01:08:13 2005//
+/libtool.m4/1.24/Sat Jul 16 02:30:52 2005//
+/ltcf-c.sh/1.23/Sat Jul 16 02:30:52 2005//
+/ltcf-cxx.sh/1.32/Sat Jul 16 02:30:52 2005//
+/ltcf-gcj.sh/1.16/Sat Jul 16 02:30:52 2005//
+/ltconfig/1.34/Sat Jul 16 02:30:52 2005//
+/ltmain.sh/1.27/Sat Jul 16 02:30:53 2005//
+/missing/1.7/Thu Jul 14 01:08:13 2005//
+/mkdep/1.1/Sat Jul 22 08:08:22 2000//
+/mkinstalldirs/1.5/Thu Jul 14 01:08:13 2005//
+/move-if-change/1.4/Sat Jul 16 02:30:53 2005//
+/symlink-tree/1.6/Thu Jul 14 01:08:13 2005//
+/ylwrap/1.7/Thu Jul 14 01:08:13 2005//
+D/INSTALL////
+D/boehm-gc////
+D/config////
+D/contrib////
+D/fastjar////
+D/fixincludes////
+D/gcc////
+D/gnattools////
+D/include////
+D/intl////
+D/libada////
+D/libcpp////
+D/libffi////
+D/libgfortran////
+D/libiberty////
+D/libjava////
+D/libmudflap////
+D/libobjc////
+D/libssp////
+D/libstdc++-v3////
+D/maintainer-scripts////
+D/zlib////

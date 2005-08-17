@@ -1,5 +1,5 @@
 /* Handle types for the GNU compiler for the Java(TM) language.
-   Copyright (C) 1996, 1997, 1998, 1999, 2000, 2001, 2003, 2004
+   Copyright (C) 1996, 1997, 1998, 1999, 2000, 2001, 2003, 2004, 2005
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -16,8 +16,8 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING.  If not, write to
-the Free Software Foundation, 59 Temple Place - Suite 330,
-Boston, MA 02111-1307, USA.  
+the Free Software Foundation, 51 Franklin Street, Fifth Floor,
+Boston, MA 02110-1301, USA.  
 
 Java and all Java-based marks are trademarks or registered trademarks
 of Sun Microsystems, Inc. in the United States and other countries.
@@ -119,9 +119,6 @@ convert (tree type, tree expr)
   if (!expr)
    return error_mark_node;
 
-  if (do_not_fold)
-    return build1 (NOP_EXPR, type, expr);
-
   if (type == TREE_TYPE (expr)
       || TREE_CODE (expr) == ERROR_MARK)
     return expr;
@@ -145,7 +142,8 @@ convert (tree type, tree expr)
 	     overflows in a narrowing integer conversion, but Java
 	     doesn't care.  */
 	  tree tmp = fold (convert_to_integer (type, expr));
-	  TREE_OVERFLOW (tmp) = 0;
+	  if (TREE_CODE (tmp) == INTEGER_CST)
+	    TREE_OVERFLOW (tmp) = 0;
 	  return tmp;
 	}
     }	  

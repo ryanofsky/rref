@@ -17,8 +17,8 @@ for more details.
 
 You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING.  If not, write to the Free
-Software Foundation, 59 Temple Place - Suite 330, Boston, MA
-02111-1307, USA.  */
+Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA
+02110-1301, USA.  */
 
 
 #include "config.h"
@@ -408,14 +408,6 @@ store_bit_field (rtx str_rtx, unsigned HOST_WIDE_INT bitsize,
 	}
     }
 
-  if (flag_force_mem)
-    {
-      int old_generating_concat_p = generating_concat_p;
-      generating_concat_p = 0;
-      value = force_not_mem (value);
-      generating_concat_p = old_generating_concat_p;
-    }
-
   /* If the target is a register, overwriting the entire object, or storing
      a full-word or multi-word field can be done with just a SUBREG.
 
@@ -544,8 +536,8 @@ store_bit_field (rtx str_rtx, unsigned HOST_WIDE_INT bitsize,
       /* This is the mode we must force value to, so that there will be enough
 	 subwords to extract.  Note that fieldmode will often (always?) be
 	 VOIDmode, because that is what store_field uses to indicate that this
-	 is a bit field, but passing VOIDmode to operand_subword_force will
-	 result in an abort.  */
+	 is a bit field, but passing VOIDmode to operand_subword_force
+	 is not allowed.  */
       fieldmode = GET_MODE (value);
       if (fieldmode == VOIDmode)
 	fieldmode = smallest_mode_for_size (nwords * BITS_PER_WORD, MODE_INT);
@@ -582,10 +574,10 @@ store_bit_field (rtx str_rtx, unsigned HOST_WIDE_INT bitsize,
 	{
 	  if (!REG_P (op0))
 	    {
-	      /* Since this is a destination (lvalue), we can't copy it to a
-		 pseudo.  We can trivially remove a SUBREG that does not
-		 change the size of the operand.  Such a SUBREG may have been
-		 added above.  Otherwise, abort.  */
+	      /* Since this is a destination (lvalue), we can't copy
+		 it to a pseudo.  We can remove a SUBREG that does not
+		 change the size of the operand.  Such a SUBREG may
+		 have been added above.  */
 	      gcc_assert (GET_CODE (op0) == SUBREG
 			  && (GET_MODE_SIZE (GET_MODE (op0))
 			      == GET_MODE_SIZE (GET_MODE (SUBREG_REG (op0)))));
@@ -633,8 +625,6 @@ store_bit_field (rtx str_rtx, unsigned HOST_WIDE_INT bitsize,
 
       /* If this machine's insv can only insert into a register, copy OP0
 	 into a register and save it back later.  */
-      /* This used to check flag_force_mem, but that was a serious
-	 de-optimization now that flag_force_mem is enabled by -O2.  */
       if (MEM_P (op0)
 	  && ! ((*insn_data[(int) CODE_FOR_insv].operand[0].predicate)
 		(op0, VOIDmode)))
@@ -902,7 +892,7 @@ store_fixed_bit_field (rtx op0, unsigned HOST_WIDE_INT offset,
   /* Now clear the chosen bits in OP0,
      except that if VALUE is -1 we need not bother.  */
 
-  subtarget = (REG_P (op0) || ! flag_force_mem) ? op0 : 0;
+  subtarget = op0;
 
   if (! all_one)
     {
@@ -1449,8 +1439,7 @@ extract_bit_field (rtx str_rtx, unsigned HOST_WIDE_INT bitsize,
 
 	  unit = GET_MODE_BITSIZE (maxmode);
 
-	  if (xtarget == 0
-	      || (flag_force_mem && MEM_P (xtarget)))
+	  if (xtarget == 0)
 	    xtarget = xspec_target = gen_reg_rtx (tmode);
 
 	  if (GET_MODE (xtarget) != maxmode)
@@ -1577,8 +1566,7 @@ extract_bit_field (rtx str_rtx, unsigned HOST_WIDE_INT bitsize,
 
 	  unit = GET_MODE_BITSIZE (maxmode);
 
-	  if (xtarget == 0
-	      || (flag_force_mem && MEM_P (xtarget)))
+	  if (xtarget == 0)
 	    xtarget = xspec_target = gen_reg_rtx (tmode);
 
 	  if (GET_MODE (xtarget) != maxmode)
@@ -2232,9 +2220,9 @@ expand_shift (enum tree_code code, enum machine_mode mode, rtx shifted,
 	      tree type = TREE_TYPE (amount);
 	      tree new_amount = make_tree (type, op1);
 	      tree other_amount
-		= fold (build2 (MINUS_EXPR, type, 
-				build_int_cst (type, GET_MODE_BITSIZE (mode)),
-				amount));
+		= fold_build2 (MINUS_EXPR, type,
+			       build_int_cst (type, GET_MODE_BITSIZE (mode)),
+			       amount);
 
 	      shifted = force_reg (mode, shifted);
 
@@ -3011,57 +2999,96 @@ rtx
 expand_mult (enum machine_mode mode, rtx op0, rtx op1, rtx target,
 	     int unsignedp)
 {
-  rtx const_op1 = op1;
   enum mult_variant variant;
   struct algorithm algorithm;
+  int max_cost;
 
-  /* synth_mult does an `unsigned int' multiply.  As long as the mode is
-     less than or equal in size to `unsigned int' this doesn't matter.
-     If the mode is larger than `unsigned int', then synth_mult works only
-     if the constant value exactly fits in an `unsigned int' without any
-     truncation.  This means that multiplying by negative values does
-     not work; results are off by 2^32 on a 32 bit machine.  */
+  /* Handling const0_rtx here allows us to use zero as a rogue value for
+     coeff below.  */
+  if (op1 == const0_rtx)
+    return const0_rtx;
+  if (op1 == const1_rtx)
+    return op0;
+  if (op1 == constm1_rtx)
+    return expand_unop (mode,
+			GET_MODE_CLASS (mode) == MODE_INT
+			&& !unsignedp && flag_trapv
+			? negv_optab : neg_optab,
+			op0, target, 0);
 
-  /* If we are multiplying in DImode, it may still be a win
-     to try to work with shifts and adds.  */
-  if (GET_CODE (op1) == CONST_DOUBLE
-      && GET_MODE_CLASS (GET_MODE (op1)) == MODE_INT
-      && HOST_BITS_PER_INT >= BITS_PER_WORD
-      && CONST_DOUBLE_HIGH (op1) == 0)
-    const_op1 = GEN_INT (CONST_DOUBLE_LOW (op1));
-  else if (HOST_BITS_PER_INT < GET_MODE_BITSIZE (mode)
-	   && GET_CODE (op1) == CONST_INT
-	   && INTVAL (op1) < 0)
-    const_op1 = 0;
-
-  /* We used to test optimize here, on the grounds that it's better to
-     produce a smaller program when -O is not used.
-     But this causes such a terrible slowdown sometimes
-     that it seems better to use synth_mult always.  */
-
-  if (const_op1 && GET_CODE (const_op1) == CONST_INT
+  /* These are the operations that are potentially turned into a sequence
+     of shifts and additions.  */
+  if (SCALAR_INT_MODE_P (mode)
       && (unsignedp || !flag_trapv))
     {
-      HOST_WIDE_INT coeff = INTVAL (const_op1);
-      int mult_cost;
+      HOST_WIDE_INT coeff = 0;
 
-      /* Special case powers of two.  */
-      if (EXACT_POWER_OF_2_OR_ZERO_P (coeff))
+      /* synth_mult does an `unsigned int' multiply.  As long as the mode is
+	 less than or equal in size to `unsigned int' this doesn't matter.
+	 If the mode is larger than `unsigned int', then synth_mult works
+	 only if the constant value exactly fits in an `unsigned int' without
+	 any truncation.  This means that multiplying by negative values does
+	 not work; results are off by 2^32 on a 32 bit machine.  */
+
+      if (GET_CODE (op1) == CONST_INT)
 	{
-	  if (coeff == 0)
-	    return const0_rtx;
-	  if (coeff == 1)
-	    return op0;
-	  return expand_shift (LSHIFT_EXPR, mode, op0,
-			       build_int_cst (NULL_TREE, floor_log2 (coeff)),
-			       target, unsignedp);
+	  /* Attempt to handle multiplication of DImode values by negative
+	     coefficients, by performing the multiplication by a positive
+	     multiplier and then inverting the result.  */
+	  if (INTVAL (op1) < 0
+	      && GET_MODE_BITSIZE (mode) > HOST_BITS_PER_WIDE_INT)
+	    {
+	      /* Its safe to use -INTVAL (op1) even for INT_MIN, as the
+		 result is interpreted as an unsigned coefficient.  */
+	      max_cost = rtx_cost (gen_rtx_MULT (mode, op0, op1), SET)
+			 - neg_cost[mode];
+	      if (max_cost > 0
+		  && choose_mult_variant (mode, -INTVAL (op1), &algorithm,
+					  &variant, max_cost))
+		{
+		  rtx temp = expand_mult_const (mode, op0, -INTVAL (op1),
+						NULL_RTX, &algorithm,
+						variant);
+		  return expand_unop (mode, neg_optab, temp, target, 0);
+		}
+	    }
+	  else coeff = INTVAL (op1);
 	}
+      else if (GET_CODE (op1) == CONST_DOUBLE)
+	{
+	  /* If we are multiplying in DImode, it may still be a win
+	     to try to work with shifts and adds.  */
+	  if (CONST_DOUBLE_HIGH (op1) == 0)
+	    coeff = CONST_DOUBLE_LOW (op1);
+	  else if (CONST_DOUBLE_LOW (op1) == 0
+		   && EXACT_POWER_OF_2_OR_ZERO_P (CONST_DOUBLE_HIGH (op1)))
+	    {
+	      int shift = floor_log2 (CONST_DOUBLE_HIGH (op1))
+			  + HOST_BITS_PER_WIDE_INT;
+	      return expand_shift (LSHIFT_EXPR, mode, op0,
+				   build_int_cst (NULL_TREE, shift),
+				   target, unsignedp);
+	    }
+	}
+        
+      /* We used to test optimize here, on the grounds that it's better to
+	 produce a smaller program when -O is not used.  But this causes
+	 such a terrible slowdown sometimes that it seems better to always
+	 use synth_mult.  */
+      if (coeff != 0)
+	{
+	  /* Special case powers of two.  */
+	  if (EXACT_POWER_OF_2_OR_ZERO_P (coeff))
+	    return expand_shift (LSHIFT_EXPR, mode, op0,
+				 build_int_cst (NULL_TREE, floor_log2 (coeff)),
+				 target, unsignedp);
 
-      mult_cost = rtx_cost (gen_rtx_MULT (mode, op0, op1), SET);
-      if (choose_mult_variant (mode, coeff, &algorithm, &variant,
-			       mult_cost))
-	return expand_mult_const (mode, op0, coeff, target,
-				  &algorithm, variant);
+	  max_cost = rtx_cost (gen_rtx_MULT (mode, op0, op1), SET);
+	  if (choose_mult_variant (mode, coeff, &algorithm, &variant,
+				   max_cost))
+	    return expand_mult_const (mode, op0, coeff, target,
+				      &algorithm, variant);
+	}
     }
 
   if (GET_CODE (op0) == CONST_DOUBLE)
@@ -3796,8 +3823,8 @@ expand_divmod (int rem_flag, enum tree_code code, enum machine_mode mode,
 	  || optab2->handlers[compute_mode].libfunc)
 	break;
 
-  /* If we still couldn't find a mode, use MODE, but we'll probably abort
-     in expand_binop.  */
+  /* If we still couldn't find a mode, use MODE, but expand_binop will
+     probably die.  */
   if (compute_mode == VOIDmode)
     compute_mode = mode;
 
@@ -4851,23 +4878,23 @@ make_tree (tree type, rtx x)
       }
 
     case PLUS:
-      return fold (build2 (PLUS_EXPR, type, make_tree (type, XEXP (x, 0)),
-			   make_tree (type, XEXP (x, 1))));
+      return fold_build2 (PLUS_EXPR, type, make_tree (type, XEXP (x, 0)),
+			  make_tree (type, XEXP (x, 1)));
 
     case MINUS:
-      return fold (build2 (MINUS_EXPR, type, make_tree (type, XEXP (x, 0)),
-			   make_tree (type, XEXP (x, 1))));
+      return fold_build2 (MINUS_EXPR, type, make_tree (type, XEXP (x, 0)),
+			  make_tree (type, XEXP (x, 1)));
 
     case NEG:
-      return fold (build1 (NEGATE_EXPR, type, make_tree (type, XEXP (x, 0))));
+      return fold_build1 (NEGATE_EXPR, type, make_tree (type, XEXP (x, 0)));
 
     case MULT:
-      return fold (build2 (MULT_EXPR, type, make_tree (type, XEXP (x, 0)),
-			   make_tree (type, XEXP (x, 1))));
+      return fold_build2 (MULT_EXPR, type, make_tree (type, XEXP (x, 0)),
+			  make_tree (type, XEXP (x, 1)));
 
     case ASHIFT:
-      return fold (build2 (LSHIFT_EXPR, type, make_tree (type, XEXP (x, 0)),
-			   make_tree (type, XEXP (x, 1))));
+      return fold_build2 (LSHIFT_EXPR, type, make_tree (type, XEXP (x, 0)),
+			  make_tree (type, XEXP (x, 1)));
 
     case LSHIFTRT:
       t = lang_hooks.types.unsigned_type (type);
@@ -4912,7 +4939,7 @@ make_tree (tree type, rtx x)
 
       /* Note that we do *not* use SET_DECL_RTL here, because we do not
 	 want set_decl_rtl to go adjusting REG_ATTRS for this temporary.  */
-      t->decl.rtl = x;
+      t->decl_with_rtl.rtl = x;
 
       return t;
     }
@@ -4947,11 +4974,11 @@ const_mult_add_overflow_p (rtx x, rtx mult, rtx add,
   add_type = (GET_MODE (add) == VOIDmode ? mult_type
 	      : lang_hooks.types.type_for_mode (GET_MODE (add), unsignedp));
 
-  result = fold (build2 (PLUS_EXPR, mult_type,
-			 fold (build2 (MULT_EXPR, mult_type,
-				       make_tree (mult_type, x),
-				       make_tree (mult_type, mult))),
-			 make_tree (add_type, add)));
+  result = fold_build2 (PLUS_EXPR, mult_type,
+			fold_build2 (MULT_EXPR, mult_type,
+				     make_tree (mult_type, x),
+				     make_tree (mult_type, mult)),
+			make_tree (add_type, add));
 
   return TREE_CONSTANT_OVERFLOW (result);
 }
@@ -4972,11 +4999,11 @@ expand_mult_add (rtx x, rtx target, rtx mult, rtx add, enum machine_mode mode,
   tree add_type = (GET_MODE (add) == VOIDmode
 		   ? type: lang_hooks.types.type_for_mode (GET_MODE (add),
 							   unsignedp));
-  tree result =  fold (build2 (PLUS_EXPR, type,
-			       fold (build2 (MULT_EXPR, type,
-					     make_tree (type, x),
-					     make_tree (type, mult))),
-			       make_tree (add_type, add)));
+  tree result = fold_build2 (PLUS_EXPR, type,
+			     fold_build2 (MULT_EXPR, type,
+					  make_tree (type, x),
+					  make_tree (type, mult)),
+			     make_tree (add_type, add));
 
   return expand_expr (result, target, VOIDmode, 0);
 }
@@ -5499,9 +5526,9 @@ emit_store_flag_force (rtx target, enum rtx_code code, rtx op0, rtx op1,
 
    The algorithm is based on the code in expr.c:do_jump.
 
-   Note that this does not perform a general comparison.  Only variants
-   generated within expmed.c are correctly handled, others abort (but could
-   be handled if needed).  */
+   Note that this does not perform a general comparison.  Only
+   variants generated within expmed.c are correctly handled, others
+   could be handled if needed.  */
 
 static void
 do_cmp_and_jump (rtx arg1, rtx arg2, enum rtx_code op, enum machine_mode mode,
