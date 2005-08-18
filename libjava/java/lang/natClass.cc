@@ -53,15 +53,14 @@ details.  */
 #include <java/lang/SecurityManager.h>
 #include <java/lang/StringBuffer.h>
 #include <java/lang/VMClassLoader.h>
-#include <gnu/gcj/runtime/StackTrace.h>
 #include <gcj/method.h>
-#include <gnu/gcj/runtime/MethodRef.h>
 #include <gnu/gcj/RawData.h>
 #include <java/lang/VerifyError.h>
 
 #include <java-cpool.h>
 #include <java-interp.h>
 #include <java-assert.h>
+#include <java-stack.h>
 #include <execution.h>
 
 
@@ -101,20 +100,10 @@ jclass
 java::lang::Class::forName (jstring className)
 {
   java::lang::ClassLoader *loader = NULL;
-  gnu::gcj::runtime::StackTrace *t 
-    = new gnu::gcj::runtime::StackTrace(4);
-  java::lang::Class *klass = NULL;
-  try
-    {
-      for (int i = 1; !klass; i++)
-	{
-	  klass = t->classAt (i);
-	}
-      loader = klass->getClassLoaderInternal();
-    }
-  catch (::java::lang::ArrayIndexOutOfBoundsException *e)
-    {
-    }
+
+  jclass caller = _Jv_StackTrace::GetCallingClass (&Class::class$);
+  if (caller)
+    loader = caller->getClassLoaderInternal();
 
   return forName (className, true, loader);
 }
@@ -125,21 +114,10 @@ java::lang::Class::getClassLoader (void)
   java::lang::SecurityManager *s = java::lang::System::getSecurityManager();
   if (s != NULL)
     {
-      gnu::gcj::runtime::StackTrace *t 
-	= new gnu::gcj::runtime::StackTrace(4);
-      Class *caller = NULL;
+      jclass caller = _Jv_StackTrace::GetCallingClass (&Class::class$);
       ClassLoader *caller_loader = NULL;
-      try
-	{
-	  for (int i = 1; !caller; i++)
-	    {
-	      caller = t->classAt (i);
-	    }
-	  caller_loader = caller->getClassLoaderInternal();
-	}
-      catch (::java::lang::ArrayIndexOutOfBoundsException *e)
-	{
-	}
+      if (caller)
+	caller_loader = caller->getClassLoaderInternal();
 
       // If the caller has a non-null class loader, and that loader
       // is not this class' loader or an ancestor thereof, then do a
@@ -148,16 +126,7 @@ java::lang::Class::getClassLoader (void)
 	s->checkPermission (new RuntimePermission (JvNewStringLatin1 ("getClassLoader")));
     }
 
-  // The spec requires us to return `null' for primitive classes.  In
-  // other cases we have the option of returning `null' for classes
-  // loaded with the bootstrap loader.  All gcj-compiled classes which
-  // are linked into the application used to return `null' here, but
-  // that confuses some poorly-written applications.  It is a useful
-  // and apparently harmless compatibility hack to simply never return
-  // `null' instead.
-  if (isPrimitive ())
-    return NULL;
-  return loader ? loader : ClassLoader::systemClassLoader;
+  return loader;
 }
 
 java::lang::reflect::Constructor *
@@ -189,10 +158,8 @@ java::lang::Class::getConstructor (JArray<jclass> *param_types)
 }
 
 JArray<java::lang::reflect::Constructor *> *
-java::lang::Class::_getConstructors (jboolean declared)
+java::lang::Class::getDeclaredConstructors (jboolean publicOnly)
 {
-  memberAccessCheck(java::lang::reflect::Member::PUBLIC);
-
   int numConstructors = 0;
   int max = isPrimitive () ? 0 : method_count;
   int i;
@@ -202,7 +169,7 @@ java::lang::Class::_getConstructors (jboolean declared)
       if (method->name == NULL
 	  || ! _Jv_equalUtf8Consts (method->name, init_name))
 	continue;
-      if (! declared
+      if (publicOnly
 	  && ! java::lang::reflect::Modifier::isPublic(method->accflags))
 	continue;
       numConstructors++;
@@ -219,7 +186,7 @@ java::lang::Class::_getConstructors (jboolean declared)
       if (method->name == NULL
 	  || ! _Jv_equalUtf8Consts (method->name, init_name))
 	continue;
-      if (! declared
+      if (publicOnly
 	  && ! java::lang::reflect::Modifier::isPublic(method->accflags))
 	continue;
       java::lang::reflect::Constructor *cons
@@ -449,22 +416,8 @@ java::lang::Class::getName (void)
 }
 
 JArray<jclass> *
-java::lang::Class::getClasses (void)
+java::lang::Class::getDeclaredClasses (jboolean /*publicOnly*/)
 {
-  // FIXME: security checking.
-
-  // Until we have inner classes, it always makes sense to return an
-  // empty array.
-  JArray<jclass> *result
-    = (JArray<jclass> *) JvNewObjectArray (0, &java::lang::Class::class$,
-					   NULL);
-  return result;
-}
-
-JArray<jclass> *
-java::lang::Class::getDeclaredClasses (void)
-{
-  memberAccessCheck (java::lang::reflect::Member::DECLARED);
   // Until we have inner classes, it always makes sense to return an
   // empty array.
   JArray<jclass> *result
@@ -725,7 +678,20 @@ java::lang::Class::initializeClass (void)
     JvSynchronize sync (this);
 
     if (state < JV_STATE_LINKED)
-      java::lang::VMClassLoader::resolveClass (this);
+      {
+	try
+	  {
+	    _Jv_Linker::wait_for_state(this, JV_STATE_LINKED);
+	  }
+	catch (java::lang::Throwable *x)
+	  {
+	    // Turn into a NoClassDefFoundError.
+	    java::lang::NoClassDefFoundError *result
+	      = new java::lang::NoClassDefFoundError(getName());
+	    result->initCause(x);
+	    throw result;
+	  }
+      }
 
     // Step 2.
     java::lang::Thread *self = java::lang::Thread::currentThread();

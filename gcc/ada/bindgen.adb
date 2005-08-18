@@ -16,8 +16,8 @@
 -- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
 -- for  more details.  You should have  received  a copy of the GNU General --
 -- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the Free Software Foundation,  59 Temple Place - Suite 330,  Boston, --
--- MA 02111-1307, USA.                                                      --
+-- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
+-- Boston, MA 02110-1301, USA.                                              --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -1762,6 +1762,7 @@ package body Bindgen is
    procedure Gen_Main_C is
    begin
       if Exit_Status_Supported_On_Target then
+         WBI ("#include <stdlib.h>");
          Set_String ("int ");
       else
          Set_String ("void ");
@@ -1904,7 +1905,7 @@ package body Bindgen is
             --  For all other systems, we use the standard exit routine.
 
             if OpenVMS_On_Target then
-               WBI ("   __posix_exit (result);");
+               WBI ("   decc$__posix_exit (result);");
             else
                WBI ("   exit (result);");
             end if;
@@ -1921,7 +1922,7 @@ package body Bindgen is
             --  For all other systems, we use the standard exit routine.
 
             if OpenVMS_On_Target then
-               WBI ("   __posix_exit (gnat_exit_status);");
+               WBI ("   decc$__posix_exit (gnat_exit_status);");
             else
                WBI ("   exit (gnat_exit_status);");
             end if;
@@ -2350,10 +2351,18 @@ package body Bindgen is
       WBI ("   pragma Export (C, " & Ada_Final_Name.all & ", """ &
            Ada_Final_Name.all & """);");
 
+      if Use_Pragma_Linker_Constructor then
+         WBI ("   pragma Linker_Destructor (" & Ada_Final_Name.all & ");");
+      end if;
+
       WBI ("");
       WBI ("   procedure " & Ada_Init_Name.all & ";");
       WBI ("   pragma Export (C, " & Ada_Init_Name.all & ", """ &
            Ada_Init_Name.all & """);");
+
+      if Use_Pragma_Linker_Constructor then
+         WBI ("   pragma Linker_Constructor (" & Ada_Init_Name.all & ");");
+      end if;
 
       if Bind_Main_Program then
 
@@ -2513,8 +2522,18 @@ package body Bindgen is
       WBI ("  (int, int, char, char, char, char,");
       WBI ("   const char *, const char *,");
       WBI ("   int, int, int, int, int);");
-      WBI ("extern void " & Ada_Final_Name.all & " (void);");
-      WBI ("extern void " & Ada_Init_Name.all & " (void);");
+
+      if Use_Pragma_Linker_Constructor then
+         WBI ("extern void " & Ada_Final_Name.all &
+              " (void) __attribute__((destructor));");
+         WBI ("extern void " & Ada_Init_Name.all &
+              " (void) __attribute__((constructor));");
+
+      else
+         WBI ("extern void " & Ada_Final_Name.all & " (void);");
+         WBI ("extern void " & Ada_Init_Name.all & " (void);");
+      end if;
+
       WBI ("extern void system__standard_library__adafinal (void);");
 
       if not No_Main_Subprogram then
@@ -2535,7 +2554,7 @@ package body Bindgen is
          end if;
 
          if OpenVMS_On_Target then
-            WBI ("extern void __posix_exit (int);");
+            WBI ("extern void decc$__posix_exit (int);");
          else
             WBI ("extern void exit (int);");
          end if;

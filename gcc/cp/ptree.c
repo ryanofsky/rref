@@ -17,8 +17,8 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING.  If not, write to
-the Free Software Foundation, 59 Temple Place - Suite 330,
-Boston, MA 02111-1307, USA.  */
+the Free Software Foundation, 51 Franklin Street, Fifth Floor,
+Boston, MA 02110-1301, USA.  */
 
 
 #include "config.h"
@@ -129,7 +129,7 @@ cxx_print_type (FILE *file, tree node, int indent)
 		 BINFO_N_BASE_BINFOS (TYPE_BINFO (node)));
       else
 	fprintf (file, " no-binfo");
-      
+
       fprintf (file, " use_template=%d", CLASSTYPE_USE_TEMPLATE (node));
       if (CLASSTYPE_INTERFACE_ONLY (node))
 	fprintf (file, " interface-only");
@@ -149,9 +149,15 @@ cxx_print_binding (FILE *stream, cxx_binding *binding, const char *prefix)
 void
 cxx_print_identifier (FILE *file, tree node, int indent)
 {
-  indent_to (file, indent);
+  if (indent == 0)
+    fprintf (file, " ");
+  else
+    indent_to (file, indent);
   cxx_print_binding (file, IDENTIFIER_NAMESPACE_BINDINGS (node), "bindings");
-  indent_to (file, indent);
+  if (indent == 0)
+    fprintf (file, " ");
+  else
+    indent_to (file, indent);
   cxx_print_binding (file, IDENTIFIER_BINDING (node), "local bindings");
   print_node (file, "label", IDENTIFIER_LABEL_VALUE (node), indent + 4);
   print_node (file, "template", IDENTIFIER_TEMPLATE (node), indent + 4);

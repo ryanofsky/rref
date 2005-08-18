@@ -1,0 +1,23 @@
+/.cvsignore/1.2/Sat Jul 16 01:11:22 2005/-ko/
+/Makefile.am/1.1.1.1/Sat Jul 16 00:34:00 2005/-ko/
+/Makefile.in/1.1/Sat Jul 16 01:11:22 2005//
+/check_jni_methods.sh/1.1.1.1/Sat Jul 16 00:34:01 2005/-ko/
+/checkstyle-config.xml/1.1.1.1/Sat Jul 16 00:34:00 2005/-ko/
+/checkstyle-header.regex/1.1.1.1/Sat Jul 16 00:34:00 2005/-ko/
+/checkstyle-suppressions.xml/1.1.1.1/Sat Jul 16 00:34:01 2005/-ko/
+/checkstyle.css/1.1.1.1/Sat Jul 16 00:34:01 2005/-ko/
+/checkstyle2html.xsl/1.1.1.1/Sat Jul 16 00:34:00 2005/-ko/
+/classpath-build/1.1.1.1/Sat Jul 16 00:34:01 2005/-ko/
+/classpath-daily/1.1.1.1/Sat Jul 16 00:34:00 2005/-ko/
+/classpath.spec.in/1.1.1.1/Sat Jul 16 00:34:01 2005/-ko/
+/eclipse-gnu.xml/1.1.1.1/Sat Jul 16 00:34:00 2005/-ko/
+/generate-locale-list.sh/1.1.1.1/Sat Jul 16 00:34:00 2005/-ko/
+/jalopy-gnu.xml/1.1.1.1/Sat Jul 16 00:34:00 2005/-ko/
+/japi/1.1.1.1/Sat Jul 16 00:34:00 2005/-ko/
+/kissme-mauve/1.1.1.1/Sat Jul 16 00:34:00 2005/-ko/
+/patches.pl/1.1.1.1/Sat Jul 16 00:34:00 2005/-ko/
+/timezones.pl/1.1.1.1/Sat Jul 16 00:34:01 2005/-ko/
+/tzabbrevs/1.1.1.1/Sat Jul 16 00:34:00 2005/-ko/
+/unicode-blocks.pl/1.1.1.1/Sat Jul 16 00:34:01 2005/-ko/
+/unicode-muncher.pl/1.1.1.1/Sat Jul 16 00:34:00 2005/-ko/
+D

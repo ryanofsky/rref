@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 S p e c                                  --
 --                                                                          --
---          Copyright (C) 1992-2005, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2005 Free Software Foundation, Inc.          --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -16,8 +16,8 @@
 -- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
 -- for  more details.  You should have  received  a copy of the GNU General --
 -- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the Free Software Foundation,  59 Temple Place - Suite 330,  Boston, --
--- MA 02111-1307, USA.                                                      --
+-- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
+-- Boston, MA 02110-1301, USA.                                              --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -484,22 +484,28 @@ package Rtsfind is
 
      RE_Stream_Access,                   -- Ada.Streams.Stream_IO
 
+     RE_Addr_Ptr,                        -- Ada.Tags
      RE_CW_Membership,                   -- Ada.Tags
+     RE_IW_Membership,                   -- Ada.Tags
+     RE_Descendant_Tag,                  -- Ada.Tags
      RE_DT_Entry_Size,                   -- Ada.Tags
      RE_DT_Prologue_Size,                -- Ada.Tags
      RE_External_Tag,                    -- Ada.Tags
-     RE_Get_Expanded_Name,               -- Ada.Tags
+     RE_Get_Access_Level,                -- Ada.Tags
      RE_Get_External_Tag,                -- Ada.Tags
      RE_Get_Prim_Op_Address,             -- Ada.Tags
      RE_Get_RC_Offset,                   -- Ada.Tags
      RE_Get_Remotely_Callable,           -- Ada.Tags
-     RE_Get_TSD,                         -- Ada.Tags
      RE_Inherit_DT,                      -- Ada.Tags
      RE_Inherit_TSD,                     -- Ada.Tags
      RE_Internal_Tag,                    -- Ada.Tags
+     RE_Is_Descendant_At_Same_Level,     -- Ada.Tags
+     RE_Register_Interface_Tag,          -- Ada.Tags
      RE_Register_Tag,                    -- Ada.Tags
+     RE_Set_Access_Level,                -- Ada.Tags
      RE_Set_Expanded_Name,               -- Ada.Tags
      RE_Set_External_Tag,                -- Ada.Tags
+     RE_Set_Offset_To_Top,               -- Ada.Tags
      RE_Set_Prim_Op_Address,             -- Ada.Tags
      RE_Set_RC_Offset,                   -- Ada.Tags
      RE_Set_Remotely_Callable,           -- Ada.Tags
@@ -507,6 +513,7 @@ package Rtsfind is
      RE_Tag_Error,                       -- Ada.Tags
      RE_TSD_Entry_Size,                  -- Ada.Tags
      RE_TSD_Prologue_Size,               -- Ada.Tags
+     RE_Interface_Tag,                   -- Ada.Tags
      RE_Tag,                             -- Ada.Tags
      RE_Address_Array,                   -- Ada.Tags
 
@@ -536,12 +543,10 @@ package Rtsfind is
      RE_CPP_CW_Membership,               -- Interfaces.CPP
      RE_CPP_DT_Entry_Size,               -- Interfaces.CPP
      RE_CPP_DT_Prologue_Size,            -- Interfaces.CPP
-     RE_CPP_Get_Expanded_Name,           -- Interfaces.CPP
      RE_CPP_Get_External_Tag,            -- Interfaces.CPP
      RE_CPP_Get_Prim_Op_Address,         -- Interfaces.CPP
      RE_CPP_Get_RC_Offset,               -- Interfaces.CPP
      RE_CPP_Get_Remotely_Callable,       -- Interfaces.CPP
-     RE_CPP_Get_TSD,                     -- Interfaces.CPP
      RE_CPP_Inherit_DT,                  -- Interfaces.CPP
      RE_CPP_Inherit_TSD,                 -- Interfaces.CPP
      RE_CPP_Register_Tag,                -- Interfaces.CPP
@@ -1586,22 +1591,28 @@ package Rtsfind is
 
      RE_Stream_Access                    => Ada_Streams_Stream_IO,
 
+     RE_Addr_Ptr                         => Ada_Tags,
      RE_CW_Membership                    => Ada_Tags,
+     RE_IW_Membership                    => Ada_Tags,
+     RE_Descendant_Tag                   => Ada_Tags,
      RE_DT_Entry_Size                    => Ada_Tags,
      RE_DT_Prologue_Size                 => Ada_Tags,
      RE_External_Tag                     => Ada_Tags,
-     RE_Get_Expanded_Name                => Ada_Tags,
+     RE_Get_Access_Level                 => Ada_Tags,
      RE_Get_External_Tag                 => Ada_Tags,
      RE_Get_Prim_Op_Address              => Ada_Tags,
      RE_Get_RC_Offset                    => Ada_Tags,
      RE_Get_Remotely_Callable            => Ada_Tags,
-     RE_Get_TSD                          => Ada_Tags,
      RE_Inherit_DT                       => Ada_Tags,
      RE_Inherit_TSD                      => Ada_Tags,
      RE_Internal_Tag                     => Ada_Tags,
+     RE_Is_Descendant_At_Same_Level      => Ada_Tags,
+     RE_Register_Interface_Tag           => Ada_Tags,
      RE_Register_Tag                     => Ada_Tags,
+     RE_Set_Access_Level                 => Ada_Tags,
      RE_Set_Expanded_Name                => Ada_Tags,
      RE_Set_External_Tag                 => Ada_Tags,
+     RE_Set_Offset_To_Top                => Ada_Tags,
      RE_Set_Prim_Op_Address              => Ada_Tags,
      RE_Set_RC_Offset                    => Ada_Tags,
      RE_Set_Remotely_Callable            => Ada_Tags,
@@ -1609,6 +1620,7 @@ package Rtsfind is
      RE_Tag_Error                        => Ada_Tags,
      RE_TSD_Entry_Size                   => Ada_Tags,
      RE_TSD_Prologue_Size                => Ada_Tags,
+     RE_Interface_Tag                    => Ada_Tags,
      RE_Tag                              => Ada_Tags,
      RE_Address_Array                    => Ada_Tags,
 
@@ -1636,12 +1648,10 @@ package Rtsfind is
      RE_CPP_CW_Membership                => Interfaces_CPP,
      RE_CPP_DT_Entry_Size                => Interfaces_CPP,
      RE_CPP_DT_Prologue_Size             => Interfaces_CPP,
-     RE_CPP_Get_Expanded_Name            => Interfaces_CPP,
      RE_CPP_Get_External_Tag             => Interfaces_CPP,
      RE_CPP_Get_Prim_Op_Address          => Interfaces_CPP,
      RE_CPP_Get_RC_Offset                => Interfaces_CPP,
      RE_CPP_Get_Remotely_Callable        => Interfaces_CPP,
-     RE_CPP_Get_TSD                      => Interfaces_CPP,
      RE_CPP_Inherit_DT                   => Interfaces_CPP,
      RE_CPP_Inherit_TSD                  => Interfaces_CPP,
      RE_CPP_Register_Tag                 => Interfaces_CPP,

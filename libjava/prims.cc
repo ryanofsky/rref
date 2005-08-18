@@ -55,6 +55,7 @@ details.  */
 #include <java/lang/OutOfMemoryError.h>
 #include <java/lang/System.h>
 #include <java/lang/VMThrowable.h>
+#include <java/lang/VMClassLoader.h>
 #include <java/lang/reflect/Modifier.h>
 #include <java/io/PrintStream.h>
 #include <java/lang/UnsatisfiedLinkError.h>
@@ -63,7 +64,6 @@ details.  */
 #include <gnu/gcj/runtime/FinalizerThread.h>
 #include <execution.h>
 #include <gnu/java/lang/MainThread.h>
-#include <java/lang/VMClassLoader.h>
 
 #ifdef USE_LTDL
 #include <ltdl.h>
@@ -145,10 +145,10 @@ unblock_signal (int signum __attribute__ ((__unused__)))
 #ifdef HANDLE_SEGV
 SIGNAL_HANDLER (catch_segv)
 {
-  java::lang::NullPointerException *nullp 
-    = new java::lang::NullPointerException;
   unblock_signal (SIGSEGV);
   MAKE_THROW_FRAME (nullp);
+  java::lang::NullPointerException *nullp 
+    = new java::lang::NullPointerException;
   throw nullp;
 }
 #endif
@@ -156,14 +156,14 @@ SIGNAL_HANDLER (catch_segv)
 #ifdef HANDLE_FPE
 SIGNAL_HANDLER (catch_fpe)
 {
-  java::lang::ArithmeticException *arithexception 
-    = new java::lang::ArithmeticException (JvNewStringLatin1 ("/ by zero"));
   unblock_signal (SIGFPE);
 #ifdef HANDLE_DIVIDE_OVERFLOW
   HANDLE_DIVIDE_OVERFLOW;
 #else
   MAKE_THROW_FRAME (arithexception);
 #endif
+  java::lang::ArithmeticException *arithexception 
+    = new java::lang::ArithmeticException (JvNewStringLatin1 ("/ by zero"));
   throw arithexception;
 }
 #endif
@@ -358,6 +358,22 @@ _Jv_ThrowNullPointerException ()
 {
   throw new java::lang::NullPointerException;
 }
+
+// Resolve an entry in the constant pool and return the target
+// address.
+void *
+_Jv_ResolvePoolEntry (jclass this_class, jint index)
+{
+  _Jv_Constants *pool = &this_class->constants;
+
+  if ((pool->tags[index] & JV_CONSTANT_ResolvedFlag) != 0)
+    return pool->data[index].field->u.addr;
+
+  JvSynchronize sync (this_class);
+  return (_Jv_Linker::resolve_pool_entry (this_class, index))
+    .field->u.addr;
+}
+
 
 // Explicitly throw a no memory exception.
 // The collector calls this when it encounters an out-of-memory condition.
@@ -675,46 +691,79 @@ _Jv_InitPrimClass (jclass cl, char *cname, char sig, int len)
 }
 
 jclass
-_Jv_FindClassFromSignature (char *sig, java::lang::ClassLoader *loader)
+_Jv_FindClassFromSignature (char *sig, java::lang::ClassLoader *loader,
+			    char **endp)
 {
+  // First count arrays.
+  int array_count = 0;
+  while (*sig == '[')
+    {
+      ++sig;
+      ++array_count;
+    }
+
+  jclass result = NULL;
   switch (*sig)
     {
     case 'B':
-      return JvPrimClass (byte);
+      result = JvPrimClass (byte);
+      break;
     case 'S':
-      return JvPrimClass (short);
+      result = JvPrimClass (short);
+      break;
     case 'I':
-      return JvPrimClass (int);
+      result = JvPrimClass (int);
+      break;
     case 'J':
-      return JvPrimClass (long);
+      result = JvPrimClass (long);
+      break;
     case 'Z':
-      return JvPrimClass (boolean);
+      result = JvPrimClass (boolean);
+      break;
     case 'C':
-      return JvPrimClass (char);
+      result = JvPrimClass (char);
+      break;
     case 'F':
-      return JvPrimClass (float);
+      result = JvPrimClass (float);
+      break;
     case 'D':
-      return JvPrimClass (double);
+      result = JvPrimClass (double);
+      break;
     case 'V':
-      return JvPrimClass (void);
+      result = JvPrimClass (void);
+      break;
     case 'L':
       {
-	int i;
-	for (i = 1; sig[i] && sig[i] != ';'; ++i)
-	  ;
-	_Jv_Utf8Const *name = _Jv_makeUtf8Const (&sig[1], i - 1);
-	return _Jv_FindClass (name, loader);
+	char *save = ++sig;
+	while (*sig && *sig != ';')
+	  ++sig;
+	// Do nothing if signature appears to be malformed.
+	if (*sig == ';')
+	  {
+	    _Jv_Utf8Const *name = _Jv_makeUtf8Const (save, sig - save);
+	    result = _Jv_FindClass (name, loader);
+	  }
+	break;
       }
-    case '[':
-      {
-	jclass klass = _Jv_FindClassFromSignature (&sig[1], loader);
-	if (! klass)
-	  return NULL;
-	return _Jv_GetArrayClass (klass, loader);
-      }
+    default:
+      // Do nothing -- bad signature.
+      break;
     }
 
-  return NULL;			// Placate compiler.
+  if (endp)
+    {
+      // Not really the "end", but the last valid character that we
+      // looked at.
+      *endp = sig;
+    }
+
+  if (! result)
+    return NULL;
+
+  // Find arrays.
+  while (array_count-- > 0)
+    result = _Jv_GetArrayClass (result, loader);
+  return result;
 }
 
 
@@ -904,6 +953,12 @@ namespace gcj
   _Jv_Utf8Const *finit_name;
   
   bool runtimeInitialized = false;
+  
+  // When true, print debugging information about class loading.
+  bool verbose_class_flag;
+  
+  // When true, enable the bytecode verifier and BC-ABI type verification. 
+  bool verifyClasses = true;
 }
 
 // We accept all non-standard options accepted by Sun's java command,

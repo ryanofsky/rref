@@ -16,8 +16,8 @@
 -- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
 -- for  more details.  You should have  received  a copy of the GNU General --
 -- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the Free Software Foundation,  59 Temple Place - Suite 330,  Boston, --
--- MA 02111-1307, USA.                                                      --
+-- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
+-- Boston, MA 02110-1301, USA.                                              --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -493,6 +493,9 @@ package body Errout is
       --  since there may be white space inside the literal and we don't want
       --  to stop on that white space.
 
+      --  Note: since this is an error recovery issue anyway, it is not worth
+      --  worrying about special UTF_32 line terminator characters here.
+
       if Prev_Token = Tok_String_Literal then
          loop
             S1 := S1 + 1;
@@ -512,7 +515,10 @@ package body Errout is
 
       --  Otherwise we search forward for the end of the current token, marked
       --  by a line terminator, white space, a comment symbol or if we bump
-      --  into the following token (i.e. the current token)
+      --  into the following token (i.e. the current token).
+
+      --  Again, it is not worth worrying about UTF_32 special line terminator
+      --  characters in this context, since this is only for error recovery.
 
       else
          while Source (S1) not in Line_Terminator
@@ -528,7 +534,6 @@ package body Errout is
       --  S1 is now set to the location for the flag
 
       Error_Msg (Msg, S1);
-
    end Error_Msg_AP;
 
    ------------------
@@ -576,7 +581,6 @@ package body Errout is
 
       S : String (1 .. Feature'Length + 1 + CCRT'Length);
       L : Natural;
-
 
    begin
       S (1) := '|';
@@ -1029,7 +1033,10 @@ package body Errout is
       N     : Node_Or_Entity_Id)
    is
    begin
-      if Eflag and then In_Extended_Main_Source_Unit (N) then
+      if Eflag
+        and then In_Extended_Main_Source_Unit (N)
+        and then Comes_From_Source (N)
+      then
          Error_Msg_NEL (Msg, N, N, Sloc (N));
       end if;
    end Error_Msg_NW;
@@ -1746,7 +1753,6 @@ package body Errout is
       --  Casing required for result. Default value of Mixed_Case is used if
       --  for some reason we cannot find the right file name in the table.
 
-
    begin
       --  Get length of file name
 
@@ -2233,7 +2239,6 @@ package body Errout is
 
             when '>' =>
                Set_Msg_Insertion_Run_Time_Name;
-
 
             when '^' =>
                Set_Msg_Insertion_Uint;

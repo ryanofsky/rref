@@ -328,7 +328,7 @@ the 1.9.x series, which is currently 1.9.3.  When regenerating a directory
 to a newer version, please update all the directories using an older 1.9.x
 to the latest released version.
 
-@item gettext version 0.12 (or later)
+@item gettext version 0.14.5 (or later)
 
 Needed to regenerate @file{gcc.pot}.
 
@@ -398,6 +398,8 @@ snapshots of the development sources are also available via FTP@.
 Necessary when regenerating @file{Makefile} dependencies in libiberty.
 Necessary when regenerating @file{libiberty/functions.texi}.
 Necessary when generating manpages from Texinfo manuals.
+Necessary when targetting Darwin, building libstdc++,
+and not using @option{--disable-symvers}.
 Used by various scripts to generate some files included in CVS (mainly
 Unicode-related and rarely changing) from source tables.
 
@@ -1052,13 +1054,15 @@ their runtime libraries should be built.  For a list of valid values for
 grep language= */config-lang.in
 @end smallexample
 Currently, you can use any of the following:
-@code{ada}, @code{c}, @code{c++}, @code{f77}, @code{f95}, @code{java},
-@code{objc}, @code{obj-c++}.
-Building the Ada compiler has special requirements, see below.@*
-If you do not pass this flag, all languages available in the @file{gcc}
-sub-tree will be configured.  Re-defining @code{LANGUAGES} when calling
-@samp{make bootstrap} @strong{does not} work anymore, as those
-language sub-directories might not have been configured!
+@code{all}, @code{ada}, @code{c}, @code{c++}, @code{f95}, @code{java},
+@code{objc}, @code{obj-c++}, @code{treelang}.
+Building the Ada compiler has special requirements, see below.
+If you do not pass this flag, or specify the option @code{all}, then all
+default languages available in the @file{gcc} sub-tree will be configured.
+Ada, Objective-C++, and treelang are not default languages; the rest are.
+Re-defining @code{LANGUAGES} when calling @samp{make bootstrap}
+@strong{does not} work anymore, as those language sub-directories might
+not have been configured!
 
 @item --disable-libada
 Specify that the run-time libraries and tools used by GNAT should not
@@ -1066,9 +1070,34 @@ be built.  This can be useful for debugging, or for compatibility with
 previous Ada build procedures, when it was required to explicitly
 do a @samp{make -C gcc gnatlib_and_tools}.
 
+@item --disable-libssp
+Specify that the run-time libraries for stack smashing protection
+should not be built.
+
 @item --with-dwarf2
 Specify that the compiler should
 use DWARF 2 debugging information as the default.
+
+@item --enable-targets=all
+@itemx --enable-targets=@var{target_list}
+Some GCC targets, e.g.@: powerpc64-linux, build bi-arch compilers.
+These are compilers that are able to generate either 64-bit or 32-bit
+code.  Typically, the corresponding 32-bit target, e.g.@:
+powerpc-linux for powerpc64-linux, only generates 32-bit code.  This
+option enables the 32-bit target to be a bi-arch compiler, which is
+useful when you want a bi-arch compiler that defaults to 32-bit, and
+you are building a bi-arch or multi-arch binutils in a combined tree.
+Currently, this option only affects powerpc-linux.
+
+@item --enable-secureplt
+This option enables @option{-msecure-plt} by default for powerpc-linux.
+@ifnothtml
+@xref{RS/6000 and PowerPC Options,, RS/6000 and PowerPC Options, gcc,
+Using the GNU Compiler Collection (GCC)},
+@end ifnothtml
+@ifhtml
+See ``RS/6000 and PowerPC Options'' in the main manual
+@end ifhtml
 
 @item --enable-win32-registry
 @itemx --enable-win32-registry=@var{key}
@@ -1106,29 +1135,29 @@ controlled by the Makefiles.
 
 @item --enable-checking
 @itemx --enable-checking=@var{list}
-When you specify this option, the compiler is built to perform checking
-of tree node types when referencing fields of that node, and some other
-internal consistency checks.  This does not change the generated code,
-but adds error checking within the compiler.  This will slow down the
-compiler and may only work properly if you are building the compiler
-with GCC@.  This is on by default when building from CVS or snapshots,
-but off for releases.  More control over the checks may be had by
-specifying @var{list}; the categories of checks available are
-@samp{release}, @samp{assert}, @samp{misc}, @samp{tree}, @samp{gc},
-@samp{rtl}, @samp{rtlflag}, @samp{fold}, @samp{gcac} and
-@samp{valgrind}.  The @samp{release} category enables only those checks
-suitable for release builds, currently this is just @samp{assert}.  The
-check @samp{valgrind} requires the external @command{valgrind}
-simulator, available from @uref{http://valgrind.kde.org/}.  The checks
-@samp{rtl}, @samp{gcac} and @samp{valgrind} are very expensive.  The
-default when @var{list} is not specified is
-@samp{assert,misc,tree,gc,rtlflag}.  That is also the default for
-development builds, when @samp{--enable-checking} is not specified.  For
-release builds the default, when @samp{--enable-checking} is not given,
-is @samp{release}.  To disable all checking, @samp{--disable-checking}
-must be explicitly requested.  Disabling assertions will make the
-compiler slightly faster but increase the risk of undetected internal
-errors causing wrong code to be generated.
+When you specify this option, the compiler is built to perform internal
+consistency checks of the requested complexity.  This does not change the
+generated code, but adds error checking within the compiler.  This will
+slow down the compiler and may only work properly if you are building
+the compiler with GCC@.  This is @samp{yes} by default when building
+from CVS or snapshots, but @samp{release} for releases.  More control
+over the checks may be had by specifying @var{list}.  The categories of
+checks available are @samp{yes} (most common checks
+@samp{assert,misc,tree,gc,rtlflag,runtime}), @samp{no} (no checks at
+all), @samp{all} (all but @samp{valgrind}), @samp{release} (cheapest
+checks @samp{assert,runtime}) or @samp{none} (same as @samp{no}).
+Individual checks can be enabled with these flags @samp{assert},
+@samp{fold}, @samp{gc}, @samp{gcac} @samp{misc}, @samp{rtl},
+@samp{rtlflag}, @samp{runtime}, @samp{tree}, and @samp{valgrind}.
+
+The @samp{valgrind} check requires the external @command{valgrind}
+simulator, available from @uref{http://valgrind.org/}.  The
+@samp{rtl}, @samp{gcac} and @samp{valgrind} checks are very expensive.
+To disable all checking, @samp{--disable-checking} or
+@samp{--enable-checking=none} must be explicitly requested.  Disabling
+assertions will make the compiler and runtime slightly faster but
+increase the risk of undetected internal errors causing wrong code to be
+generated.
 
 @item --enable-coverage
 @itemx --enable-coverage=@var{level}
@@ -1200,6 +1229,20 @@ in case @option{--with-sysroot} is not given an argument, is
 @option{$@{gcc_tooldir@}/sys-root}.  If the specified directory is a
 subdirectory of @option{$@{exec_prefix@}}, then it will be found relative to
 the GCC binaries if the installation tree is moved.
+
+@item --with-build-sysroot
+@itemx --with-build-sysroot=@var{dir}
+Tells GCC to consider @var{dir} as the system root (see
+@option{--with-sysroot}) while building target libraries, instead of
+the directory specified with @option{--with-sysroot}.  This option is
+only useful when you are already using @option{--with-sysroot}.  You
+can use @option{--with-build-sysroot} when you are configuring with
+@option{--prefix} set to a directory that is different from the one in
+which you are installing GCC and your target libraries.  
+
+This option affects the system root for the compiler used to build
+target libraries (which runs on the build system); it does not affect
+the compiler which is used to build GCC itself.
 
 @item --with-headers
 @itemx --with-headers=@var{dir}
@@ -2026,8 +2069,8 @@ Free Software Foundation}, though such manuals may not be for the most
 recent version of GCC@.
 
 If you would like to generate online HTML documentation, do @samp{cd
-@var{objdir}; make html} and HTML will be generated for the manuals in
-@file{@var{objdir}/HTML}.
+@var{objdir}; make html} and HTML will be generated for the gcc manuals in
+@file{@var{objdir}/gcc/HTML}.
 
 @html
 <hr />
@@ -2081,7 +2124,7 @@ Development Tools for the Renesas H8/300[HS] Series}.
 HP-UX:
 @itemize
 @item
-@uref{http://hpux.cae.wisc.edu/,,HP-UX Porting Center};
+@uref{http://hpux.cs.utah.edu/,,HP-UX Porting Center};
 
 @item
 @uref{ftp://sunsite.informatik.rwth-aachen.de/pub/packages/gcc_hpux/,,Binaries for HP-UX 11.00 at Aachen University of Technology}.
@@ -2094,9 +2137,6 @@ Development Tools for the Motorola 68HC11/68HC12}.
 @item
 @uref{http://www.sco.com/skunkware/devtools/index.html#gcc,,SCO
 OpenServer/Unixware}.
-
-@item
-Sinix/Reliant Unix---@uref{ftp://ftp.fujitsu-siemens.com/pub/pd/gnu/gcc/,,Siemens}.
 
 @item
 Solaris 2 (SPARC, Intel)---@uref{http://www.sunfreeware.com/,,Sunfreeware}.
@@ -2126,11 +2166,15 @@ Solaris/SPARC 2.5.1, 2.6, 7, 8, and 9.
 @item
 @uref{http://www.openpkg.org/,,OpenPKG} offers binaries for quite a
 number of platforms.
+
+@item
+The @uref{http://gcc.gnu.org/wiki/GFortranBinaries,,GFortran Wiki} has
+links to gfortran binaries for several platforms.
 @end itemize
 
 In addition to those specific offerings, you can get a binary
 distribution CD-ROM from the
-@uref{http://www.fsf.org/order/order.html,,Free Software Foundation}.
+@uref{http://www.gnu.org/order/order.html,,Free Software Foundation}.
 It contains binaries for a number of platforms, and
 includes not only GCC, but other stuff as well.  The current CD does
 not contain the latest version of GCC, but it should allow
@@ -2183,6 +2227,8 @@ GNU Compiler Collection on your machine.
 @item
 @uref{#avr,,avr}
 @item
+@uref{#bfin,,Blackfin}
+@item
 @uref{#c4x,,c4x}
 @item
 @uref{#dos,,DOS}
@@ -2203,7 +2249,9 @@ GNU Compiler Collection on your machine.
 @item
 @uref{#ix86-x-linux,,i?86-*-linux*}
 @item
-@uref{#ix86-x-sco3.2v5,,i?86-*-sco3.2v5*}
+@uref{#ix86-x-sco32v5,,i?86-*-sco3.2v5*}
+@item
+@uref{#ix86-x-solaris210,,i?86-*-solaris2.10}
 @item
 @uref{#ix86-x-udk,,i?86-*-udk}
 @item
@@ -2213,9 +2261,9 @@ GNU Compiler Collection on your machine.
 @item
 @uref{#x-ibm-aix,,*-ibm-aix*}
 @item
-@uref{#ip2k-x-elf,,ip2k-*-elf}
-@item
 @uref{#iq2000-x-elf,,iq2000-*-elf}
+@item
+@uref{#m32c-x-elf,,m32c-*-elf}
 @item
 @uref{#m32r-x-elf,,m32r-*-elf}
 @item
@@ -2261,7 +2309,7 @@ GNU Compiler Collection on your machine.
 @item
 @uref{#sparc-sun-solaris2,,sparc-sun-solaris2*}
 @item
-@uref{#sparc-sun-solaris2.7,,sparc-sun-solaris2.7}
+@uref{#sparc-sun-solaris27,,sparc-sun-solaris2.7}
 @item
 @uref{#sparc-x-linux,,sparc-*-linux*}
 @item
@@ -2275,7 +2323,7 @@ GNU Compiler Collection on your machine.
 @item
 @uref{#x-x-vxworks,,*-*-vxworks*}
 @item
-@uref{#x86_64-x-x,,x86_64-*-*, amd64-*-*}
+@uref{#x86-64-x-x,,x86_64-*-*, amd64-*-*}
 @item
 @uref{#xtensa-x-elf,,xtensa-*-elf}
 @item
@@ -2290,7 +2338,7 @@ GNU Compiler Collection on your machine.
 
 @itemize
 @item
-@uref{#elf_targets,,all ELF targets} (SVR4, Solaris 2, etc.)
+@uref{#elf,,all ELF targets} (SVR4, Solaris 2, etc.)
 @end itemize
 @end ifhtml
 
@@ -2459,7 +2507,7 @@ ARM-family processors.  These targets support the AOUT file format:
 ATMEL AVR-family micro controllers.  These are used in embedded
 applications.  There are no standard Unix configurations.
 @ifnothtml
-@xref{AVR Options,, AVR Options, gcc, Using and Porting the GNU Compiler
+@xref{AVR Options,, AVR Options, gcc, Using the GNU Compiler
 Collection (GCC)},
 @end ifnothtml
 @ifhtml
@@ -2474,7 +2522,7 @@ can also be obtained from:
 
 @itemize @bullet
 @item
-@uref{http://www.openavr.org,,http://www.openavr.org}
+@uref{http://www.nongnu.org/avr/,,http://www.nongnu.org/avr/}
 @item
 @uref{http://home.overta.ru/users/denisc/,,http://home.overta.ru/users/denisc/}
 @item
@@ -2493,14 +2541,31 @@ indicates that you should upgrade to a newer version of the binutils.
 @html
 <hr />
 @end html
+@heading @anchor{bfin}Blackfin
+
+The Blackfin processor, an Analog Devices DSP.
+@ifnothtml
+@xref{Blackfin Options,, Blackfin Options, gcc, Using the GNU Compiler
+Collection (GCC)},
+@end ifnothtml
+@ifhtml
+See ``Blackfin Options'' in the main manual
+@end ifhtml
+
+More information, and a version of binutils with support for this processor,
+is available at @uref{http://blackfin.uclinux.org}
+
+@html
+<hr />
+@end html
 @heading @anchor{c4x}c4x
 
 Texas Instruments TMS320C3x and TMS320C4x Floating Point Digital Signal
 Processors.  These are used in embedded applications.  There are no
 standard Unix configurations.
 @ifnothtml
-@xref{TMS320C3x/C4x Options,, TMS320C3x/C4x Options, gcc, Using and
-Porting the GNU Compiler Collection (GCC)},
+@xref{TMS320C3x/C4x Options,, TMS320C3x/C4x Options, gcc, Using the
+GNU Compiler Collection (GCC)},
 @end ifnothtml
 @ifhtml
 See ``TMS320C3x/C4x Options'' in the main manual
@@ -2529,7 +2594,7 @@ CRIS is the CPU architecture in Axis Communications ETRAX system-on-a-chip
 series.  These are used in embedded applications.
 
 @ifnothtml
-@xref{CRIS Options,, CRIS Options, gcc, Using and Porting the GNU Compiler
+@xref{CRIS Options,, CRIS Options, gcc, Using the GNU Compiler
 Collection (GCC)},
 @end ifnothtml
 @ifhtml
@@ -2557,6 +2622,32 @@ Pre-packaged tools can be obtained from
 @uref{ftp://ftp.axis.com/pub/axis/tools/cris/compiler-kit/}.  More
 information about this platform is available at
 @uref{http://developer.axis.com/}.
+
+@html
+<hr />
+@end html
+@heading @anchor{crx}CRX
+
+The CRX CompactRISC architecture is a low-power 32-bit architecture with
+fast context switching and architectural extensibility features.
+
+@ifnothtml
+@xref{CRX Options,, CRX Options, gcc, Using and Porting the GNU Compiler
+Collection (GCC)},
+@end ifnothtml
+
+@ifhtml
+See ``CRX Options'' in the main manual for a list of CRX-specific options.
+@end ifhtml
+
+Use @samp{configure --target=crx-elf --enable-languages=c,c++} to configure
+GCC@ for building a CRX cross-compiler. The option @samp{--target=crx-elf}
+is also used to build the @samp{newlib} C library for CRX.
+
+It is also possible to build libstdc++-v3 for the CRX architecture. This
+needs to be done in a separate step with the following configure settings:
+@samp{gcc/libstdc++-v3/configure --host=crx-elf --with-newlib
+--enable-sjlj-exceptions --enable-cxx-flags='-fexceptions -frtti'}
 
 @html
 <hr />
@@ -2874,7 +2965,7 @@ found on @uref{http://www.bitwizard.nl/sig11/,,www.bitwizard.nl}.
 @html
 <hr />
 @end html
-@heading @anchor{ix86-x-sco3.2v5}i?86-*-sco3.2v5*
+@heading @anchor{ix86-x-sco32v5}i?86-*-sco3.2v5*
 Use this for the SCO OpenServer Release 5 family of operating systems.
 
 Unlike earlier versions of GCC, the ability to generate COFF with this
@@ -2914,6 +3005,18 @@ GNU utilities) can be found in Support Level Supplement OSS658A, the
 ``GNU Development Tools'' package.  See the SCO web and ftp sites for details.
 That package also contains the currently ``officially supported'' version of
 GCC, version 2.95.3.  It is useful for bootstrapping this version.
+
+@html
+<hr />
+@end html
+@heading @anchor{ix86-x-solaris210}i?86-*-solaris2.10
+Use this for Solaris 10 or later on x86 and x86-64 systems.  This
+configuration is supported by GCC 4.0 and later versions only.
+
+It is recommended that you configure GCC to use the GNU assembler in
+@file{/usr/sfw/bin/gas} but the Sun linker, using the options
+@option{--with-gnu-as --with-as=/usr/sfw/bin/gas --without-gnu-ld
+--with-ld=/usr/ccs/bin/ld}.
 
 @html
 <hr />
@@ -3118,19 +3221,16 @@ switch and using the configure option @option{--with-cpu-@var{cpu_type}}.
 @html
 <hr />
 @end html
-@heading @anchor{ip2k-x-elf}ip2k-*-elf
-Ubicom IP2022 micro controller.
-This configuration is intended for embedded systems.
-There are no standard Unix configurations.
-
-Use @samp{configure --target=ip2k-elf --enable-languages=c} to configure GCC@.
+@heading @anchor{iq2000-x-elf}iq2000-*-elf
+Vitesse IQ2000 processors.  These are used in embedded
+applications.  There are no standard Unix configurations.
 
 @html
 <hr />
 @end html
-@heading @anchor{iq2000-x-elf}iq2000-*-elf
-Vitesse IQ2000 processors.  These are used in embedded
-applications.  There are no standard Unix configurations.
+@heading @anchor{m32c-x-elf}m32c-*-elf
+Renesas M32C processor.
+This configuration is intended for embedded systems.
 
 @html
 <hr />
@@ -3236,10 +3336,10 @@ the use of break, use the @option{--with-divide=breaks}
 @command{configure} option when configuring GCC@.  The default is to
 use traps on systems that support them.
 
-Cross-compilers for the Mips as target using the Mips assembler
+Cross-compilers for the MIPS as target using the MIPS assembler
 currently do not work, because the auxiliary programs
 @file{mips-tdump.c} and @file{mips-tfile.c} can't be compiled on
-anything but a Mips.  It does work to cross compile for a Mips
+anything but a MIPS.  It does work to cross compile for a MIPS
 if you use the GNU assembler and linker.
 
 @html
@@ -3515,6 +3615,14 @@ from the CVS repository or applying the patch
 @uref{http://sources.redhat.com/ml/binutils-cvs/2004-09/msg00036.html} to the
 release.
 
+We recommend using GNU binutils 2.16 or later in conjunction with GCC 4.x.
+However, for Solaris 10 and above, an additional patch is required in order
+for the GNU linker to be able to cope with a new flavor of shared libraries.
+You can obtain a working version by checking out the binutils-2_16-branch
+from the CVS repository or applying the patch
+@uref{http://sourceware.org/ml/binutils-cvs/2005-07/msg00122.html} to the
+release.
+
 Sun bug 4296832 turns up when compiling X11 headers with GCC 2.95 or
 newer: @command{g++} will complain that types are missing.  These headers assume
 that omitting the type means @code{int}; this assumption worked for C89 but
@@ -3588,11 +3696,11 @@ failure in form of a miscompilation of the stage1 compiler by the Sun
 compiler.  This is Sun bug 4974440.  This is fixed with patch 112760-07.
 
 GCC 3.4 changed the default debugging format from STABS to DWARF-2 for
-32-bit code on Solaris 7 and later.  If you are using the Sun
-assembler, this change apparently runs afoul of Sun bug 4910101, for
-which (as of 2004-05-23) there is no fix.  A symptom of the problem is
-that you cannot compile C++ programs like @command{groff} 1.19.1
-without getting messages similar to the following:
+32-bit code on Solaris 7 and later.  If you use the Sun assembler, this
+change apparently runs afoul of Sun bug 4910101 (which is referenced as
+a x86-only problem by Sun, probably because they do not use DWARF-2).
+A symptom of the problem is that you cannot compile C++ programs like
+@command{groff} 1.19.1 without getting messages similar to the following:
 
 @smallexample
 ld: warning: relocation error: R_SPARC_UA32: @dots{}
@@ -3614,7 +3722,7 @@ or later system, the canonical target triplet must be specified as the
 @html
 <hr />
 @end html
-@heading @anchor{sparc-sun-solaris2.7}sparc-sun-solaris2.7
+@heading @anchor{sparc-sun-solaris27}sparc-sun-solaris2.7
 
 Sun patch 107058-01 (1999-01-13) for Solaris 7/SPARC triggers a bug in
 the dynamic linker.  This problem (Sun bug 4210064) affects GCC 2.8
@@ -3661,6 +3769,17 @@ ld: fatal: relocation error: R_SPARC_32: file libgcc/sparcv9/_muldi3.o:
 @end smallexample
 
 This bug has been fixed in the final 5.0 version of the assembler.
+
+A similar problem was reported for version Sun WorkShop 6 99/08/18 of the
+Sun assembler, which causes a bootstrap failure with GCC 4.0.0:
+
+@smallexample
+ld: fatal: relocation error: R_SPARC_DISP32:
+  file .libs/libstdc++.lax/libsupc++convenience.a/vterminate.o:
+    symbol <unknown>: offset 0xfccd33ad is non-aligned
+@end smallexample
+
+This bug has been fixed in more recent revisions of the assembler.
 
 @html
 <hr />
@@ -3773,7 +3892,7 @@ VxWorks will incorporate this module.)
 @html
 <hr />
 @end html
-@heading @anchor{x86_64-x-x}x86_64-*-*, amd64-*-*
+@heading @anchor{x86-64-x-x}x86_64-*-*, amd64-*-*
 
 GCC supports the x86-64 architecture implemented by the AMD64 processor
 (amd64-*-* is an alias for x86_64-*-*) on GNU/Linux, FreeBSD and NetBSD@.
@@ -3815,14 +3934,11 @@ respects, this target is the same as the
 @end html
 @heading @anchor{windows}Microsoft Windows (32-bit)
 
-A port of GCC 2.95.2 and 3.x is included with the
+Ports of GCC are included with the
 @uref{http://www.cygwin.com/,,Cygwin environment}.
 
-Current (as of early 2001) snapshots of GCC will build under Cygwin
-without modification.
-
-GCC does not currently build with Microsoft's C++ compiler and there
-are no plans to make it do so.
+GCC will build under Cygwin without modification; it does not build
+with Microsoft's C++ compiler and there are no plans to make it do so.
 
 @html
 <hr />
@@ -3832,10 +3948,6 @@ are no plans to make it do so.
 GCC does not currently support OS/2.  However, Andrew Zabolotny has been
 working on a generic OS/2 port with pgcc.  The current code can be found
 at @uref{http://www.goof.com/pcg/os2/,,http://www.goof.com/pcg/os2/}.
-
-An older copy of GCC 2.8.1 is included with the EMX tools available at
-@uref{ftp://ftp.leo.org/pub/comp/os/os2/leo/devtools/emx+gcc/,,
-ftp://ftp.leo.org/pub/comp/os/os2/leo/devtools/emx+gcc/}.
 
 @html
 <hr />
@@ -3886,7 +3998,7 @@ current GCC) is to be found in the GCC texinfo manual.
 @html
 <hr />
 @end html
-@heading @anchor{elf_targets}all ELF targets (SVR4, Solaris 2, etc.)
+@heading @anchor{elf}all ELF targets (SVR4, Solaris 2, etc.)
 
 C++ support is significantly better on ELF targets if you use the
 @uref{./configure.html#with-gnu-ld,,GNU linker}; duplicate copies of

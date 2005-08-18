@@ -1,4 +1,4 @@
-/* Copyright (C) 2003, 2004  Free Software Foundation
+/* Copyright (C) 2003, 2004, 2005  Free Software Foundation
 
    This file is part of libgcj.
 
@@ -646,6 +646,7 @@ gnu::java::net::PlainSocketImpl::setOption (jint optID, ::java::lang::Object *va
 	if (::setsockopt (native_fd, SOL_SOCKET, SO_REUSEADDR, (char *) &val,
 	    val_len) != 0)
 	  goto error;
+	return;
 #else
         throw new ::java::lang::InternalError (
           JvNewStringUTF ("SO_REUSEADDR not supported"));

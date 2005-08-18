@@ -1,0 +1,15 @@
+/BigEndianInputStream.java/1.1.1.1/Sat Jul 16 00:33:29 2005/-ko/
+/BigEndianOutputStream.java/1.1.1.1/Sat Jul 16 00:33:29 2005/-ko/
+/LittleEndianInputStream.java/1.1.1.1/Sat Jul 16 00:33:29 2005/-ko/
+/LittleEndianOutputStream.java/1.1.1.1/Sat Jul 16 00:33:29 2005/-ko/
+/Vio.java/1.1.1.1/Sat Jul 16 00:33:29 2005/-ko/
+/abstractDataInputStream.java/1.1.1.1/Sat Jul 16 00:33:29 2005/-ko/
+/abstractDataOutputStream.java/1.1.1.1/Sat Jul 16 00:33:29 2005/-ko/
+/aligningInputStream.java/1.1.1.1/Sat Jul 16 00:33:29 2005/-ko/
+/aligningOutputStream.java/1.1.1.1/Sat Jul 16 00:33:29 2005/-ko/
+/cdrBufInput.java/1.1.1.1/Sat Jul 16 00:33:29 2005/-ko/
+/cdrBufOutput.java/1.1.1.1/Sat Jul 16 00:33:29 2005/-ko/
+/cdrInput.java/1.1.1.1/Sat Jul 16 00:33:29 2005/-ko/
+/cdrOutput.java/1.1.1.1/Sat Jul 16 00:33:29 2005/-ko/
+/encapsulatedOutput.java/1.1.1.1/Sat Jul 16 00:33:28 2005/-ko/
+D

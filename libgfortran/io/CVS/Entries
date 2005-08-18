@@ -1,0 +1,16 @@
+/backspace.c/1.11/Fri Apr  8 19:07:54 2005//
+/close.c/1.6/Sun May 15 12:44:41 2005//
+/endfile.c/1.6/Wed Jan 12 21:27:30 2005//
+/format.c/1.13/Sun May 29 12:22:49 2005//
+/inquire.c/1.11/Mon Apr 18 07:34:32 2005//
+/io.h/1.23/Sat Aug  6 22:57:46 2005//
+/list_read.c/1.25/Wed Jul 13 18:43:11 2005//
+/lock.c/1.7/Sun May 15 12:44:41 2005//
+/open.c/1.15/Tue May 17 16:54:52 2005//
+/read.c/1.15/Fri Jul 22 14:07:17 2005//
+/rewind.c/1.10/Tue Apr 26 19:27:11 2005//
+/transfer.c/1.51/Thu Aug  4 20:26:28 2005//
+/unit.c/1.13/Fri Jul 22 17:43:31 2005//
+/unix.c/1.32/Sat Aug  6 22:57:46 2005//
+/write.c/1.45/Sat Jul 30 20:45:02 2005//
+D

@@ -1,0 +1,54 @@
+/AvailabilityMacros.h/1.1/Sat Nov 13 20:41:00 2004//
+/_G_config.h/1.1/Tue Aug 31 09:26:07 2004//
+/assert.h/1.1/Tue Aug 31 09:26:07 2004//
+/c_asm.h/1.1/Tue Aug 31 09:26:07 2004//
+/com_err.h/1.1/Sat Nov 13 20:41:00 2004//
+/ctrl-quotes-def-1.h/1.1/Tue Aug 31 09:26:07 2004//
+/ctype.h/1.1/Tue Aug 31 09:26:07 2004//
+/curses.h/1.3/Sat Nov 13 20:41:00 2004//
+/fixinc-test-limits.h/1.1/Tue Aug 31 09:26:07 2004//
+/inttypes.h/1.1/Tue Aug 31 09:26:07 2004//
+/io-quotes-def-1.h/1.1/Tue Aug 31 09:26:07 2004//
+/locale.h/1.1/Tue Aug 31 09:26:07 2004//
+/malloc.h/1.1/Tue Aug 31 09:26:07 2004//
+/math.h/1.3/Tue Jun 14 23:59:48 2005//
+/obstack.h/1.1/Tue Aug 31 09:26:07 2004//
+/pthread.h/1.4/Mon Mar 21 16:46:09 2005//
+/reg_types.h/1.1/Tue Aug 31 09:26:07 2004//
+/regex.h/1.1/Tue Aug 31 09:26:07 2004//
+/regexp.h/1.1/Tue Aug 31 09:26:07 2004//
+/standards.h/1.1/Tue Aug 31 09:26:07 2004//
+/stdio.h/1.1/Tue Aug 31 09:26:07 2004//
+/stdio_tag.h/1.1/Tue Aug 31 09:26:07 2004//
+/stdlib.h/1.3/Wed Sep 15 22:12:58 2004//
+/string.h/1.1/Tue Aug 31 09:26:07 2004//
+/strings.h/1.1/Tue Aug 31 09:26:07 2004//
+/sym.h/1.1/Tue Aug 31 09:26:07 2004//
+/testing.h/1.2/Sat Nov 13 20:41:00 2004//
+/time.h/1.1/Tue Aug 31 09:26:07 2004//
+/tinfo.h/1.1/Tue Aug 31 09:26:07 2004//
+/unistd.h/1.1/Tue Aug 31 09:26:07 2004//
+/wchar.h/1.1/Tue Aug 31 09:26:07 2004//
+/widec.h/1.1/Tue Aug 31 09:26:07 2004//
+D/X11////
+D/Xm////
+D/ansi////
+D/arch////
+D/arpa////
+D/bsd////
+D/fs////
+D/hsfs////
+D/internal////
+D/iso////
+D/mach-o////
+D/machine////
+D/netdnet////
+D/netinet////
+D/pixrect////
+D/rpc////
+D/rpcsvc////
+D/sparc////
+D/sundev////
+D/sunwindow////
+D/sys////
+D/types////

@@ -1,0 +1,13 @@
+/.cvsignore/1.2/Sat Jul 16 01:11:19 2005/-ko/
+/Makefile.am/1.1.1.1/Sat Jul 16 00:30:48 2005/-ko/
+/Makefile.in/1.1/Sat Jul 16 01:11:19 2005//
+/classpath_jawt.h/1.1.1.1/Sat Jul 16 00:30:49 2005/-ko/
+/jcl.c/1.1.1.1/Sat Jul 16 00:30:48 2005/-ko/
+/jcl.h/1.1.1.1/Sat Jul 16 00:30:49 2005/-ko/
+/jnilink.c/1.1.1.1/Sat Jul 16 00:30:48 2005/-ko/
+/jnilink.h/1.1.1.1/Sat Jul 16 00:30:49 2005/-ko/
+/native_state.c/1.1.1.1/Sat Jul 16 00:30:49 2005/-ko/
+/native_state.h/1.1.1.1/Sat Jul 16 00:30:48 2005/-ko/
+/primlib.c/1.1.1.1/Sat Jul 16 00:30:49 2005/-ko/
+/primlib.h/1.1.1.1/Sat Jul 16 00:30:49 2005/-ko/
+D

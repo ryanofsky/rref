@@ -6,7 +6,7 @@
 --                                                                          --
 --                                 B o d y                                  --
 --                                                                          --
---          Copyright (C) 1992-2004, Free Software Foundation, Inc.         --
+--          Copyright (C) 1992-2005, Free Software Foundation, Inc.         --
 --                                                                          --
 -- GNAT is free software;  you can  redistribute it  and/or modify it under --
 -- terms of the  GNU General Public License as published  by the Free Soft- --
@@ -16,8 +16,8 @@
 -- or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License --
 -- for  more details.  You should have  received  a copy of the GNU General --
 -- Public License  distributed with GNAT;  see file COPYING.  If not, write --
--- to  the Free Software Foundation,  59 Temple Place - Suite 330,  Boston, --
--- MA 02111-1307, USA.                                                      --
+-- to  the  Free Software Foundation,  51  Franklin  Street,  Fifth  Floor, --
+-- Boston, MA 02110-1301, USA.                                              --
 --                                                                          --
 -- GNAT was originally developed  by the GNAT team at  New York University. --
 -- Extensive contributions were provided by Ada Core Technologies Inc.      --
@@ -199,6 +199,18 @@ package body Sem_Dist is
       return End_String;
    end Full_Qualified_Name;
 
+   ------------------
+   -- Get_PCS_Name --
+   ------------------
+
+   function Get_PCS_Name return PCS_Names is
+      PCS_Name : constant PCS_Names :=
+                   Chars (Entity (Expression
+                                    (Parent (RTE (RE_DSA_Implementation)))));
+   begin
+      return PCS_Name;
+   end Get_PCS_Name;
+
    ------------------------
    -- Is_All_Remote_Call --
    ------------------------
@@ -341,7 +353,7 @@ package body Sem_Dist is
 
       Remote_Subp := Entity (Prefix (N));
 
-      if not Expander_Active then
+      if not Expander_Active or else Get_PCS_Name = Name_No_DSA then
          return;
       end if;
 
@@ -413,7 +425,6 @@ package body Sem_Dist is
                            (Loc, New_External_Name (
                                    Chars (User_Type), 'R'));
 
-
       Full_Obj_Type  : constant Entity_Id :=
                          Make_Defining_Identifier
                            (Loc, Chars (Obj_Type));
@@ -429,6 +440,33 @@ package body Sem_Dist is
       Fat_Type_Decl  : Node_Id;
 
    begin
+      Is_Degenerate := False;
+      Parameter := First (Parameter_Specifications (Type_Def));
+      while Present (Parameter) loop
+         if Nkind (Parameter_Type (Parameter)) = N_Access_Definition then
+            Error_Msg_N ("formal parameter& has anonymous access type?",
+              Defining_Identifier (Parameter));
+            Is_Degenerate := True;
+            exit;
+         end if;
+
+         Next (Parameter);
+      end loop;
+
+      if Is_Degenerate then
+         Error_Msg_NE (
+           "remote access-to-subprogram type& can only be null?",
+           Defining_Identifier (Parameter), User_Type);
+         --  The only legal value for a RAS with a formal parameter of an
+         --  anonymous access type is null, because it cannot be
+         --  subtype-Conformant with any legal remote subprogram declaration.
+         --  In this case, we cannot generate a corresponding primitive
+         --  operation.
+      end if;
+
+      if Get_PCS_Name = Name_No_DSA then
+         return;
+      end if;
 
       --  The tagged private type, primitive operation and RACW
       --  type associated with a RAS need to all be declared in
@@ -457,29 +495,7 @@ package body Sem_Dist is
               Null_Present     => True,
               Component_List   => Empty)));
 
-      Is_Degenerate := False;
-      Parameter := First (Parameter_Specifications (Type_Def));
-      Parameters : while Present (Parameter) loop
-         if Nkind (Parameter_Type (Parameter)) = N_Access_Definition then
-            Error_Msg_N ("formal parameter& has anonymous access type?",
-              Defining_Identifier (Parameter));
-            Is_Degenerate := True;
-            exit Parameters;
-         end if;
-         Next (Parameter);
-      end loop Parameters;
-
-      if Is_Degenerate then
-         Error_Msg_NE (
-           "remote access-to-subprogram type& can only be null?",
-           Defining_Identifier (Parameter), User_Type);
-         --  The only legal value for a RAS with a formal parameter of an
-         --  anonymous access type is null, because it cannot be
-         --  subtype-Conformant with any legal remote subprogram declaration.
-         --  In this case, we cannot generate a corresponding primitive
-         --  operation.
-
-      else
+      if not Is_Degenerate then
          Append_To (Vis_Decls,
            Make_Abstract_Subprogram_Declaration (Loc,
              Specification => Build_RAS_Primitive_Specification (
@@ -595,7 +611,7 @@ package body Sem_Dist is
          return;
       end if;
 
-      if not Expander_Active then
+      if not Expander_Active or else Get_PCS_Name = Name_No_DSA then
          return;
       end if;
 
@@ -685,7 +701,7 @@ package body Sem_Dist is
       Target_Type : Entity_Id;
 
    begin
-      if not Expander_Active then
+      if not Expander_Active or else Get_PCS_Name = Name_No_DSA then
          return False;
 
       elsif Ekind (Typ) = E_Access_Subprogram_Type

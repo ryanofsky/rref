@@ -42,12 +42,12 @@ DIST_COMMON = $(gcj_HEADERS) $(srcdir)/Makefile.am \
 	$(srcdir)/Makefile.in $(srcdir)/libgcj-config.h.in \
 	$(toolgcj_HEADERS)
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/../config/accross.m4 \
-	$(top_srcdir)/../config/acx.m4 \
-	$(top_srcdir)/../config/gcc-version.m4 \
+am__aclocal_m4_deps = $(top_srcdir)/../config/acx.m4 \
+	$(top_srcdir)/../config/depstand.m4 \
 	$(top_srcdir)/../config/gxx-include-dir.m4 \
 	$(top_srcdir)/../config/iconv.m4 \
 	$(top_srcdir)/../config/lcmessage.m4 \
+	$(top_srcdir)/../config/lead-dot.m4 \
 	$(top_srcdir)/../config/lib-ld.m4 \
 	$(top_srcdir)/../config/lib-link.m4 \
 	$(top_srcdir)/../config/lib-prefix.m4 $(top_srcdir)/pkg.m4 \
@@ -168,8 +168,6 @@ NATIVE_TRUE = @NATIVE_TRUE@
 NEEDS_DATA_START_FALSE = @NEEDS_DATA_START_FALSE@
 NEEDS_DATA_START_TRUE = @NEEDS_DATA_START_TRUE@
 OBJEXT = @OBJEXT@
-ONESTEP_FALSE = @ONESTEP_FALSE@
-ONESTEP_TRUE = @ONESTEP_TRUE@
 PACKAGE = @PACKAGE@
 PACKAGE_BUGREPORT = @PACKAGE_BUGREPORT@
 PACKAGE_NAME = @PACKAGE_NAME@
@@ -204,8 +202,6 @@ USING_BOEHMGC_FALSE = @USING_BOEHMGC_FALSE@
 USING_BOEHMGC_TRUE = @USING_BOEHMGC_TRUE@
 USING_DARWIN_CRT_FALSE = @USING_DARWIN_CRT_FALSE@
 USING_DARWIN_CRT_TRUE = @USING_DARWIN_CRT_TRUE@
-USING_ECOS_PLATFORM_FALSE = @USING_ECOS_PLATFORM_FALSE@
-USING_ECOS_PLATFORM_TRUE = @USING_ECOS_PLATFORM_TRUE@
 USING_GCC_FALSE = @USING_GCC_FALSE@
 USING_GCC_TRUE = @USING_GCC_TRUE@
 USING_NOGC_FALSE = @USING_NOGC_FALSE@
@@ -255,18 +251,17 @@ build = @build@
 build_alias = @build_alias@
 build_cpu = @build_cpu@
 build_os = @build_os@
+build_subdir = @build_subdir@
 build_vendor = @build_vendor@
 datadir = @datadir@
 exec_prefix = @exec_prefix@
-gcc_version = @gcc_version@
-gcc_version_full = @gcc_version_full@
-gcc_version_trigger = @gcc_version_trigger@
 gxx_include_dir = @gxx_include_dir@
 here = @here@
 host = @host@
 host_alias = @host_alias@
 host_cpu = @host_cpu@
 host_os = @host_os@
+host_subdir = @host_subdir@
 host_vendor = @host_vendor@
 includedir = @includedir@
 infodir = @infodir@
@@ -293,15 +288,19 @@ target_cpu = @target_cpu@
 # autoconf2.13's target_alias
 target_noncanonical = @target_noncanonical@
 target_os = @target_os@
+target_subdir = @target_subdir@
 target_vendor = @target_vendor@
-tool_include_dir = @tool_include_dir@
 toolexecdir = @toolexecdir@
 toolexeclibdir = @toolexeclibdir@
 toolexecmainlibdir = @toolexecmainlibdir@
 AUTOMAKE_OPTIONS = foreign
+
+# May be used by various substitution variables.
+gcc_version := $(shell cat $(top_srcdir)/../gcc/BASE-VER)
 gcjdir = $(gxx_include_dir)/gcj
 gcj_HEADERS = array.h cni.h field.h javaprims.h method.h
-toolgcjdir = @tool_include_dir@/gcj
+tool_include_dir := $(libdir)/gcc/$(target_noncanonical)/$(gcc_version)/include
+toolgcjdir := $(tool_include_dir)/gcj
 toolgcj_HEADERS = libgcj-config.h
 all: libgcj-config.h
 	$(MAKE) $(AM_MAKEFLAGS) all-am

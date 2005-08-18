@@ -1,6 +1,14 @@
-2005-04-20  Release Manager
+2005-06-07  Hans-Peter Nilsson  <hp@bitrange.com>
 
-	* GCC 4.0.0 released.
+	* btest-gcc.sh: Add support for option
+	--add-passes-despite-regression.
+
+2005-06-06  Hans-Peter Nilsson  <hp@axis.com>
+
+	* btest-gcc.sh <Build>: Don't pass --with-newlib when target is
+	"*-linux*".
+
+	* btest-gcc.sh (TESTLOGS): Make libstdc++.sum optional.
 
 2004-11-07  James A. Morrison  <phython@gcc.gnu.org>
 

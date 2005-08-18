@@ -63,8 +63,8 @@ transpose_c4 (gfc_array_c4 * ret, gfc_array_c4 * source)
       ret->dim[1].ubound = source->dim[0].ubound - source->dim[0].lbound;
       ret->dim[1].stride = ret->dim[0].ubound+1;
 
-      ret->data = internal_malloc_size (sizeof (GFC_COMPLEX_4) * size0 (ret));
-      ret->base = 0;
+      ret->data = internal_malloc_size (sizeof (GFC_COMPLEX_4) * size0 ((array_t *) ret));
+      ret->offset = 0;
     }
 
   if (ret->dim[0].stride == 0)

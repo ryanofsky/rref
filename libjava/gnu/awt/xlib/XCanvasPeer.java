@@ -55,6 +55,8 @@ public class XCanvasPeer implements CanvasPeer
 
   Component component;
   XGraphicsConfiguration config;
+  private WindowAttributes attributes = new WindowAttributes();
+  private long eventMask;
   
   public XCanvasPeer(Component component)
   {
@@ -92,7 +94,6 @@ public class XCanvasPeer implements CanvasPeer
        object. */
     component.setBounds(bounds);
 	    
-    WindowAttributes attributes = new WindowAttributes();
 
     /* Set background color */
     Color bg = component.getBackground();
@@ -349,7 +350,21 @@ public class XCanvasPeer implements CanvasPeer
 
   public void setBackground(Color color)
   {
-    throw new UnsupportedOperationException("not implemented");
+    if (color != null)
+    {
+      int[] components =
+      {
+        color.getRed (),
+        color.getGreen (),
+        color.getBlue (),
+        0xff
+      };
+      
+      ColorModel cm = config.getColorModel ();
+      long pixel = cm.getDataElement (components, 0);
+      attributes.setBackground (pixel);
+      window.setAttributes (attributes);
+    }
   }
 
   public void setBounds(int x, int y, int width, int height)
@@ -387,31 +402,33 @@ public class XCanvasPeer implements CanvasPeer
 
   public void setEventMask(long eventMask)
   {
-    WindowAttributes attributes = new WindowAttributes();
-
-    long xEventMask = getBasicEventMask();
-	
-    if ((eventMask & AWTEvent.MOUSE_EVENT_MASK) != 0)
+    if (this.eventMask != eventMask)
+    {
+      this.eventMask = eventMask;
+      long xEventMask = getBasicEventMask ();
+      
+      if ((eventMask & AWTEvent.MOUSE_EVENT_MASK) != 0)
       {
-	xEventMask |=
-	  WindowAttributes.MASK_BUTTON_PRESS |
-	  WindowAttributes.MASK_BUTTON_RELEASE;
+        xEventMask |=
+          WindowAttributes.MASK_BUTTON_PRESS |
+          WindowAttributes.MASK_BUTTON_RELEASE;
       }
-	    
-    attributes.setEventMask(xEventMask);
-    window.setAttributes(attributes);
-    ensureFlush();
+      
+      attributes.setEventMask (xEventMask);
+      window.setAttributes (attributes);
+      ensureFlush ();
+    }
   }
 
   public void setFont(Font font)
   {
-    /* default canvas peer does keep track of font, since it won't
-       write anything. */
+    /* default canvas peer does not keep track of font, since it won't
+       paint anything. */
   }
 
   public void setForeground(Color color)
   {
-    /* default canvas peer does keep track of foreground, since it won't
+    /* default canvas peer does not keep track of foreground, since it won't
        paint anything. */
   }
 	
