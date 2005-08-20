@@ -10602,8 +10602,8 @@ more_specialized_fn (tree pat1, tree pat2, int len)
       arg1 = TYPE_MAIN_VARIANT (arg1);
       arg2 = TYPE_MAIN_VARIANT (arg2);
 
-      deduce1 = !unify (tparms1, targs1, arg1, arg2, UNIFY_ALLOW_NONE);
-      deduce2 = !unify (tparms2, targs2, arg2, arg1, UNIFY_ALLOW_NONE);
+      deduce1 = !unify (tparms1, targs1, arg1, arg2, UNIFY_ALLOW_NONE, false);
+      deduce2 = !unify (tparms2, targs2, arg2, arg1, UNIFY_ALLOW_NONE, false);
 
       if (!deduce1)
 	better2 = -1;
