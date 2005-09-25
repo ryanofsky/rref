@@ -956,8 +956,10 @@ vrp_int_const_binop (enum tree_code code, tree val1, tree val2)
 	  /* For subtraction, the operands must be of different
 	     signs to yield an overflow.  Its sign is therefore
 	     that of the first operand or the opposite of that
-	     of the second operand.  */
-	  || (code == MINUS_EXPR && sgn1 > 0)
+	     of the second operand.  A first operand of 0 counts
+	     as positive here, for the corner case 0 - (-INF),
+	     which overflows, but must yield +INF.  */
+	  || (code == MINUS_EXPR && sgn1 >= 0)
 	  /* For division, the only case is -INF / -1 = +INF.  */
 	  || code == TRUNC_DIV_EXPR
 	  || code == FLOOR_DIV_EXPR
@@ -1341,7 +1343,7 @@ extract_range_from_unary_expr (value_range_t *vr, tree expr)
 	      && tree_int_cst_equal (new_min, vr0.min)
 	      && tree_int_cst_equal (new_max, vr0.max)
 	      && compare_values (new_min, new_max) <= 0
-	      && compare_values (new_min, new_max) >= -2)
+	      && compare_values (new_min, new_max) >= -1)
 	    {
 	      set_value_range (vr, VR_RANGE, new_min, new_max, vr->equiv);
 	      return;
@@ -1517,10 +1519,10 @@ extract_range_from_expr (value_range_t *vr, tree expr)
     extract_range_from_unary_expr (vr, expr);
   else if (TREE_CODE_CLASS (code) == tcc_comparison)
     extract_range_from_comparison (vr, expr);
-  else if (vrp_expr_computes_nonzero (expr))
-    set_value_range_to_nonnull (vr, TREE_TYPE (expr));
   else if (is_gimple_min_invariant (expr))
     set_value_range (vr, VR_RANGE, expr, expr, NULL);
+  else if (vrp_expr_computes_nonzero (expr))
+    set_value_range_to_nonnull (vr, TREE_TYPE (expr));
   else
     set_value_range_to_varying (vr);
 }
@@ -1534,29 +1536,31 @@ adjust_range_with_scev (value_range_t *vr, struct loop *loop, tree stmt,
 			tree var)
 {
   tree init, step, chrec;
-  bool init_is_max;
+  bool init_is_max, unknown_max;
 
   /* TODO.  Don't adjust anti-ranges.  An anti-range may provide
      better opportunities than a regular range, but I'm not sure.  */
   if (vr->type == VR_ANTI_RANGE)
     return;
 
-  chrec = analyze_scalar_evolution (loop, var);
+  chrec = instantiate_parameters (loop, analyze_scalar_evolution (loop, var));
   if (TREE_CODE (chrec) != POLYNOMIAL_CHREC)
     return;
 
-  init = CHREC_LEFT (chrec);
-  step = CHREC_RIGHT (chrec);
+  init = initial_condition_in_loop_num (chrec, loop->num);
+  step = evolution_part_in_loop_num (chrec, loop->num);
 
   /* If STEP is symbolic, we can't know whether INIT will be the
      minimum or maximum value in the range.  */
-  if (!is_gimple_min_invariant (step))
+  if (step == NULL_TREE
+      || !is_gimple_min_invariant (step))
     return;
 
   /* Do not adjust ranges when chrec may wrap.  */
   if (scev_probably_wraps_p (chrec_type (chrec), init, step, stmt,
 			     cfg_loops->parray[CHREC_VARIABLE (chrec)],
-			     &init_is_max))
+			     &init_is_max, &unknown_max)
+      || unknown_max)
     return;
 
   if (!POINTER_TYPE_P (TREE_TYPE (init))
@@ -2780,6 +2784,8 @@ remove_range_assertions (void)
 	else
 	  bsi_next (&si);
       }
+
+  sbitmap_free (blocks_visited);
 }
 
 
@@ -2810,9 +2816,7 @@ stmt_interesting_for_vrp (tree stmt)
 }
 
 
-/* Initialize local data structures for VRP.  Return true if VRP
-   is worth running (i.e. if we found any statements that could
-   benefit from range information).  */
+/* Initialize local data structures for VRP.  */
 
 static void
 vrp_initialize (void)
@@ -3566,7 +3570,7 @@ simplify_div_or_mod_using_ranges (tree stmt, tree rhs, enum tree_code rhs_code)
       if (rhs_code == TRUNC_DIV_EXPR)
 	{
 	  t = build_int_cst (NULL_TREE, tree_log2 (op1));
-	  t = build (RSHIFT_EXPR, TREE_TYPE (op0), op0, t);
+	  t = build2 (RSHIFT_EXPR, TREE_TYPE (op0), op0, t);
 	}
       else
 	{
@@ -3652,7 +3656,7 @@ test_for_singularity (enum tree_code cond_code, tree op0,
       if (cond_code == LT_EXPR)
 	{
 	  tree one = build_int_cst (TREE_TYPE (op0), 1);
-	  max = fold (build (MINUS_EXPR, TREE_TYPE (op0), max, one));
+	  max = fold_build2 (MINUS_EXPR, TREE_TYPE (op0), max, one);
 	}
     }
   else if (cond_code == GE_EXPR || cond_code == GT_EXPR)
@@ -3663,7 +3667,7 @@ test_for_singularity (enum tree_code cond_code, tree op0,
       if (cond_code == GT_EXPR)
 	{
 	  tree one = build_int_cst (TREE_TYPE (op0), 1);
-	  max = fold (build (PLUS_EXPR, TREE_TYPE (op0), max, one));
+	  max = fold_build2 (PLUS_EXPR, TREE_TYPE (op0), max, one);
 	}
     }
 

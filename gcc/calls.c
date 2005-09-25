@@ -582,7 +582,7 @@ flags_from_decl_or_type (tree exp)
 
       /* The function exp may have the `pure' attribute.  */
       if (DECL_IS_PURE (exp))
-	flags |= ECF_PURE | ECF_LIBCALL_BLOCK;
+	flags |= ECF_PURE;
 
       if (DECL_IS_NOVOPS (exp))
 	flags |= ECF_NOVOPS;
@@ -591,7 +591,7 @@ flags_from_decl_or_type (tree exp)
 	flags |= ECF_NOTHROW;
 
       if (TREE_READONLY (exp) && ! TREE_THIS_VOLATILE (exp))
-	flags |= ECF_LIBCALL_BLOCK | ECF_CONST;
+	flags |= ECF_CONST;
 
       flags = special_function_p (exp, flags);
     }
@@ -606,7 +606,7 @@ flags_from_decl_or_type (tree exp)
   if (TREE_CODE (type) == FUNCTION_TYPE && TYPE_RETURNS_STACK_DEPRESSED (type))
     {
       flags |= ECF_SP_DEPRESSED;
-      flags &= ~(ECF_PURE | ECF_CONST | ECF_LIBCALL_BLOCK);
+      flags &= ~(ECF_PURE | ECF_CONST);
     }
 
   return flags;
@@ -1444,7 +1444,7 @@ rtx_for_function_call (tree fndecl, tree addr)
    Mark all register-parms as living through the call, putting these USE
    insns in the CALL_INSN_FUNCTION_USAGE field.
 
-   When IS_SIBCALL, perform the check_sibcall_overlap_argument_overlap
+   When IS_SIBCALL, perform the check_sibcall_argument_overlap
    checking, setting *SIBCALL_FAILURE if appropriate.  */
 
 static void

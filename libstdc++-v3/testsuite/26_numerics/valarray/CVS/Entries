@@ -1,9 +1,9 @@
 /binary_closure.cc/1.1/Tue Jun 22 10:50:46 2004//
-/slice.cc/1.1/Tue Jun 22 10:50:46 2004//
-/slice_array_assignment.cc/1.1/Tue Jun 22 10:50:46 2004//
-/valarray.cc/1.1/Tue Jun 22 10:50:46 2004//
-/valarray_const_bracket.cc/1.1/Tue Jun 22 10:50:46 2004//
-/valarray_name_lookup.cc/1.1/Tue Jun 22 10:50:46 2004//
-/valarray_operators.cc/1.1/Tue Jun 22 10:50:46 2004//
-/valarray_subset_assignment.cc/1.1/Tue Jun 22 10:50:46 2004//
+/slice.cc/1.2/Wed Aug 17 02:20:04 2005//
+/slice_array_assignment.cc/1.2/Wed Aug 17 02:20:04 2005//
+/valarray.cc/1.2/Wed Aug 17 02:20:04 2005//
+/valarray_const_bracket.cc/1.2/Wed Aug 17 02:20:04 2005//
+/valarray_name_lookup.cc/1.2/Wed Aug 17 02:20:04 2005//
+/valarray_operators.cc/1.2/Wed Aug 17 02:20:04 2005//
+/valarray_subset_assignment.cc/1.2/Wed Aug 17 02:20:04 2005//
 D

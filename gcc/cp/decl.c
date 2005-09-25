@@ -789,6 +789,7 @@ wrapup_globals_for_namespace (tree namespace, void* data)
   if (last_time)
     {
       check_global_declarations (vec, len);
+      emit_debug_global_declarations (vec, len);
       return 0;
     }
 
@@ -1008,13 +1009,15 @@ warn_extern_redeclared_static (tree newdecl, tree olddecl)
    error_mark_node is returned.  Otherwise, OLDDECL is returned.
 
    If NEWDECL is not a redeclaration of OLDDECL, NULL_TREE is
-   returned.  */
+   returned.
+
+   NEWDECL_IS_FRIEND is true if NEWDECL was declared as a friend.  */
 
 tree
-duplicate_decls (tree newdecl, tree olddecl)
+duplicate_decls (tree newdecl, tree olddecl, bool newdecl_is_friend)
 {
   unsigned olddecl_uid = DECL_UID (olddecl);
-  int olddecl_friend = 0, types_match = 0;
+  int olddecl_friend = 0, types_match = 0, hidden_friend = 0;
   int new_defines_function = 0;
 
   if (newdecl == olddecl)
@@ -1068,9 +1071,11 @@ duplicate_decls (tree newdecl, tree olddecl)
   if (TREE_CODE (olddecl) == FUNCTION_DECL
       && DECL_ARTIFICIAL (olddecl))
     {
+      gcc_assert (!DECL_HIDDEN_FRIEND_P (olddecl));
       if (TREE_CODE (newdecl) != FUNCTION_DECL)
 	{
-	  /* Avoid warnings redeclaring anticipated built-ins.  */
+	  /* Avoid warnings redeclaring built-ins which have not been
+	     explicitly declared.  */
 	  if (DECL_ANTICIPATED (olddecl))
 	    return NULL_TREE;
 
@@ -1101,7 +1106,8 @@ duplicate_decls (tree newdecl, tree olddecl)
 	}
       else if (!types_match)
 	{
-	  /* Avoid warnings redeclaring anticipated built-ins.  */
+	  /* Avoid warnings redeclaring built-ins which have not been
+	     explicitly declared.  */
 	  if (DECL_ANTICIPATED (olddecl))
 	    {
 	      /* Deal with fileptr_type_node.  FILE type is not known
@@ -1130,7 +1136,8 @@ duplicate_decls (tree newdecl, tree olddecl)
 			  = TYPE_ARG_TYPES (TREE_TYPE (newdecl));
 			types_match = decls_match (newdecl, olddecl);
 			if (types_match)
-			  return duplicate_decls (newdecl, olddecl);
+			  return duplicate_decls (newdecl, olddecl,
+						  newdecl_is_friend);
 			TYPE_ARG_TYPES (TREE_TYPE (olddecl)) = oldargs;
 		      }
 		  }
@@ -1162,8 +1169,9 @@ duplicate_decls (tree newdecl, tree olddecl)
 	  /* Replace the old RTL to avoid problems with inlining.  */
 	  COPY_DECL_RTL (newdecl, olddecl);
 	}
-      /* Even if the types match, prefer the new declarations type
-	 for anticipated built-ins, for exception lists, etc...  */
+      /* Even if the types match, prefer the new declarations type for
+	 built-ins which have not been explicitly declared, for
+	 exception lists, etc...  */
       else if (DECL_ANTICIPATED (olddecl))
 	{
 	  tree type = TREE_TYPE (newdecl);
@@ -1459,7 +1467,7 @@ duplicate_decls (tree newdecl, tree olddecl)
 	  /* Don't warn about extern decl followed by definition.  */
 	  && !(DECL_EXTERNAL (olddecl) && ! DECL_EXTERNAL (newdecl))
 	  /* Don't warn about friends, let add_friend take care of it.  */
-	  && ! (DECL_FRIEND_P (newdecl) || DECL_FRIEND_P (olddecl)))
+	  && ! (newdecl_is_friend || DECL_FRIEND_P (olddecl)))
 	{
 	  warning (0, "redundant redeclaration of %qD in same scope", newdecl);
 	  warning (0, "previous declaration of %q+D", olddecl);
@@ -1684,6 +1692,9 @@ duplicate_decls (tree newdecl, tree olddecl)
       DECL_INITIALIZED_IN_CLASS_P (newdecl)
 	|= DECL_INITIALIZED_IN_CLASS_P (olddecl);
       olddecl_friend = DECL_FRIEND_P (olddecl);
+      hidden_friend = (DECL_ANTICIPATED (olddecl)
+		       && DECL_HIDDEN_FRIEND_P (olddecl)
+		       && newdecl_is_friend);
 
       /* Only functions have DECL_BEFRIENDING_CLASSES.  */
       if (TREE_CODE (newdecl) == FUNCTION_DECL
@@ -1897,6 +1908,11 @@ duplicate_decls (tree newdecl, tree olddecl)
   DECL_UID (olddecl) = olddecl_uid;
   if (olddecl_friend)
     DECL_FRIEND_P (olddecl) = 1;
+  if (hidden_friend)
+    {
+      DECL_ANTICIPATED (olddecl) = 1;
+      DECL_HIDDEN_FRIEND_P (olddecl) = 1;
+    }
 
   /* NEWDECL contains the merged attribute lists.
      Update OLDDECL to be the same.  */
@@ -3141,7 +3157,7 @@ cp_make_fname_decl (tree id, int type_dep)
       struct cp_binding_level *b = current_binding_level;
       while (b->level_chain->kind != sk_function_parms)
 	b = b->level_chain;
-      pushdecl_with_scope (decl, b);
+      pushdecl_with_scope (decl, b, /*is_friend=*/false);
       cp_finish_decl (decl, init, NULL_TREE, LOOKUP_ONLYCONVERTING);
     }
   else
@@ -3184,8 +3200,9 @@ builtin_function_1 (const char* name,
   if (libname)
     SET_DECL_ASSEMBLER_NAME (decl, get_identifier (libname));
 
-  /* Warn if a function in the namespace for users
-     is used without an occasion to consider it declared.  */
+  /* A function in the user's namespace should have an explicit
+     declaration before it is used.  Mark the built-in function as
+     anticipated but not actually declared.  */
   if (name[0] != '_' || name[1] != '_')
     DECL_ANTICIPATED (decl) = 1;
 
@@ -3716,9 +3733,10 @@ start_decl (const cp_declarator *declarator,
 		 declaration will have DECL_EXTERNAL set, but will have an
 		 initialization.  Thus, duplicate_decls won't warn
 		 about this situation, and so we check here.  */
-	      if (DECL_INITIAL (decl) && DECL_INITIAL (field))
+	      if (DECL_INITIAL (decl) 
+		  && DECL_INITIALIZED_IN_CLASS_P (field))
 		error ("duplicate initialization of %qD", decl);
-	      if (duplicate_decls (decl, field))
+	      if (duplicate_decls (decl, field, /*newdecl_is_friend=*/false))
 		decl = field;
 	    }
 	}
@@ -3729,7 +3747,8 @@ start_decl (const cp_declarator *declarator,
 				       > template_class_depth (context))
 				      ? current_template_parms
 				      : NULL_TREE);
-	  if (field && duplicate_decls (decl, field))
+	  if (field && duplicate_decls (decl, field,
+					/*newdecl_is_friend=*/false))
 	    decl = field;
 	}
 
@@ -4347,7 +4366,7 @@ reshape_init_r (tree type, reshape_iter *d, bool first_initializer_p)
      initializer is considered for the initialization of the first
      member of the subaggregate.  */
   if (TREE_CODE (init) != CONSTRUCTOR
-      && can_convert_arg (type, TREE_TYPE (init), init))
+      && can_convert_arg (type, TREE_TYPE (init), init, LOOKUP_NORMAL))
     {
       d->cur++;
       return init;
@@ -4921,10 +4940,20 @@ cp_finish_decl (tree decl, tree init, tree asmspec_tree, int flags)
 		     "initialized", decl);
 	      init = NULL_TREE;
 	    }
+
+	  /* Check that the initializer for a static data member was a
+	     constant.  Although we check in the parser that the
+	     initializer is an integral constant expression, we do not
+	     simplify division-by-zero at the point at which it
+	     occurs.  Therefore, in:
+
+	       struct S { static const int i = 7 / 0; };
+	       
+	     we issue an error at this point.  It would
+	     probably be better to forbid division by zero in
+	     integral constant expressions.  */
 	  if (DECL_EXTERNAL (decl) && init)
 	    {
-	      /* The static data member cannot be initialized by a
-		 non-constant when being declared.  */
 	      error ("%qD cannot be initialized by a non-constant expression"
 		     " when being declared", decl);
 	      DECL_INITIALIZED_IN_CLASS_P (decl) = 0;
@@ -5555,6 +5584,41 @@ bad_specifiers (tree object,
     error ("%q+D declared with an exception specification", object);
 }
 
+/* DECL is a member function or static data member and is presently
+   being defined.  Check that the definition is taking place in a
+   valid namespace.  */
+
+static void
+check_class_member_definition_namespace (tree decl)
+{
+  /* These checks only apply to member functions and static data
+     members.  */
+  gcc_assert (TREE_CODE (decl) == FUNCTION_DECL
+	      || TREE_CODE (decl) == VAR_DECL);
+  /* We check for problems with specializations in pt.c in
+     check_specialization_namespace, where we can issue better
+     diagnostics.  */
+  if (processing_specialization)
+    return;
+  /* There are no restrictions on the placement of
+     explicit instantiations.  */
+  if (processing_explicit_instantiation)
+    return;
+  /* [class.mfct]
+
+     A member function definition that appears outside of the
+     class definition shall appear in a namespace scope enclosing
+     the class definition.
+
+     [class.static.data]
+
+     The definition for a static data member shall appear in a
+     namespace scope enclosing the member's class definition.  */
+  if (!is_ancestor (current_namespace, DECL_CONTEXT (decl)))
+    pedwarn ("definition of %qD is not in namespace enclosing %qT",
+	     decl, DECL_CONTEXT (decl));
+}
+
 /* CTYPE is class type, or null if non-class.
    TYPE is type this FUNCTION_DECL should have, either FUNCTION_TYPE
    or METHOD_TYPE.
@@ -5633,7 +5697,11 @@ grokfndecl (tree ctype,
     }
 
   if (ctype)
-    DECL_CONTEXT (decl) = ctype;
+    {
+      DECL_CONTEXT (decl) = ctype;
+      if (funcdef_flag)
+	check_class_member_definition_namespace (decl);
+    }
 
   if (ctype == NULL_TREE && DECL_MAIN_P (decl))
     {
@@ -5859,7 +5927,7 @@ grokfndecl (tree ctype,
 	  /* Attempt to merge the declarations.  This can fail, in
 	     the case of some invalid specialization declarations.  */
 	  pushed_scope = push_scope (ctype);
-	  ok = duplicate_decls (decl, old_decl);
+	  ok = duplicate_decls (decl, old_decl, friendp);
 	  if (pushed_scope)
 	    pop_scope (pushed_scope);
 	  if (!ok)
@@ -5965,6 +6033,7 @@ grokvardecl (tree type,
       set_linkage_for_static_data_member (decl);
       /* This function is only called with out-of-class definitions.  */
       DECL_EXTERNAL (decl) = 0;
+      check_class_member_definition_namespace (decl);
     }
   /* At top level, either `static' or no s.c. makes a definition
      (perhaps tentative), and absence of `static' makes it public.  */
@@ -7064,7 +7133,10 @@ grokdeclarator (const cp_declarator *declarator,
   /* Warn about storage classes that are invalid for certain
      kinds of declarations (parameters, typenames, etc.).  */
   if (declspecs->multiple_storage_classes_p)
-    error ("multiple storage classes in declaration of %qs", name);
+    {
+      error ("multiple storage classes in declaration of %qs", name);
+      storage_class = sc_none;
+    }
   else if (thread_p
 	   && ((storage_class
 		&& storage_class != sc_extern
@@ -7451,8 +7523,13 @@ grokdeclarator (const cp_declarator *declarator,
       unqualified_id = dname;
     }
 
-  /* If DECLARATOR is non-NULL, we know it is a cdk_id declarator;
-     otherwise, we would not have exited the loop above.  */
+  /* If TYPE is a FUNCTION_TYPE, but the function name was explicitly
+     qualified with a class-name, turn it into a METHOD_TYPE, unless
+     we know that the function is static.  We take advantage of this
+     opportunity to do other processing that pertains to entities
+     explicitly declared to be class members.  Note that if DECLARATOR
+     is non-NULL, we know it is a cdk_id declarator; otherwise, we
+     would not have exited the loop above.  */
   if (declarator
       && declarator->u.id.qualifying_scope
       && TYPE_P (declarator->u.id.qualifying_scope))
@@ -7539,6 +7616,8 @@ grokdeclarator (const cp_declarator *declarator,
 	}
     }
 
+  /* Now TYPE has the actual type.  */
+
   if (returned_attrs)
     {
       if (attrlist)
@@ -7547,14 +7626,12 @@ grokdeclarator (const cp_declarator *declarator,
 	attrlist = &returned_attrs;
     }
 
-  /* Now TYPE has the actual type.  */
-
   /* Did array size calculations overflow?  */
 
   if (TREE_CODE (type) == ARRAY_TYPE
       && COMPLETE_TYPE_P (type)
-      && TREE_CODE (TYPE_SIZE (type)) == INTEGER_CST
-      && TREE_OVERFLOW (TYPE_SIZE (type)))
+      && TREE_CODE (TYPE_SIZE_UNIT (type)) == INTEGER_CST
+      && TREE_OVERFLOW (TYPE_SIZE_UNIT (type)))
     {
       error ("size of array %qs is too large", name);
       /* If we proceed with the array type as it is, we'll eventually
@@ -8302,14 +8379,16 @@ require_complete_types_for_parms (tree parms)
     {
       if (dependent_type_p (TREE_TYPE (parms)))
 	continue;
-      if (VOID_TYPE_P (TREE_TYPE (parms)))
-	/* grokparms will have already issued an error.  */
-	TREE_TYPE (parms) = error_mark_node;
-      else if (complete_type_or_else (TREE_TYPE (parms), parms))
+      if (!VOID_TYPE_P (TREE_TYPE (parms))
+	  && complete_type_or_else (TREE_TYPE (parms), parms))
 	{
 	  relayout_decl (parms);
 	  DECL_ARG_TYPE (parms) = type_passed_as (TREE_TYPE (parms));
 	}
+      else
+	/* grokparms or complete_type_or_else will have already issued
+	   an error.  */
+	TREE_TYPE (parms) = error_mark_node;
     }
 }
 
@@ -8403,7 +8482,7 @@ check_default_argument (tree decl, tree arg)
      A default argument expression is implicitly converted to the
      parameter type.  */
   if (!TREE_TYPE (arg)
-      || !can_convert_arg (decl_type, TREE_TYPE (arg), arg))
+      || !can_convert_arg (decl_type, TREE_TYPE (arg), arg, LOOKUP_NORMAL))
     {
       if (decl)
 	error ("default argument for %q#D has type %qT",
@@ -9130,8 +9209,7 @@ check_elaborated_type_specifier (enum tag_types tag_code,
       return error_mark_node;
     }
   else if (TREE_CODE (type) != ENUMERAL_TYPE
-	   && tag_code == enum_type
-	   && tag_code != typename_type)
+	   && tag_code == enum_type)
     {
       error ("%qT referred to as enum", type);
       error ("%q+T has a previous declaration here", type);
@@ -9992,6 +10070,7 @@ start_preparsed_function (tree decl1, tree attrs, int flags)
   tree current_function_parms;
   struct c_fileinfo *finfo
     = get_fileinfo (lbasename (LOCATION_FILE (DECL_SOURCE_LOCATION (decl1))));
+  bool honor_interface;
 
   /* Sanity check.  */
   gcc_assert (TREE_CODE (TREE_VALUE (void_list_node)) == VOID_TYPE);
@@ -10206,6 +10285,15 @@ start_preparsed_function (tree decl1, tree attrs, int flags)
 	}
     }
 
+  honor_interface = (!DECL_TEMPLATE_INSTANTIATION (decl1)
+		     /* Implicitly-defined methods (like the
+			destructor for a class in which no destructor
+			is explicitly declared) must not be defined
+			until their definition is needed.  So, we
+			ignore interface specifications for
+			compiler-generated functions.  */
+		     && !DECL_ARTIFICIAL (decl1));
+		     
   if (DECL_INTERFACE_KNOWN (decl1))
     {
       tree ctx = decl_function_context (decl1);
@@ -10222,8 +10310,7 @@ start_preparsed_function (tree decl1, tree attrs, int flags)
   /* If this function belongs to an interface, it is public.
      If it belongs to someone else's interface, it is also external.
      This only affects inlines and template instantiations.  */
-  else if (finfo->interface_unknown == 0
-	   && ! DECL_TEMPLATE_INSTANTIATION (decl1))
+  else if (!finfo->interface_unknown && honor_interface)
     {
       if (DECL_DECLARED_INLINE_P (decl1)
 	  || DECL_TEMPLATE_INSTANTIATION (decl1)
@@ -10240,7 +10327,6 @@ start_preparsed_function (tree decl1, tree attrs, int flags)
 	}
       else
 	DECL_EXTERNAL (decl1) = 0;
-      DECL_NOT_REALLY_EXTERN (decl1) = 0;
       DECL_INTERFACE_KNOWN (decl1) = 1;
       /* If this function is in an interface implemented in this file,
 	 make sure that the backend knows to emit this function
@@ -10249,7 +10335,7 @@ start_preparsed_function (tree decl1, tree attrs, int flags)
 	mark_needed (decl1);
     }
   else if (finfo->interface_unknown && finfo->interface_only
-	   && ! DECL_TEMPLATE_INSTANTIATION (decl1))
+	   && honor_interface)
     {
       /* If MULTIPLE_SYMBOL_SPACES is defined and we saw a #pragma
 	 interface, we will have both finfo->interface_unknown and

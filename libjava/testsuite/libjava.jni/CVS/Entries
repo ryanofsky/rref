@@ -31,7 +31,7 @@
 /invoke.c/1.2/Fri Jan 24 17:39:49 2003//
 /invoke.java/1.1/Wed Feb 16 00:19:55 2000//
 /invoke.out/1.1/Wed Feb 16 00:19:55 2000//
-/jni.exp/1.24/Sat Jul 16 01:27:14 2005//
+/jni.exp/1.25/Sat Sep 17 18:12:43 2005//
 /jniutf.c/1.1/Fri Nov 14 01:43:14 2003//
 /jniutf.java/1.1/Fri Nov 14 01:43:14 2003//
 /jniutf.out/1.1/Fri Nov 14 01:43:14 2003//
@@ -47,6 +47,9 @@
 /pr11951.c/1.1/Mon Aug 18 14:35:34 2003//
 /pr11951.java/1.2/Wed May  5 20:58:54 2004//
 /pr11951.out/1.1/Mon Aug 18 14:35:34 2003//
+/pr23739.c/1.1/Tue Sep  6 16:01:31 2005//
+/pr23739.java/1.1/Tue Sep  6 16:01:31 2005//
+/pr23739.out/1.1/Tue Sep  6 16:01:31 2005//
 /register.c/1.2/Fri Jan 24 17:39:49 2003//
 /register.java/1.1/Fri Feb 18 21:15:31 2000//
 /register.out/1.1/Fri Feb 18 21:15:31 2000//
@@ -59,4 +62,4 @@
 /virtual.c/1.2/Fri Jan 24 17:39:49 2003//
 /virtual.java/1.1/Wed Feb 16 00:19:55 2000//
 /virtual.out/1.1/Wed Feb 16 00:19:55 2000//
-D/invocation////
+D

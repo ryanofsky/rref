@@ -3036,7 +3036,6 @@ enum ptrmemfunc_vbit_where_t
 
 #define NULL_TREE (tree) NULL
 
-extern GTY(()) tree frame_base_decl;
 extern tree decl_assembler_name (tree);
 
 /* Compute the number of bytes occupied by 'node'.  This routine only
@@ -3555,7 +3554,7 @@ extern bool initializer_zerop (tree);
 
 extern void categorize_ctor_elements (tree, HOST_WIDE_INT *, HOST_WIDE_INT *,
 				      HOST_WIDE_INT *, bool *);
-extern HOST_WIDE_INT count_type_elements (tree);
+extern HOST_WIDE_INT count_type_elements (tree, bool);
 
 /* add_var_to_bind_expr (bind_expr, var) binds var to bind_expr.  */
 
@@ -3795,7 +3794,9 @@ extern tree fold_build2_stat (enum tree_code, tree, tree, tree MEM_STAT_DECL);
 #define fold_build2(c,t1,t2,t3) fold_build2_stat (c, t1, t2, t3 MEM_STAT_INFO)
 extern tree fold_build3_stat (enum tree_code, tree, tree, tree, tree MEM_STAT_DECL);
 #define fold_build3(c,t1,t2,t3,t4) fold_build3_stat (c, t1, t2, t3, t4 MEM_STAT_INFO)
-extern tree fold_initializer (tree);
+extern tree fold_build1_initializer (enum tree_code, tree, tree);
+extern tree fold_build2_initializer (enum tree_code, tree, tree, tree);
+extern tree fold_build3_initializer (enum tree_code, tree, tree, tree, tree);
 extern tree fold_convert (tree, tree);
 extern tree fold_single_bit_test (enum tree_code, tree, tree, tree);
 extern tree fold_ignored_result (tree);
@@ -3856,6 +3857,7 @@ extern tree constant_boolean_node (int, tree);
 extern tree build_low_bits_mask (tree, unsigned);
 
 extern bool tree_swap_operands_p (tree, tree, bool);
+extern void swap_tree_operands (tree, tree *, tree *);
 extern enum tree_code swap_tree_comparison (enum tree_code);
 
 extern bool ptr_difference_const (tree, tree, HOST_WIDE_INT *);

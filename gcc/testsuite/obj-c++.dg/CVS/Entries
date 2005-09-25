@@ -50,6 +50,7 @@
 /fix-and-continue-2.mm/1.2/Thu May 26 01:53:55 2005//
 /gnu-runtime-1.mm/1.1/Thu Jul  7 06:25:48 2005//
 /gnu-runtime-2.mm/1.2/Thu Jul  7 21:10:00 2005//
+/gnu-runtime-3.mm/1.2/Wed Aug 31 21:20:06 2005//
 /isa-field-1.mm/1.2/Thu May 26 01:53:55 2005//
 /ivar-list-semi.mm/1.2/Thu May 26 01:53:55 2005//
 /layout-1.mm/1.1/Tue May 24 22:18:42 2005//
@@ -96,6 +97,8 @@
 /selector-2.mm/1.1/Thu May 26 00:51:53 2005//
 /selector-3.mm/1.1/Thu May 26 00:01:01 2005//
 /selector-4.mm/1.2/Thu May 26 02:27:50 2005//
+/selector-5.mm/1.1/Thu Sep  8 13:14:41 2005//
+/selector-6.mm/1.1/Thu Sep  8 13:14:41 2005//
 /stubify-1.mm/1.2/Thu May 26 01:53:56 2005//
 /stubify-2.mm/1.2/Thu May 26 01:53:56 2005//
 /super-class-1.mm/1.2/Thu May 26 01:53:56 2005//

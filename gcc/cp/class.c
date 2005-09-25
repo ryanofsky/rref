@@ -1906,11 +1906,7 @@ find_final_overrider (tree derived, tree binfo, tree fn)
 
   /* If there was no winner, issue an error message.  */
   if (!ffod.candidates || TREE_CHAIN (ffod.candidates))
-    {
-      error ("no unique final overrider for %qD in %qT", fn,
-	     BINFO_TYPE (derived));
-      return error_mark_node;
-    }
+    return error_mark_node;
 
   return ffod.candidates;
 }
@@ -1970,7 +1966,10 @@ update_vtable_entry_for_fn (tree t, tree binfo, tree fn, tree* virtuals,
   /* Find the final overrider.  */
   overrider = find_final_overrider (TYPE_BINFO (t), b, target_fn);
   if (overrider == error_mark_node)
-    return;
+    {
+      error ("no unique final overrider for %qD in %qT", target_fn, t);
+      return;
+    }
   overrider_target = overrider_fn = TREE_PURPOSE (overrider);
 
   /* Check for adjusting covariant return types.  */
@@ -5645,7 +5644,8 @@ resolve_address_of_overloaded_function (tree target_type,
 	       one, or vice versa.  */
 	    continue;
 
-	  /* Ignore anticipated decls of undeclared builtins.  */
+	  /* Ignore functions which haven't been explicitly
+	     declared.  */
 	  if (DECL_ANTICIPATED (fn))
 	    continue;
 
@@ -5656,7 +5656,7 @@ resolve_address_of_overloaded_function (tree target_type,
 	  else if (!is_reference)
 	    fntype = build_pointer_type (fntype);
 
-	  if (can_convert_arg (target_type, fntype, fn))
+	  if (can_convert_arg (target_type, fntype, fn, LOOKUP_NORMAL))
 	    matches = tree_cons (fn, NULL_TREE, matches);
 	}
     }
@@ -5704,7 +5704,7 @@ resolve_address_of_overloaded_function (tree target_type,
 	  targs = make_tree_vec (DECL_NTPARMS (fn));
 	  if (fn_type_unification (fn, explicit_targs, targs,
 				   target_arg_types, target_ret_type,
-				   DEDUCE_EXACT))
+				   DEDUCE_EXACT, LOOKUP_NORMAL))
 	    /* Argument deduction failed.  */
 	    continue;
 
@@ -5721,7 +5721,8 @@ resolve_address_of_overloaded_function (tree target_type,
 	      build_ptrmemfunc_type (build_pointer_type (instantiation_type));
 	  else if (!is_reference)
 	    instantiation_type = build_pointer_type (instantiation_type);
-	  if (can_convert_arg (target_type, instantiation_type, instantiation))
+	  if (can_convert_arg (target_type, instantiation_type, instantiation, 
+			       LOOKUP_NORMAL))
 	    matches = tree_cons (instantiation, fn, matches);
 	}
 

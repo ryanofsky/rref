@@ -1,10 +1,10 @@
-/assoc_cntnr.hpp/1.1/Mon Jun 27 15:30:27 2005//
-/data_type.hpp/1.1/Mon Jun 27 15:30:27 2005//
-/ds_trait.hpp/1.1/Mon Jun 27 15:30:27 2005//
-/exception.hpp/1.1/Mon Jun 27 15:30:27 2005//
-/hash_policy.hpp/1.1/Mon Jun 27 15:30:27 2005//
-/lu_policy.hpp/1.1/Mon Jun 27 15:30:27 2005//
-/ms_trait.hpp/1.1/Mon Jun 27 15:30:27 2005//
-/tree_policy.hpp/1.1/Mon Jun 27 15:30:27 2005//
-/trivial_iterator_def.hpp/1.1/Mon Jun 27 15:30:27 2005//
-D/detail////
+/assoc_cntnr.hpp/1.2/Wed Aug 17 02:13:23 2005//
+/data_type.hpp/1.2/Wed Aug 17 02:13:23 2005//
+/ds_trait.hpp/1.2/Wed Aug 17 02:13:23 2005//
+/exception.hpp/1.2/Wed Aug 17 02:13:23 2005//
+/hash_policy.hpp/1.2/Wed Aug 17 02:13:23 2005//
+/lu_policy.hpp/1.2/Wed Aug 17 02:13:23 2005//
+/ms_trait.hpp/1.2/Wed Aug 17 02:13:23 2005//
+/tree_policy.hpp/1.2/Wed Aug 17 02:13:23 2005//
+/trivial_iterator_def.hpp/1.2/Wed Aug 17 02:13:23 2005//
+D

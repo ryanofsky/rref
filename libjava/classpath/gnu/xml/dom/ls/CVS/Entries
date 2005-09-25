@@ -1,10 +1,10 @@
-/DomLSException.java/1.1.1.1/Sat Jul 16 00:33:35 2005/-ko/
-/DomLSInput.java/1.1.1.1/Sat Jul 16 00:33:35 2005/-ko/
-/DomLSOutput.java/1.1.1.1/Sat Jul 16 00:33:36 2005/-ko/
-/DomLSParser.java/1.1.1.1/Sat Jul 16 00:33:36 2005/-ko/
-/DomLSSerializer.java/1.1.1.1/Sat Jul 16 00:33:36 2005/-ko/
-/FilteredSAXEventSink.java/1.1.1.1/Sat Jul 16 00:33:35 2005/-ko/
-/ReaderInputStream.java/1.1.1.1/Sat Jul 16 00:33:36 2005/-ko/
-/SAXEventSink.java/1.1.1.1/Sat Jul 16 00:33:36 2005/-ko/
-/WriterOutputStream.java/1.1.1.1/Sat Jul 16 00:33:36 2005/-ko/
+/DomLSException.java/1.2/Fri Sep 23 17:29:49 2005/-ko/
+/DomLSInput.java/1.2/Fri Sep 23 17:29:49 2005/-ko/
+/DomLSOutput.java/1.2/Fri Sep 23 17:29:49 2005/-ko/
+/DomLSParser.java/1.2/Fri Sep 23 17:29:49 2005/-ko/
+/DomLSSerializer.java/1.2/Fri Sep 23 17:29:49 2005/-ko/
+/FilteredSAXEventSink.java/1.2/Fri Sep 23 17:29:49 2005/-ko/
+/ReaderInputStream.java/1.2/Fri Sep 23 17:29:49 2005/-ko/
+/SAXEventSink.java/1.2/Fri Sep 23 17:29:49 2005/-ko/
+/WriterOutputStream.java/1.2/Fri Sep 23 17:29:50 2005/-ko/
 D

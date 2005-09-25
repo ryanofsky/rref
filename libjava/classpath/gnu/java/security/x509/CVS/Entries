@@ -1,12 +1,12 @@
-/GnuPKIExtension.java/1.1.1.1/Sat Jul 16 00:33:47 2005/-ko/
-/PolicyNodeImpl.java/1.1.1.1/Sat Jul 16 00:33:47 2005/-ko/
-/Util.java/1.1.1.1/Sat Jul 16 00:33:47 2005/-ko/
-/X500DistinguishedName.java/1.1.1.1/Sat Jul 16 00:33:47 2005/-ko/
-/X509CRL.java/1.1.1.1/Sat Jul 16 00:33:47 2005/-ko/
-/X509CRLEntry.java/1.1.1.1/Sat Jul 16 00:33:47 2005/-ko/
-/X509CRLSelectorImpl.java/1.1.1.1/Sat Jul 16 00:33:47 2005/-ko/
-/X509CertPath.java/1.1.1.1/Sat Jul 16 00:33:47 2005/-ko/
-/X509CertSelectorImpl.java/1.1.1.1/Sat Jul 16 00:33:47 2005/-ko/
-/X509Certificate.java/1.1.1.1/Sat Jul 16 00:33:47 2005/-ko/
-/package.html/1.1.1.1/Sat Jul 16 00:33:47 2005/-ko/
-D/ext////
+/GnuPKIExtension.java/1.2/Fri Sep 23 17:29:40 2005/-ko/
+/PolicyNodeImpl.java/1.2/Fri Sep 23 17:29:41 2005/-ko/
+/Util.java/1.2/Fri Sep 23 17:29:41 2005/-ko/
+/X500DistinguishedName.java/1.2/Fri Sep 23 17:29:41 2005/-ko/
+/X509CRL.java/1.2/Fri Sep 23 17:29:41 2005/-ko/
+/X509CRLEntry.java/1.2/Fri Sep 23 17:29:41 2005/-ko/
+/X509CRLSelectorImpl.java/1.2/Fri Sep 23 17:29:41 2005/-ko/
+/X509CertPath.java/1.2/Fri Sep 23 17:29:41 2005/-ko/
+/X509CertSelectorImpl.java/1.2/Fri Sep 23 17:29:41 2005/-ko/
+/X509Certificate.java/1.2/Fri Sep 23 17:29:41 2005/-ko/
+/package.html/1.2/Fri Sep 23 17:29:41 2005/-ko/
+D

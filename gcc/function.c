@@ -474,6 +474,7 @@ assign_stack_local_1 (enum machine_mode mode, HOST_WIDE_INT size, int align,
     function->x_frame_offset += size;
 
   x = gen_rtx_MEM (mode, addr);
+  MEM_NOTRAP_P (x) = 1;
 
   function->x_stack_slot_list
     = gen_rtx_EXPR_LIST (VOIDmode, x, function->x_stack_slot_list);
@@ -649,9 +650,7 @@ assign_stack_temp_for_type (enum machine_mode mode, HOST_WIDE_INT size,
 	      p->size = best_p->size - rounded_size;
 	      p->base_offset = best_p->base_offset + rounded_size;
 	      p->full_size = best_p->full_size - rounded_size;
-	      p->slot = gen_rtx_MEM (BLKmode,
-				     plus_constant (XEXP (best_p->slot, 0),
-						    rounded_size));
+	      p->slot = adjust_address_nv (best_p->slot, BLKmode, rounded_size);
 	      p->align = best_p->align;
 	      p->address = 0;
 	      p->type = best_p->type;
@@ -743,6 +742,7 @@ assign_stack_temp_for_type (enum machine_mode mode, HOST_WIDE_INT size,
       MEM_VOLATILE_P (slot) = TYPE_VOLATILE (type);
       MEM_SET_IN_STRUCT_P (slot, AGGREGATE_TYPE_P (type));
     }
+  MEM_NOTRAP_P (slot) = 1;
 
   return slot;
 }
@@ -1211,12 +1211,6 @@ static int cfa_offset;
 #endif
 #endif
 
-/* On most machines, the CFA coincides with the first incoming parm.  */
-
-#ifndef ARG_POINTER_CFA_OFFSET
-#define ARG_POINTER_CFA_OFFSET(FNDECL) FIRST_PARM_OFFSET (FNDECL)
-#endif
-
 
 /* Given a piece of RTX and a pointer to a HOST_WIDE_INT, if the RTX
    is a virtual register, return the equivalent hard register and set the
@@ -1665,7 +1659,7 @@ instantiate_virtual_regs (void)
 
 struct tree_opt_pass pass_instantiate_virtual_regs =
 {
-  NULL,                                 /* name */
+  "vregs",                              /* name */
   NULL,                                 /* gate */
   instantiate_virtual_regs,             /* execute */
   NULL,                                 /* sub */
@@ -1676,7 +1670,7 @@ struct tree_opt_pass pass_instantiate_virtual_regs =
   0,                                    /* properties_provided */
   0,                                    /* properties_destroyed */
   0,                                    /* todo_flags_start */
-  0,                                    /* todo_flags_finish */
+  TODO_dump_func,                       /* todo_flags_finish */
   0                                     /* letter */
 };
 
@@ -4409,6 +4403,10 @@ expand_function_end (void)
   if (flag_exceptions && USING_SJLJ_EXCEPTIONS)
     sjlj_emit_function_exit_after (get_last_insn ());
 
+  /* If this is an implementation of throw, do what's necessary to
+     communicate between __builtin_eh_return and the epilogue.  */
+  expand_eh_return ();
+
   /* If scalar return value was computed in a pseudo-reg, or was a named
      return value that got dumped to the stack, copy that to the hard
      return register.  */
@@ -4470,6 +4468,24 @@ expand_function_end (void)
 				 TREE_TYPE (decl_result),
 				 int_size_in_bytes (TREE_TYPE (decl_result)));
 	    }
+	  /* In the case of complex integer modes smaller than a word, we'll
+	     need to generate some non-trivial bitfield insertions.  Do that
+	     on a pseudo and not the hard register.  */
+	  else if (GET_CODE (decl_rtl) == CONCAT
+		   && GET_MODE_CLASS (GET_MODE (decl_rtl)) == MODE_COMPLEX_INT
+		   && GET_MODE_BITSIZE (GET_MODE (decl_rtl)) <= BITS_PER_WORD)
+	    {
+	      int old_generating_concat_p;
+	      rtx tmp;
+
+	      old_generating_concat_p = generating_concat_p;
+	      generating_concat_p = 0;
+	      tmp = gen_reg_rtx (GET_MODE (decl_rtl));
+	      generating_concat_p = old_generating_concat_p;
+
+	      emit_move_insn (tmp, decl_rtl);
+	      emit_move_insn (real_decl_rtl, tmp);
+	    }
 	  else
 	    emit_move_insn (real_decl_rtl, decl_rtl);
 	}
@@ -4510,10 +4526,6 @@ expand_function_end (void)
 	 of the result.  */
       current_function_return_rtx = outgoing;
     }
-
-  /* If this is an implementation of throw, do what's necessary to
-     communicate between __builtin_eh_return and the epilogue.  */
-  expand_eh_return ();
 
   /* Emit the actual code to clobber return register.  */
   {
@@ -4822,6 +4834,7 @@ keep_stack_depressed (rtx insns)
 							   info.sp_offset));
 
 	  retaddr = gen_rtx_MEM (Pmode, retaddr);
+	  MEM_NOTRAP_P (retaddr) = 1;
 
 	  /* If there is a pending load to the equivalent register for SP
 	     and we reference that register, we must load our address into

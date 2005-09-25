@@ -1237,8 +1237,7 @@ replace_uses_by (tree name, tree val)
   FOR_EACH_IMM_USE_SAFE (use, imm_iter, name)
     {
       stmt = USE_STMT (use);
-
-      SET_USE (use, val);
+      replace_exp (use, val);
 
       if (TREE_CODE (stmt) == PHI_NODE)
 	{
@@ -1272,6 +1271,10 @@ replace_uses_by (tree name, tree val)
       rhs = get_rhs (stmt);
       if (TREE_CODE (rhs) == ADDR_EXPR)
 	recompute_tree_invarant_for_addr_expr (rhs);
+
+      /* If the statement could throw and now cannot, we need to prune cfg.  */
+      if (maybe_clean_or_replace_eh_stmt (stmt, stmt))
+	tree_purge_dead_eh_edges (bb_for_stmt (stmt));
 
       mark_new_vars_to_rename (stmt);
     }
@@ -1311,8 +1314,17 @@ tree_merge_blocks (basic_block a, basic_block b)
     {
       tree def = PHI_RESULT (phi), use = PHI_ARG_DEF (phi, 0);
       tree copy;
-      
-      if (!may_propagate_copy (def, use))
+      bool may_replace_uses = may_propagate_copy (def, use);
+
+      /* In case we have loops to care about, do not propagate arguments of
+	 loop closed ssa phi nodes.  */
+      if (current_loops
+	  && is_gimple_reg (def)
+	  && TREE_CODE (use) == SSA_NAME
+	  && a->loop_father != b->loop_father)
+	may_replace_uses = false;
+
+      if (!may_replace_uses)
 	{
 	  gcc_assert (is_gimple_reg (def));
 
@@ -3037,6 +3049,22 @@ reinstall_phi_args (edge new_edge, edge old_edge)
   PENDING_STMT (old_edge) = NULL;
 }
 
+/* Returns the basic block after that the new basic block created
+   by splitting edge EDGE_IN should be placed.  Tries to keep the new block
+   near its "logical" location.  This is of most help to humans looking
+   at debugging dumps.  */
+
+static basic_block
+split_edge_bb_loc (edge edge_in)
+{
+  basic_block dest = edge_in->dest;
+
+  if (dest->prev_bb && find_edge (dest->prev_bb, dest))
+    return edge_in->src;
+  else
+    return dest->prev_bb;
+}
+
 /* Split a (typically critical) edge EDGE_IN.  Return the new block.
    Abort on abnormal edges.  */
 
@@ -3052,13 +3080,7 @@ tree_split_edge (edge edge_in)
   src = edge_in->src;
   dest = edge_in->dest;
 
-  /* Place the new block in the block list.  Try to keep the new block
-     near its "logical" location.  This is of most help to humans looking
-     at debugging dumps.  */
-  if (dest->prev_bb && find_edge (dest->prev_bb, dest))
-    after_bb = edge_in->src;
-  else
-    after_bb = dest->prev_bb;
+  after_bb = split_edge_bb_loc (edge_in);
 
   new_bb = create_empty_bb (after_bb);
   new_bb->frequency = EDGE_FREQUENCY (edge_in);
@@ -4346,7 +4368,8 @@ tree_duplicate_sese_region (edge entry, edge exit,
 	entry_freq = total_freq;
     }
 
-  copy_bbs (region, n_region, region_copy, &exit, 1, &exit_copy, loop);
+  copy_bbs (region, n_region, region_copy, &exit, 1, &exit_copy, loop,
+	    split_edge_bb_loc (entry));
   if (total_count)
     {
       scale_bbs_frequencies_gcov_type (region, n_region,
@@ -4502,7 +4525,7 @@ static void print_pred_bbs (FILE *, basic_block bb);
 static void print_succ_bbs (FILE *, basic_block bb);
 
 
-/* Print the predecessors indexes of edge E on FILE.  */
+/* Print on FILE the indexes for the predecessors of basic_block BB.  */
 
 static void
 print_pred_bbs (FILE *file, basic_block bb)
@@ -4511,11 +4534,11 @@ print_pred_bbs (FILE *file, basic_block bb)
   edge_iterator ei;
 
   FOR_EACH_EDGE (e, ei, bb->preds)
-    fprintf (file, "bb_%d", e->src->index);
+    fprintf (file, "bb_%d ", e->src->index);
 }
 
 
-/* Print the successors indexes of edge E on FILE.  */
+/* Print on FILE the indexes for the successors of basic_block BB.  */
 
 static void
 print_succ_bbs (FILE *file, basic_block bb)
@@ -4524,7 +4547,7 @@ print_succ_bbs (FILE *file, basic_block bb)
   edge_iterator ei;
 
   FOR_EACH_EDGE (e, ei, bb->succs)
-    fprintf (file, "bb_%d", e->src->index);
+    fprintf (file, "bb_%d ", e->dest->index);
 }
 
 
@@ -5110,7 +5133,8 @@ execute_warn_function_return (void)
 	{
 	  tree last = last_stmt (e->src);
 	  if (TREE_CODE (last) == RETURN_EXPR
-	      && TREE_OPERAND (last, 0) == NULL)
+	      && TREE_OPERAND (last, 0) == NULL
+	      && !TREE_NO_WARNING (last))
 	    {
 #ifdef USE_MAPPED_LOCATION
 	      location = EXPR_LOCATION (last);

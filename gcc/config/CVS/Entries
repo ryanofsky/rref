@@ -3,8 +3,8 @@
 /darwin-c.c/1.23/Fri Jul  8 05:50:48 2005//
 /darwin-crt2.c/1.3/Sat Jun 25 01:20:43 2005//
 /darwin-protos.h/1.43/Fri Jul  8 05:50:48 2005//
-/darwin.c/1.123/Wed Jun 29 21:01:24 2005//
-/darwin.h/1.126/Wed Aug  3 23:35:06 2005//
+/darwin.c/1.126/Wed Aug 24 07:48:45 2005//
+/darwin.h/1.128/Wed Aug 31 21:43:05 2005//
 /darwin.opt/1.3/Fri Jul  8 05:50:49 2005//
 /dbx.h/1.5/Sat Jun 25 01:20:44 2005//
 /dbxcoff.h/1.11/Sat Jun 25 01:20:44 2005//
@@ -70,47 +70,19 @@
 /t-slibgcc-sld/1.11/Sat Feb 19 11:44:05 2005//
 /t-sol2/1.2/Sun Jul 25 18:10:02 2004//
 /t-svr4/1.5/Thu Nov 15 13:05:53 2001//
-/t-vxworks/1.3/Tue Sep 23 18:55:57 2003//
+/t-vxworks/1.4/Wed Aug 24 07:13:09 2005//
 /tm-dwarf2.h/1.3/Thu Feb 10 05:32:04 2000//
 /udivmod.c/1.1/Thu Nov 30 08:25:58 2000//
 /udivmodsi4.c/1.1/Thu Nov 30 08:25:58 2000//
 /usegas.h/1.3/Sat Jun 25 01:20:45 2005//
-/vxlib.c/1.4/Sat Jun 25 01:20:45 2005//
-/vxworks.h/1.8/Sat Jun 25 01:20:45 2005//
+/vx-common.h/1.2/Wed Aug 24 07:13:09 2005//
+/vxlib.c/1.6/Tue Sep  6 02:04:56 2005//
+/vxworks.h/1.10/Tue Sep  6 02:04:56 2005//
+/vxworks.opt/1.1/Wed Aug 24 07:13:10 2005//
+/vxworksae.h/1.1/Wed Aug 24 07:13:10 2005//
 /windiss.h/1.2/Sat Jun 25 01:20:45 2005//
 /x-darwin/1.1/Wed Apr  6 08:41:36 2005//
 /x-interix/1.5/Thu Jan 10 22:03:04 2002//
 /x-linux/1.6/Tue Aug 24 07:31:32 2004//
 /x-solaris/1.2/Tue Aug 24 07:31:32 2004//
-D/alpha////
-D/arc////
-D/arm////
-D/avr////
-D/bfin////
-D/c4x////
-D/cris////
-D/crx////
-D/fr30////
-D/frv////
-D/h8300////
-D/i386////
-D/ia64////
-D/iq2000////
-D/m32c////
-D/m32r////
-D/m68hc11////
-D/m68k////
-D/mcore////
-D/mips////
-D/mmix////
-D/mn10300////
-D/pa////
-D/pdp11////
-D/rs6000////
-D/s390////
-D/sh////
-D/sparc////
-D/stormy16////
-D/v850////
-D/vax////
-D/xtensa////
+D

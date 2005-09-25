@@ -1,16 +1,13 @@
-/IIOException.java/1.1.1.1/Sat Jul 16 00:32:00 2005/-ko/
-/IIOImage.java/1.1.1.1/Sat Jul 16 00:32:00 2005/-ko/
-/IIOParam.java/1.1.1.1/Sat Jul 16 00:32:00 2005/-ko/
-/IIOParamController.java/1.1.1.1/Sat Jul 16 00:32:00 2005/-ko/
-/ImageIO.java/1.1.1.1/Sat Jul 16 00:32:00 2005/-ko/
-/ImageReadParam.java/1.1.1.1/Sat Jul 16 00:32:00 2005/-ko/
-/ImageReader.java/1.1.1.1/Sat Jul 16 00:32:00 2005/-ko/
-/ImageTranscoder.java/1.1.1.1/Sat Jul 16 00:32:00 2005/-ko/
-/ImageTypeSpecifier.java/1.1.1.1/Sat Jul 16 00:32:00 2005/-ko/
-/ImageWriteParam.java/1.1.1.1/Sat Jul 16 00:32:00 2005/-ko/
-/ImageWriter.java/1.1.1.1/Sat Jul 16 00:32:00 2005/-ko/
-/package.html/1.1.1.1/Sat Jul 16 00:32:00 2005/-ko/
-D/event////
-D/metadata////
-D/spi////
-D/stream////
+/IIOException.java/1.2/Fri Sep 23 17:30:21 2005/-ko/
+/IIOImage.java/1.2/Fri Sep 23 17:30:21 2005/-ko/
+/IIOParam.java/1.2/Fri Sep 23 17:30:21 2005/-ko/
+/IIOParamController.java/1.2/Fri Sep 23 17:30:21 2005/-ko/
+/ImageIO.java/1.2/Fri Sep 23 17:30:21 2005/-ko/
+/ImageReadParam.java/1.2/Fri Sep 23 17:30:21 2005/-ko/
+/ImageReader.java/1.2/Fri Sep 23 17:30:21 2005/-ko/
+/ImageTranscoder.java/1.2/Fri Sep 23 17:30:21 2005/-ko/
+/ImageTypeSpecifier.java/1.2/Fri Sep 23 17:30:21 2005/-ko/
+/ImageWriteParam.java/1.2/Fri Sep 23 17:30:21 2005/-ko/
+/ImageWriter.java/1.2/Fri Sep 23 17:30:21 2005/-ko/
+/package.html/1.2/Fri Sep 23 17:30:21 2005/-ko/
+D

@@ -1,12 +1,4 @@
-/Makefile.am/1.104/Tue Jul  5 23:07:04 2005//
-/Makefile.in/1.143/Wed Jul 27 18:28:27 2005//
-/stdc++.h/1.1/Fri Mar 14 22:16:05 2003//
-D/backward////
-D/bits////
-D/c////
-D/c_compatibility////
-D/c_std////
-D/debug////
-D/ext////
-D/std////
-D/tr1////
+/Makefile.am/1.107/Tue Sep 13 19:22:52 2005//
+/Makefile.in/1.145/Tue Sep 13 19:22:52 2005//
+/stdc++.h/1.2/Wed Aug 17 02:12:43 2005//
+D

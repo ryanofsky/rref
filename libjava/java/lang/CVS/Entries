@@ -1,5 +1,5 @@
-/Character.java/1.13/Thu Jun 30 03:19:51 2005//
-/Class.h/1.84/Tue Jun 14 18:51:54 2005//
+/Character.java/1.14/Tue Aug 23 22:19:17 2005//
+/Class.h/1.85/Wed Aug 17 20:44:09 2005//
 /Class.java/1.26/Thu Jul 14 17:22:18 2005//
 /ClassLoader.java/1.42/Thu Jun 30 03:19:51 2005//
 /Double.java/1.21/Thu Jun 30 03:19:51 2005//
@@ -24,15 +24,15 @@
 /VMThrowable.java/1.5/Thu Jun 30 03:19:52 2005//
 /Win32Process.java/1.8/Fri Nov  7 03:16:49 2003//
 /natCharacter.cc/1.7/Thu Jun 30 03:19:53 2005//
-/natClass.cc/1.89/Tue Jun 14 18:51:54 2005//
+/natClass.cc/1.90/Tue Sep  6 16:01:28 2005//
 /natClassLoader.cc/1.84/Fri Jun 24 22:48:32 2005//
 /natDouble.cc/1.19/Sat Apr  2 01:18:45 2005//
 /natEcosProcess.cc/1.4/Tue Mar  7 19:55:26 2000//
 /natFloat.cc/1.5/Fri Feb  9 22:13:33 2001//
 /natMath.cc/1.7/Fri Feb 15 05:53:29 2002//
-/natObject.cc/1.34/Sat May 14 00:42:46 2005//
+/natObject.cc/1.35/Fri Aug 12 16:40:32 2005//
 /natPosixProcess.cc/1.21/Tue Sep 14 20:09:31 2004//
-/natRuntime.cc/1.57/Mon Apr 25 19:48:35 2005//
+/natRuntime.cc/1.58/Thu Sep  8 21:26:25 2005//
 /natString.cc/1.39/Wed Jun  1 15:52:45 2005//
 /natStringBuffer.cc/1.2/Mon Mar 24 00:50:18 2003//
 /natStringBuilder.cc/1.1/Tue May 10 18:28:31 2005//
@@ -42,5 +42,4 @@
 /natVMSecurityManager.cc/1.5/Mon Mar 21 14:50:13 2005//
 /natVMThrowable.cc/1.6/Thu Mar 10 19:02:20 2005//
 /natWin32Process.cc/1.10/Sun Feb 29 19:14:20 2004//
-D/ref////
-D/reflect////
+D

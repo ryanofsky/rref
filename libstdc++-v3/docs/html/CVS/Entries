@@ -9,16 +9,4 @@
 /lib3styles.css/1.1/Sun Dec 10 04:03:08 2000//
 /makedoc.awk/1.2/Thu Sep  5 15:47:50 2002//
 /test.html/1.12/Fri May 27 16:24:58 2005//
-D/17_intro////
-D/18_support////
-D/19_diagnostics////
-D/20_util////
-D/21_strings////
-D/22_locale////
-D/23_containers////
-D/24_iterators////
-D/25_algorithms////
-D/26_numerics////
-D/27_io////
-D/ext////
-D/faq////
+D

@@ -1,14 +1,11 @@
-/AuthPermission.java/1.1.1.1/Sat Jul 16 00:31:57 2005/-ko/
-/DestroyFailedException.java/1.1.1.1/Sat Jul 16 00:31:57 2005/-ko/
-/Destroyable.java/1.1.1.1/Sat Jul 16 00:31:57 2005/-ko/
-/Policy.java/1.1.1.1/Sat Jul 16 00:31:57 2005/-ko/
-/PrivateCredentialPermission.java/1.1.1.1/Sat Jul 16 00:31:57 2005/-ko/
-/RefreshFailedException.java/1.1.1.1/Sat Jul 16 00:31:57 2005/-ko/
-/Refreshable.java/1.1.1.1/Sat Jul 16 00:31:57 2005/-ko/
-/Subject.java/1.1.1.1/Sat Jul 16 00:31:57 2005/-ko/
-/SubjectDomainCombiner.java/1.1.1.1/Sat Jul 16 00:31:57 2005/-ko/
-/package.html/1.1.1.1/Sat Jul 16 00:31:57 2005/-ko/
-D/callback////
-D/login////
-D/spi////
-D/x500////
+/AuthPermission.java/1.2/Fri Sep 23 17:30:43 2005/-ko/
+/DestroyFailedException.java/1.2/Fri Sep 23 17:30:43 2005/-ko/
+/Destroyable.java/1.2/Fri Sep 23 17:30:43 2005/-ko/
+/Policy.java/1.2/Fri Sep 23 17:30:43 2005/-ko/
+/PrivateCredentialPermission.java/1.2/Fri Sep 23 17:30:43 2005/-ko/
+/RefreshFailedException.java/1.2/Fri Sep 23 17:30:43 2005/-ko/
+/Refreshable.java/1.2/Fri Sep 23 17:30:43 2005/-ko/
+/Subject.java/1.2/Fri Sep 23 17:30:43 2005/-ko/
+/SubjectDomainCombiner.java/1.2/Fri Sep 23 17:30:43 2005/-ko/
+/package.html/1.2/Fri Sep 23 17:30:43 2005/-ko/
+D

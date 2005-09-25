@@ -1,13 +1,13 @@
-/Control.java/1.1.1.1/Sat Jul 16 00:32:05 2005/-ko/
-/ControlFactory.java/1.1.1.1/Sat Jul 16 00:32:05 2005/-ko/
-/ExtendedRequest.java/1.1.1.1/Sat Jul 16 00:32:05 2005/-ko/
-/ExtendedResponse.java/1.1.1.1/Sat Jul 16 00:32:05 2005/-ko/
-/HasControls.java/1.1.1.1/Sat Jul 16 00:32:05 2005/-ko/
-/InitialLdapContext.java/1.1.1.1/Sat Jul 16 00:32:05 2005/-ko/
-/LdapContext.java/1.1.1.1/Sat Jul 16 00:32:05 2005/-ko/
-/LdapReferralException.java/1.1.1.1/Sat Jul 16 00:32:05 2005/-ko/
-/UnsolicitedNotification.java/1.1.1.1/Sat Jul 16 00:32:05 2005/-ko/
-/UnsolicitedNotificationEvent.java/1.1.1.1/Sat Jul 16 00:32:05 2005/-ko/
-/UnsolicitedNotificationListener.java/1.1.1.1/Sat Jul 16 00:32:05 2005/-ko/
-/package.html/1.1.1.1/Sat Jul 16 00:32:05 2005/-ko/
+/Control.java/1.2/Fri Sep 23 17:30:32 2005/-ko/
+/ControlFactory.java/1.2/Fri Sep 23 17:30:32 2005/-ko/
+/ExtendedRequest.java/1.2/Fri Sep 23 17:30:32 2005/-ko/
+/ExtendedResponse.java/1.2/Fri Sep 23 17:30:32 2005/-ko/
+/HasControls.java/1.2/Fri Sep 23 17:30:32 2005/-ko/
+/InitialLdapContext.java/1.2/Fri Sep 23 17:30:32 2005/-ko/
+/LdapContext.java/1.2/Fri Sep 23 17:30:32 2005/-ko/
+/LdapReferralException.java/1.2/Fri Sep 23 17:30:32 2005/-ko/
+/UnsolicitedNotification.java/1.2/Fri Sep 23 17:30:32 2005/-ko/
+/UnsolicitedNotificationEvent.java/1.2/Fri Sep 23 17:30:32 2005/-ko/
+/UnsolicitedNotificationListener.java/1.2/Fri Sep 23 17:30:32 2005/-ko/
+/package.html/1.2/Fri Sep 23 17:30:32 2005/-ko/
 D

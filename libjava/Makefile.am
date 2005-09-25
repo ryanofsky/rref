@@ -2,7 +2,7 @@
 
 AUTOMAKE_OPTIONS = foreign subdir-objects
 
-ACLOCAL_AMFLAGS = -I . -I ../config
+ACLOCAL_AMFLAGS = -I . -I .. -I ../config
 
 # May be used by various substitution variables.
 gcc_version := $(shell cat $(top_srcdir)/../gcc/BASE-VER)
@@ -91,8 +91,12 @@ ZIP = @ZIP@
 ## compiles.
 GCJ_WITH_FLAGS = $(GCJ) --encoding=UTF-8 -Wno-deprecated
 
-GCJLINK = $(LIBTOOL) --tag=GCJ --mode=link $(GCJ) -L$(here) $(JC1FLAGS) $(LDFLAGS) -o $@
-LIBLINK = $(LIBTOOL) --tag=CXX --mode=link $(CXX) -L$(here) $(JC1FLAGS) $(LDFLAGS) -o $@
+extra_ldflags_libjava = @extra_ldflags_libjava@
+
+GCJLINK = $(LIBTOOL) --tag=GCJ --mode=link $(GCJ) -L$(here) $(JC1FLAGS) \
+          $(LDFLAGS) -o $@
+LIBLINK = $(LIBTOOL) --tag=CXX --mode=link $(CXX) -L$(here) $(JC1FLAGS) \
+          $(LDFLAGS) $(extra_ldflags_libjava) -o $@
 
 GCC_UNWIND_INCLUDE = @GCC_UNWIND_INCLUDE@
 
@@ -259,7 +263,7 @@ lib_gnu_java_awt_peer_gtk_la_LDFLAGS = \
         -version-info `grep -v '^\#' $(srcdir)/libtool-version` $(LIBGCJ_LD_SYMBOLIC) $(X_LIBS) -lXtst
 lib_gnu_java_awt_peer_gtk_la_LINK = $(LIBLINK)
 
-libgcjawt_la_SOURCES = jawt.c
+libgcjawt_la_SOURCES = classpath/native/jawt/jawt.c
 libgcjawt_la_CFLAGS = -I$(srcdir)/classpath/native/jni/classpath \
 	$(PEDANTIC_CFLAGS) $(X_CFLAGS)
 ## See jv_convert_LDADD.
@@ -294,11 +298,15 @@ classpath/resource/java/util/iso4217.properties	\
 classpath/resource/gnu/java/awt/peer/gtk/font.properties \
 classpath/resource/gnu/regexp/MessagesBundle_it.properties \
 classpath/resource/gnu/regexp/MessagesBundle_fr.properties \
-classpath/resource/gnu/regexp/MessagesBundle.properties
+classpath/resource/gnu/regexp/MessagesBundle.properties	\
+classpath/resource/META-INF/services/org.xml.sax.driver	\
+classpath/resource/META-INF/services/javax.xml.parsers.SAXParserFactory	\
+classpath/resource/META-INF/services/javax.xml.parsers.DocumentBuilderFactory \
+classpath/resource/META-INF/services/javax.xml.parsers.TransformerFactory
 
-propertyo_files = $(patsubst classpath/resource/%,%,$(property_files:.properties=.properties.lo))
+propertyo_files = $(patsubst classpath/resource/%,%,$(addsuffix .lo,$(property_files)))
 
-$(propertyo_files): %.properties.lo: classpath/resource/%.properties
+$(propertyo_files): %.lo: classpath/resource/%
 	$(mkinstalldirs) `dirname $@`; \
 	$(LTGCJCOMPILE) -o $@ -c $< -Wc,--resource,$(@:.lo=)
 
@@ -801,7 +809,6 @@ java/lang/reflect/natArray.cc \
 java/lang/reflect/natConstructor.cc \
 java/lang/reflect/natField.cc \
 java/lang/reflect/natMethod.cc \
-java/lang/reflect/natProxy.cc \
 java/net/natVMNetworkInterface.cc \
 java/net/natInetAddress.cc \
 java/nio/channels/natChannels.cc \

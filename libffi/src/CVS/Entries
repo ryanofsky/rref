@@ -4,18 +4,4 @@
 /prep_cif.c/1.10/Mon Apr 18 17:08:57 2005/-ko/
 /raw_api.c/1.3/Tue Oct 21 19:01:54 2003/-ko/
 /types.c/1.19/Fri Dec 31 22:04:30 2004/-ko/
-D/alpha////
-D/arm////
-D/cris////
-D/frv////
-D/ia64////
-D/m32r////
-D/m68k////
-D/mips////
-D/pa////
-D/powerpc////
-D/s390////
-D/sh////
-D/sh64////
-D/sparc////
-D/x86////
+D

@@ -1,12 +1,12 @@
-/IIORegistry.java/1.1.1.1/Sat Jul 16 00:32:00 2005/-ko/
-/IIOServiceProvider.java/1.1.1.1/Sat Jul 16 00:32:00 2005/-ko/
-/ImageInputStreamSpi.java/1.1.1.1/Sat Jul 16 00:32:00 2005/-ko/
-/ImageOutputStreamSpi.java/1.1.1.1/Sat Jul 16 00:32:00 2005/-ko/
-/ImageReaderSpi.java/1.1.1.1/Sat Jul 16 00:32:00 2005/-ko/
-/ImageReaderWriterSpi.java/1.1.1.1/Sat Jul 16 00:32:00 2005/-ko/
-/ImageTranscoderSpi.java/1.1.1.1/Sat Jul 16 00:32:00 2005/-ko/
-/ImageWriterSpi.java/1.1.1.1/Sat Jul 16 00:32:00 2005/-ko/
-/RegisterableService.java/1.1.1.1/Sat Jul 16 00:32:00 2005/-ko/
-/ServiceRegistry.java/1.1.1.1/Sat Jul 16 00:32:01 2005/-ko/
-/package.html/1.1.1.1/Sat Jul 16 00:32:00 2005/-ko/
+/IIORegistry.java/1.3/Fri Sep 23 21:30:51 2005/-ko/
+/IIOServiceProvider.java/1.2/Fri Sep 23 17:30:25 2005/-ko/
+/ImageInputStreamSpi.java/1.2/Fri Sep 23 17:30:25 2005/-ko/
+/ImageOutputStreamSpi.java/1.2/Fri Sep 23 17:30:25 2005/-ko/
+/ImageReaderSpi.java/1.2/Fri Sep 23 17:30:25 2005/-ko/
+/ImageReaderWriterSpi.java/1.2/Fri Sep 23 17:30:25 2005/-ko/
+/ImageTranscoderSpi.java/1.2/Fri Sep 23 17:30:26 2005/-ko/
+/ImageWriterSpi.java/1.2/Fri Sep 23 17:30:26 2005/-ko/
+/RegisterableService.java/1.2/Fri Sep 23 17:30:26 2005/-ko/
+/ServiceRegistry.java/1.2/Fri Sep 23 17:30:26 2005/-ko/
+/package.html/1.2/Fri Sep 23 17:30:26 2005/-ko/
 D

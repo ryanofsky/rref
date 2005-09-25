@@ -193,10 +193,10 @@
 /mi7b.h/1.1/Tue Jun 25 06:00:24 2002//
 /multiline-2.c/1.1/Wed Apr 23 22:44:05 2003//
 /multiline.c/1.6/Mon Jun  2 19:21:15 2003//
-/normalize-1.c/1.1/Tue Mar 15 00:36:30 2005//
-/normalize-2.c/1.1/Tue Mar 15 00:36:30 2005//
-/normalize-3.c/1.1/Tue Mar 15 00:36:30 2005//
-/normalize-4.c/1.1/Tue Mar 15 00:36:30 2005//
+/normalize-1.c/1.2/Tue Sep 20 20:31:36 2005//
+/normalize-2.c/1.2/Tue Sep 20 20:31:36 2005//
+/normalize-3.c/1.2/Tue Sep 20 20:31:36 2005//
+/normalize-4.c/1.2/Tue Sep 20 20:31:36 2005//
 /paste1.c/1.1/Tue Jul  4 01:58:21 2000//
 /paste10.c/1.1/Fri Sep 15 05:55:36 2000//
 /paste11.c/1.1/Sun Oct 29 17:43:57 2000//
@@ -211,6 +211,10 @@
 /paste8.c/1.2/Sat Oct 28 18:01:40 2000//
 /paste9.c/1.1/Thu Sep 14 21:13:10 2000//
 /poison.c/1.4/Thu May  9 17:14:21 2002//
+/pr20348.c/1.1/Tue Aug 30 06:28:21 2005//
+/pr20348.h/1.1/Tue Aug 30 06:28:21 2005//
+/pr20356.c/1.1/Tue Aug 30 06:28:21 2005//
+/pr20356.h/1.1/Tue Aug 30 06:28:21 2005//
 /pragma-1.c/1.1/Sun Aug 20 21:36:18 2000//
 /pragma-2.c/1.1/Sun Aug 20 21:36:18 2000//
 /pragma-once-1.c/1.1/Wed Dec 15 13:31:28 2004//
@@ -247,13 +251,14 @@
 /trigraphs.c/1.2/Sun Oct 29 11:49:09 2000//
 /uchar-1.c/1.1/Sat Feb  2 18:56:37 2002//
 /uchar-3.c/1.1/Sat Feb  2 18:56:37 2002//
-/ucnid-1.c/1.1/Sat Mar 12 10:44:06 2005//
-/ucnid-2.c/1.1/Sat Mar 12 10:44:06 2005//
-/ucnid-3.c/1.1/Sat Mar 12 10:44:06 2005//
-/ucnid-4.c/1.1/Tue Mar 15 00:36:30 2005//
-/ucnid-5.c/1.1/Tue Mar 15 00:36:30 2005//
+/ucnid-1.c/1.2/Tue Sep 20 20:31:36 2005//
+/ucnid-2.c/1.2/Tue Sep 20 20:31:36 2005//
+/ucnid-3.c/1.2/Tue Sep 20 20:31:36 2005//
+/ucnid-4.c/1.2/Tue Sep 20 20:31:36 2005//
+/ucnid-5.c/1.2/Tue Sep 20 20:31:36 2005//
 /ucnid-6.c/1.1/Tue Mar 15 09:55:40 2005//
-/ucnid-7.c/1.1/Wed Mar 16 00:59:31 2005//
+/ucnid-7.c/1.2/Tue Sep 20 20:31:37 2005//
+/ucnid-8.c/1.1/Tue Sep 20 20:31:37 2005//
 /ucs.c/1.5/Sat Jul  5 00:23:59 2003//
 /unc1.c/1.2/Thu Sep  7 00:37:14 2000//
 /unc2.c/1.2/Thu Sep  7 00:37:14 2000//
@@ -267,8 +272,4 @@
 /very-long-comment.c/1.1/Sun Apr 24 20:05:25 2005//
 /wchar-1.c/1.4/Sun Mar 17 17:15:37 2002//
 /widestr1.c/1.3/Sat Jan 13 18:40:49 2001//
-D/System////
-D/frame////
-D/inc////
-D/trad////
-D/usr////
+D

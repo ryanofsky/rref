@@ -1,16 +1,16 @@
 /cin_unget-1.txt/1.1/Tue Aug 26 11:46:22 2003//
 /filebuf_members-1.tst/1.1/Thu Apr 10 07:15:40 2003//
 /filebuf_members-1.txt/1.1/Thu Apr 10 07:15:40 2003//
-/filebuf_virtuals-1.tst/1.1/Thu Apr 10 07:15:40 2003//
-/filebuf_virtuals-1.txt/1.1/Thu Apr 10 07:15:40 2003//
+/filebuf_virtuals-1.tst/1.2/Wed Aug 17 02:26:01 2005//
+/filebuf_virtuals-1.txt/1.2/Wed Aug 17 02:26:01 2005//
 /filebuf_virtuals-2.tst/1.1/Thu Apr 10 07:15:40 2003//
 /filebuf_virtuals-3.tst/1.1/Thu Apr 10 07:15:40 2003//
 /ifstream_members-1.tst/1.1/Thu Apr 10 07:15:40 2003//
 /ifstream_members-1.txt/1.1/Thu Apr 10 07:15:40 2003//
 /ios_base_members_static-1.tst/1.1/Thu Apr 10 07:15:40 2003//
-/istream_extractor_other-1.tst/1.1/Thu Apr 10 07:15:40 2003//
-/istream_extractor_other-1.txt/1.1/Thu Apr 10 07:15:40 2003//
-/istream_extractor_other-2.tst/1.1/Thu Apr 10 07:15:40 2003//
+/istream_extractor_other-1.tst/1.2/Wed Aug 17 02:26:01 2005//
+/istream_extractor_other-1.txt/1.2/Wed Aug 17 02:26:01 2005//
+/istream_extractor_other-2.tst/1.2/Wed Aug 17 02:26:01 2005//
 /istream_seeks-1.tst/1.1/Thu Apr 10 07:15:40 2003//
 /istream_seeks-1.txt/1.1/Thu Apr 10 07:15:40 2003//
 /istream_seeks-2.tst/1.1/Thu Apr 10 07:15:40 2003//
@@ -20,8 +20,8 @@
 /ofstream_members-1.tst/1.1/Thu Apr 10 07:15:40 2003//
 /ostream_inserter_char-1.tst/1.1/Thu Apr 10 07:15:40 2003//
 /ostream_inserter_char-1.txt/1.1/Thu Apr 10 07:15:40 2003//
-/ostream_inserter_other-1.tst/1.1/Thu Apr 10 07:15:40 2003//
-/ostream_inserter_other-2.tst/1.1/Thu Apr 10 07:15:40 2003//
+/ostream_inserter_other-1.tst/1.2/Wed Aug 17 02:26:01 2005//
+/ostream_inserter_other-2.tst/1.2/Wed Aug 17 02:26:01 2005//
 /ostream_seeks-1.tst/1.1/Thu Apr 10 07:15:40 2003//
 /seekoff-1io.tst/1.1/Tue Jul  1 03:04:43 2003//
 /seekoff-1out.tst/1.1/Tue Jul  1 03:04:43 2003//
@@ -34,10 +34,10 @@
 /seekpos-2out.tst/1.1/Tue Jul  1 03:04:43 2003//
 /seekpos.txt/1.1/Tue Jul  1 03:04:43 2003//
 /sgetc.txt/1.1/Fri Jun  6 00:19:17 2003//
-/sgetn.txt/1.1/Fri Jun  6 00:19:17 2003//
-/wistream_extractor_other-1.tst/1.1/Mon Dec 20 11:26:19 2004//
-/wistream_extractor_other-1.txt/1.1/Mon Dec 20 11:26:19 2004//
-/wistream_extractor_other-2.tst/1.1/Mon Dec 20 11:26:19 2004//
+/sgetn.txt/1.3/Tue Aug 23 23:05:38 2005//
+/wistream_extractor_other-1.tst/1.2/Wed Aug 17 02:26:01 2005//
+/wistream_extractor_other-1.txt/1.2/Wed Aug 17 02:26:02 2005//
+/wistream_extractor_other-2.tst/1.2/Wed Aug 17 02:26:02 2005//
 /wistream_seeks-1.tst/1.1/Mon Dec 20 11:26:19 2004//
 /wistream_seeks-1.txt/1.1/Mon Dec 20 11:26:19 2004//
 /wistream_seeks-2.tst/1.1/Mon Dec 20 11:26:19 2004//
@@ -45,7 +45,7 @@
 /wistream_unformatted-1.txt/1.1/Mon Dec 20 11:26:19 2004//
 /wostream_inserter_char-1.tst/1.1/Sun Jan 23 23:35:12 2005//
 /wostream_inserter_char-1.txt/1.1/Sun Jan 23 23:35:12 2005//
-/wostream_inserter_other-1.tst/1.1/Sun Jan 23 23:35:12 2005//
-/wostream_inserter_other-2.tst/1.1/Sun Jan 23 23:35:12 2005//
+/wostream_inserter_other-1.tst/1.2/Wed Aug 17 02:26:02 2005//
+/wostream_inserter_other-2.tst/1.2/Wed Aug 17 02:26:02 2005//
 /wostream_seeks-1.tst/1.1/Sun Jan 23 23:35:12 2005//
 D
