@@ -38,6 +38,7 @@ extern int s390_const_double_ok_for_constraint_p (rtx, int, const char *);
 extern int s390_single_part (rtx, enum machine_mode, enum machine_mode, int);
 extern unsigned HOST_WIDE_INT s390_extract_part (rtx, enum machine_mode, int);
 extern bool s390_split_ok_p (rtx, rtx, enum machine_mode, int);
+extern bool s390_overlap_p (rtx, rtx, HOST_WIDE_INT);
 extern bool s390_offset_p (rtx, rtx, rtx);
 extern int tls_symbolic_operand (rtx);
 
@@ -91,6 +92,7 @@ extern void s390_initialize_trampoline (rtx, rtx, rtx);
 extern rtx s390_gen_rtx_const_DI (int, int);
 extern int s390_agen_dep_p (rtx, rtx);
 extern rtx s390_load_got (void);
+extern rtx s390_get_thread_pointer (void);
 extern void s390_emit_tpf_eh_return (rtx);
 extern bool s390_legitimate_address_without_index_p (rtx);
 extern int s390_branch_condition_mask (rtx);

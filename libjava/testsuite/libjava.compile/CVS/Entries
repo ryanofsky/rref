@@ -60,6 +60,10 @@
 /PR232.java/1.1/Mon May 22 03:16:01 2000//
 /PR232B.java/1.1/Mon May 22 22:22:07 2000//
 /PR234.java/1.1/Mon May 22 05:14:38 2000//
+/PR23431_1.java/1.1/Mon Sep  5 15:04:40 2005//
+/PR23431_1.xfail/1.1/Mon Sep  5 15:04:40 2005//
+/PR23431_2.java/1.1/Mon Sep  5 15:04:40 2005//
+/PR23431_2.xfail/1.1/Mon Sep  5 15:04:40 2005//
 /PR235.java/1.1/Mon May 22 19:34:21 2000//
 /PR238.java/1.1/Tue May 23 22:38:07 2000//
 /PR238.xfail/1.1/Sat Dec 16 02:06:29 2000//
@@ -157,5 +161,4 @@
 /weirddecl.java/1.1/Sun Nov 26 23:24:21 2000//
 /weirddecl.xfail/1.2/Sat Apr  7 20:00:50 2001//
 /zeroexp.java/1.1/Tue Jul 23 03:15:02 2002//
-D/invokeinterface////
-D/support////
+D

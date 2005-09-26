@@ -15,8 +15,8 @@ GNU General Public License for more details.
 
 You should have received a copy of the GNU General Public License
 along with Libgfortran; see the file COPYING.  If not, write to
-the Free Software Foundation, 59 Temple Place - Suite 330,
-Boston, MA 02111-1307, USA.  */
+the Free Software Foundation, 51 Franklin Street, Fifth Floor,
+Boston, MA 02110-1301, USA.  */
 
 /* As a special exception, if you link this library with other files,
    some of which are compiled with GCC, to produce an executable,
@@ -251,6 +251,7 @@ typedef struct
   CHARACTER (advance);
   CHARACTER (name);
   CHARACTER (internal_unit);
+  gfc_array_char *internal_unit_desc;
   CHARACTER (sequential);
   CHARACTER (direct);
   CHARACTER (formatted);
@@ -262,6 +263,9 @@ typedef struct
 /* namelist related data */
   CHARACTER (namelist_name);
   GFC_INTEGER_4 namelist_read_mode;
+
+  /* iomsg */
+  CHARACTER (iomsg);
 
 #undef CHARACTER
 }
@@ -490,14 +494,26 @@ internal_proto(file_position);
 extern int is_seekable (stream *);
 internal_proto(is_seekable);
 
+extern int is_preconnected (stream *);
+internal_proto(is_preconnected);
+
 extern void empty_internal_buffer(stream *);
 internal_proto(empty_internal_buffer);
 
 extern try flush (stream *);
 internal_proto(flush);
 
+extern int stream_isatty (stream *);
+internal_proto(stream_isatty);
+
+extern char * stream_ttyname (stream *);
+internal_proto(stream_ttyname);
+
 extern int unit_to_fd (int);
 internal_proto(unit_to_fd);
+
+extern int unpack_filename (char *, const char *, int);
+internal_proto(unpack_filename);
 
 /* unit.c */
 
@@ -509,6 +525,12 @@ internal_proto(close_unit);
 
 extern int is_internal_unit (void);
 internal_proto(is_internal_unit);
+
+extern int is_array_io (void);
+internal_proto(is_array_io);
+
+extern gfc_offset get_array_unit_len (gfc_array_char *);
+internal_proto(get_array_unit_len);
 
 extern gfc_unit *find_unit (int);
 internal_proto(find_unit);
@@ -580,7 +602,7 @@ internal_proto(read_f);
 extern void read_l (fnode *, char *, int);
 internal_proto(read_l);
 
-extern void read_x (fnode *);
+extern void read_x (int);
 internal_proto(read_x);
 
 extern void read_radix (fnode *, char *, int, int);
@@ -646,5 +668,9 @@ internal_proto(write_z);
 
 extern void list_formatted_write (bt, void *, int);
 internal_proto(list_formatted_write);
+
+/* error.c */
+extern try notify_std (int, const char *);
+internal_proto(notify_std);
 
 #endif

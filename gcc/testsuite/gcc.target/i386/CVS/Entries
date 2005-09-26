@@ -15,10 +15,15 @@
 /pr17692.c/1.1/Thu Jul 28 20:51:18 2005//
 /pr21101.c/1.1/Sun Apr 24 07:59:22 2005//
 /pr21291.c/1.1/Thu Aug  4 23:37:00 2005//
+/pr22362.c/1.1/Tue Sep  6 19:57:57 2005//
+/pr23098.c/1.2/Tue Sep  6 19:38:58 2005//
+/pr23570.c/1.1/Wed Aug 31 17:27:53 2005//
+/pr23575.c/1.3/Mon Aug 29 08:50:02 2005//
 /regparm-stdcall.c/1.2/Mon Jun 20 04:37:57 2005//
 /sse-1.c/1.1/Wed Jan  5 19:14:39 2005//
 /sse-2.c/1.1/Mon Mar 21 17:51:02 2005//
 /sse-3.c/1.1/Thu Jul 28 14:38:13 2005//
+/sse-4.c/1.1/Sun Aug 21 13:27:56 2005//
 /sseregparm-1.c/1.2/Mon Jun 20 04:37:57 2005//
 /sseregparm-2.c/1.2/Mon Jun 20 04:37:57 2005//
 /sseregparm-3.c/1.1/Thu Jul 14 07:46:23 2005//
@@ -26,5 +31,6 @@
 /sseregparm-5.c/1.1/Thu Jul 14 07:46:23 2005//
 /sseregparm-6.c/1.1/Thu Jul 14 07:46:23 2005//
 /sseregparm-7.c/1.1/Thu Jul 14 07:46:23 2005//
+/tailcall-1.c/1.1/Thu Aug 11 08:59:22 2005//
 /vect-args.c/1.1/Wed Dec 15 17:41:58 2004//
 D

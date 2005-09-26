@@ -15,8 +15,8 @@ for more details.
 
 You should have received a copy of the GNU General Public License
 along with GCC; see the file COPYING.  If not, write to the Free
-Software Foundation, 59 Temple Place - Suite 330, Boston, MA
-02111-1307, USA.  */
+Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA
+02110-1301, USA.  */
 
 #ifndef IPA_PROP_H
 #define IPA_PROP_H
@@ -60,7 +60,7 @@ enum cvalue_type
 };
 
 /* Represents the value of either jump function or cval.
-   value represnts a constant.
+   value represents a constant.
    formal_id is used only in jump function context and represents 
    pass-through parameter (the formal of caller is passed 
    as argument).  */

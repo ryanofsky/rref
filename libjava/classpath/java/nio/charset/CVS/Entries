@@ -1,13 +1,13 @@
-/CharacterCodingException.java/1.1.1.1/Sat Jul 16 00:32:54 2005/-ko/
-/Charset.java/1.1.1.1/Sat Jul 16 00:32:54 2005/-ko/
-/CharsetDecoder.java/1.1.1.1/Sat Jul 16 00:32:54 2005/-ko/
-/CharsetEncoder.java/1.1.1.1/Sat Jul 16 00:32:54 2005/-ko/
-/CoderMalfunctionError.java/1.1.1.1/Sat Jul 16 00:32:54 2005/-ko/
-/CoderResult.java/1.1.1.1/Sat Jul 16 00:32:54 2005/-ko/
-/CodingErrorAction.java/1.1.1.1/Sat Jul 16 00:32:54 2005/-ko/
-/IllegalCharsetNameException.java/1.1.1.1/Sat Jul 16 00:32:54 2005/-ko/
-/MalformedInputException.java/1.1.1.1/Sat Jul 16 00:32:54 2005/-ko/
-/UnmappableCharacterException.java/1.1.1.1/Sat Jul 16 00:32:54 2005/-ko/
-/UnsupportedCharsetException.java/1.1.1.1/Sat Jul 16 00:32:54 2005/-ko/
-/package.html/1.1.1.1/Sat Jul 16 00:32:54 2005/-ko/
-D/spi////
+/CharacterCodingException.java/1.2/Fri Sep 23 17:30:11 2005/-ko/
+/Charset.java/1.3/Fri Sep 23 21:30:47 2005/-ko/
+/CharsetDecoder.java/1.2/Fri Sep 23 17:30:11 2005/-ko/
+/CharsetEncoder.java/1.2/Fri Sep 23 17:30:11 2005/-ko/
+/CoderMalfunctionError.java/1.2/Fri Sep 23 17:30:11 2005/-ko/
+/CoderResult.java/1.2/Fri Sep 23 17:30:11 2005/-ko/
+/CodingErrorAction.java/1.2/Fri Sep 23 17:30:11 2005/-ko/
+/IllegalCharsetNameException.java/1.2/Fri Sep 23 17:30:11 2005/-ko/
+/MalformedInputException.java/1.2/Fri Sep 23 17:30:11 2005/-ko/
+/UnmappableCharacterException.java/1.2/Fri Sep 23 17:30:11 2005/-ko/
+/UnsupportedCharsetException.java/1.2/Fri Sep 23 17:30:11 2005/-ko/
+/package.html/1.2/Fri Sep 23 17:30:11 2005/-ko/
+D

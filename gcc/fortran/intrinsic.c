@@ -843,6 +843,14 @@ make_alias (const char *name, int standard)
     }
 }
 
+/* Make the current subroutine noreturn.  */
+
+static void
+make_noreturn(void)
+{
+  if (sizing == SZ_NOTHING)
+      next_sym[-1].noreturn = 1;
+}
 
 /* Add intrinsic functions.  */
 
@@ -941,9 +949,13 @@ add_functions (void)
 	     gfc_check_fn_c, gfc_simplify_aimag, gfc_resolve_aimag,
 	     z, BT_COMPLEX, dz, REQUIRED);
 
+  make_alias ("imag", GFC_STD_GNU);
+  make_alias ("imagpart", GFC_STD_GNU);
+
   add_sym_1 ("dimag", 1, 1, BT_REAL, dd, GFC_STD_GNU, 
 	     NULL, gfc_simplify_aimag, gfc_resolve_aimag, 
 	     z, BT_COMPLEX, dd, REQUIRED);
+
 
   make_generic ("aimag", GFC_ISYM_AIMAG, GFC_STD_F77);
 
@@ -1468,6 +1480,12 @@ add_functions (void)
 
   make_generic ("irand", GFC_ISYM_IRAND, GFC_STD_GNU);
 
+  add_sym_1 ("isatty", 0, 0, BT_LOGICAL, dl, GFC_STD_GNU,
+	     gfc_check_isatty, NULL, gfc_resolve_isatty,
+	     ut, BT_INTEGER, di, REQUIRED);
+
+  make_generic ("isatty", GFC_ISYM_ISATTY, GFC_STD_GNU);
+
   add_sym_2 ("ishft", 1, 1, BT_INTEGER, di, GFC_STD_F95,
 	     gfc_check_ishft, gfc_simplify_ishft, gfc_resolve_ishft,
 	     i, BT_INTEGER, di, REQUIRED, sh, BT_INTEGER, di, REQUIRED);
@@ -1799,6 +1817,11 @@ add_functions (void)
 	     gfc_check_real, gfc_simplify_real, gfc_resolve_real,
 	     a, BT_UNKNOWN, dr, REQUIRED, kind, BT_INTEGER, di, OPTIONAL);
 
+  /* This provides compatibility with g77.  */
+  add_sym_1 ("realpart", 1, 0, BT_REAL, dr, GFC_STD_GNU,
+	     gfc_check_fn_c, gfc_simplify_realpart, gfc_resolve_realpart,
+	     a, BT_UNKNOWN, dr, REQUIRED);
+
   add_sym_1 ("float", 1, 0, BT_REAL, dr, GFC_STD_F77,
 	     NULL, gfc_simplify_float, NULL,
 	     a, BT_INTEGER, di, REQUIRED);
@@ -2102,6 +2125,8 @@ add_subroutines (void)
 
   add_sym_0s ("abort", 1, GFC_STD_GNU, NULL);
 
+  make_noreturn();
+
   add_sym_1s ("cpu_time", 0, 1, BT_UNKNOWN, 0, GFC_STD_F95,
 	      gfc_check_cpu_time, NULL, gfc_resolve_cpu_time,
 	      tm, BT_REAL, dr, REQUIRED);
@@ -2193,6 +2218,8 @@ add_subroutines (void)
              gfc_check_exit, NULL, gfc_resolve_exit,
 	      c, BT_INTEGER, di, OPTIONAL);
 
+  make_noreturn();
+
   add_sym_1s ("flush", 0, 1, BT_UNKNOWN, 0, GFC_STD_GNU,
 	      gfc_check_flush, NULL, gfc_resolve_flush,
 	      c, BT_INTEGER, di, OPTIONAL);
@@ -2246,6 +2273,10 @@ add_subroutines (void)
 	     gfc_check_system_clock, NULL, gfc_resolve_system_clock,
 	      c, BT_INTEGER, di, OPTIONAL, cr, BT_INTEGER, di, OPTIONAL,
 	      cm, BT_INTEGER, di, OPTIONAL);
+
+  add_sym_2s ("ttynam", 0, 1, BT_UNKNOWN, 0, GFC_STD_GNU,
+              gfc_check_ttynam_sub, NULL, gfc_resolve_ttynam_sub,
+	      ut, BT_INTEGER, di, REQUIRED, c, BT_CHARACTER, dc, REQUIRED);
 
   add_sym_2s ("umask", 0, 1, BT_UNKNOWN, 0, GFC_STD_GNU,
           gfc_check_umask_sub, NULL, gfc_resolve_umask_sub,
@@ -3151,6 +3182,7 @@ gfc_intrinsic_sub_interface (gfc_code * c, int error_flag)
       return MATCH_ERROR;
     }
 
+  c->resolved_sym->attr.noreturn = isym->noreturn;
   check_intrinsic_standard (name, isym->standard, &c->loc);
 
   return MATCH_YES;

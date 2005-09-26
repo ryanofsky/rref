@@ -1191,7 +1191,7 @@ op_iter_init_must_and_may_def (ssa_op_iter *ptr, tree stmt,
 
 
 /* If there is a single operand in STMT matching FLAGS, return it.  Otherwise
-   return NULL.  PTR is the iterator to use.  */
+   return NULL.  */
 static inline tree
 single_ssa_tree_operand (tree stmt, int flags)
 {
@@ -1209,7 +1209,7 @@ single_ssa_tree_operand (tree stmt, int flags)
 
 
 /* If there is a single operand in STMT matching FLAGS, return it.  Otherwise
-   return NULL.  PTR is the iterator to use.  */
+   return NULL.  */
 static inline use_operand_p
 single_ssa_use_operand (tree stmt, int flags)
 {
@@ -1228,7 +1228,7 @@ single_ssa_use_operand (tree stmt, int flags)
 
 
 /* If there is a single operand in STMT matching FLAGS, return it.  Otherwise
-   return NULL.  PTR is the iterator to use.  */
+   return NULL.  */
 static inline def_operand_p
 single_ssa_def_operand (tree stmt, int flags)
 {
@@ -1246,7 +1246,7 @@ single_ssa_def_operand (tree stmt, int flags)
 
 
 /* If there is a single operand in STMT matching FLAGS, return it.  Otherwise
-   return NULL.  PTR is the iterator to use.  */
+   return NULL.  */
 static inline bool
 zero_ssa_operands (tree stmt, int flags)
 {
@@ -1412,6 +1412,21 @@ unmodifiable_var_p (tree var)
   if (TREE_CODE (var) == SSA_NAME)
     var = SSA_NAME_VAR (var);
   return TREE_READONLY (var) && (TREE_STATIC (var) || DECL_EXTERNAL (var));
+}
+
+/* Return true if REF, an ARRAY_REF, has an INDIRECT_REF somewhere in
+   it.  */
+
+static inline bool
+ref_contains_indirect_ref (tree ref)
+{
+  while (handled_component_p (ref))
+    {
+      if (TREE_CODE (ref) == INDIRECT_REF)
+	return true;
+      ref = TREE_OPERAND (ref, 0);
+    }
+  return false;
 }
 
 /* Return true if REF, a COMPONENT_REF, has an ARRAY_REF somewhere in it.  */

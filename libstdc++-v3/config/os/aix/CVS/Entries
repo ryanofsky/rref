@@ -1,7 +1,7 @@
-/atomic_word.h/1.1/Tue Dec 28 16:34:16 2004//
-/atomicity.h/1.3/Fri Feb 27 18:59:31 2004//
-/ctype_base.h/1.2/Thu Oct  9 19:10:54 2003//
-/ctype_inline.h/1.1/Mon Jun 24 05:48:44 2002//
-/ctype_noninline.h/1.3/Tue Dec 16 01:56:57 2003//
-/os_defines.h/1.6/Sun May  1 16:26:41 2005//
+/atomic_word.h/1.2/Wed Aug 17 02:12:11 2005//
+/atomicity.h/1.4/Wed Aug 17 02:12:11 2005//
+/ctype_base.h/1.3/Wed Aug 17 02:12:11 2005//
+/ctype_inline.h/1.2/Wed Aug 17 02:12:11 2005//
+/ctype_noninline.h/1.4/Wed Aug 17 02:12:11 2005//
+/os_defines.h/1.7/Wed Aug 17 02:12:11 2005//
 D

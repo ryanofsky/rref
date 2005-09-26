@@ -466,7 +466,7 @@ c_print_identifier (FILE *file, tree node, int indent)
     {
       tree rid = ridpointers[C_RID_CODE (node)];
       indent_to (file, indent + 4);
-      fprintf (file, "rid " HOST_PTR_PRINTF " \"%s\"",
+      fprintf (file, "rid %p \"%s\"",
 	       (void *) rid, IDENTIFIER_POINTER (rid));
     }
 }
@@ -1555,7 +1555,10 @@ diagnose_mismatched_decls (tree newdecl, tree olddecl,
       && !(DECL_EXTERNAL (olddecl) && !DECL_EXTERNAL (newdecl))
       /* Don't warn about forward parameter decls.  */
       && !(TREE_CODE (newdecl) == PARM_DECL
-	   && TREE_ASM_WRITTEN (olddecl) && !TREE_ASM_WRITTEN (newdecl)))
+	   && TREE_ASM_WRITTEN (olddecl) && !TREE_ASM_WRITTEN (newdecl))
+      /* Don't warn about a variable definition following a declaration.  */
+      && !(TREE_CODE (newdecl) == VAR_DECL
+	   && DECL_INITIAL (newdecl) && !DECL_INITIAL (olddecl)))
     {
       warning (OPT_Wredundant_decls, "redundant redeclaration of %q+D",
 	       newdecl);
@@ -4383,8 +4386,8 @@ grokdeclarator (const struct c_declarator *declarator,
 
   if (TREE_CODE (type) == ARRAY_TYPE
       && COMPLETE_TYPE_P (type)
-      && TREE_CODE (TYPE_SIZE (type)) == INTEGER_CST
-      && TREE_OVERFLOW (TYPE_SIZE (type)))
+      && TREE_CODE (TYPE_SIZE_UNIT (type)) == INTEGER_CST
+      && TREE_OVERFLOW (TYPE_SIZE_UNIT (type)))
     {
       error ("size of array %qs is too large", name);
       /* If we proceed with the array type as it is, we'll eventually
@@ -7537,20 +7540,18 @@ build_cdtor (int method_type, tree cdtors)
   cgraph_build_static_cdtor (method_type, body, DEFAULT_INIT_PRIORITY);
 }
 
-/* Perform final processing on one file scope's declarations (or the
-   external scope's declarations), GLOBALS.  */
+/* A subroutine of c_write_global_declarations.  Perform final processing
+   on one file scope's declarations (or the external scope's declarations),
+   GLOBALS.  */
+
 static void
 c_write_global_declarations_1 (tree globals)
 {
-  size_t len = list_length (globals);
-  tree *vec = XNEWVEC (tree, len);
-  size_t i;
   tree decl;
 
   /* Process the decls in the order they were written.  */
-  for (i = 0, decl = globals; i < len; i++, decl = TREE_CHAIN (decl))
+  for (decl = globals; decl; decl = TREE_CHAIN (decl))
     {
-      vec[i] = decl;
       /* Check for used but undefined static functions using the C
 	 standard's definition of "used", and set TREE_NO_WARNING so
 	 that check_global_declarations doesn't repeat the check.  */
@@ -7563,18 +7564,32 @@ c_write_global_declarations_1 (tree globals)
 	  pedwarn ("%q+F used but never defined", decl);
 	  TREE_NO_WARNING (decl) = 1;
 	}
+
+      wrapup_global_declaration_1 (decl);
+      wrapup_global_declaration_2 (decl);
+      check_global_declaration_1 (decl);
     }
-
-  wrapup_global_declarations (vec, len);
-  check_global_declarations (vec, len);
-
-  free (vec);
 }
+
+/* A subroutine of c_write_global_declarations Emit debug information for each
+   of the declarations in GLOBALS.  */
+
+static void
+c_write_global_declarations_2 (tree globals)
+{
+  tree decl;
+
+  for (decl = globals; decl ; decl = TREE_CHAIN (decl))
+    debug_hooks->global_decl (decl);
+}
+
+/* Preserve the external declarations scope across a garbage collect.  */
+static GTY(()) tree ext_block;
 
 void
 c_write_global_declarations (void)
 {
-  tree ext_block, t;
+  tree t;
 
   /* We don't want to do this if generating a PCH.  */
   if (pch_file)
@@ -7590,10 +7605,6 @@ c_write_global_declarations (void)
   external_scope = 0;
   gcc_assert (!current_scope);
 
-  /* Process all file scopes in this compilation, and the external_scope,
-     through wrapup_global_declarations and check_global_declarations.  */
-  for (t = all_translation_units; t; t = TREE_CHAIN (t))
-    c_write_global_declarations_1 (BLOCK_VARS (DECL_INITIAL (t)));
   if (ext_block)
     {
       tree tmp = BLOCK_VARS (ext_block);
@@ -7605,6 +7616,11 @@ c_write_global_declarations (void)
           dump_end (TDI_tu, stream);
         }
     }
+
+  /* Process all file scopes in this compilation, and the external_scope,
+     through wrapup_global_declarations and check_global_declarations.  */
+  for (t = all_translation_units; t; t = TREE_CHAIN (t))
+    c_write_global_declarations_1 (BLOCK_VARS (DECL_INITIAL (t)));
   c_write_global_declarations_1 (BLOCK_VARS (ext_block));
 
   /* Generate functions to call static constructors and destructors
@@ -7616,6 +7632,19 @@ c_write_global_declarations (void)
   /* We're done parsing; proceed to optimize and emit assembly.
      FIXME: shouldn't be the front end's responsibility to call this.  */
   cgraph_optimize ();
+
+  /* After cgraph has had a chance to emit everything that's going to
+     be emitted, output debug information for globals.  */
+  if (errorcount == 0 && sorrycount == 0)
+    {
+      timevar_push (TV_SYMOUT);
+      for (t = all_translation_units; t; t = TREE_CHAIN (t))
+	c_write_global_declarations_2 (BLOCK_VARS (DECL_INITIAL (t)));
+      c_write_global_declarations_2 (BLOCK_VARS (ext_block));
+      timevar_pop (TV_SYMOUT);
+    }
+
+  ext_block = NULL;
 }
 
 #include "gt-c-decl.h"

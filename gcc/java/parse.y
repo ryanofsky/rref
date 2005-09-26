@@ -326,10 +326,10 @@ static tree build_nested_field_access (tree, tree);
 static tree build_nested_field_access_methods (tree);
 static tree build_nested_field_access_method (tree, tree, tree, tree, tree);
 static tree build_nested_field_access_expr (int, tree, tree, tree, tree);
-static tree build_outer_method_access_method (tree);
+static tree build_nested_method_access_method (tree);
 static tree build_new_access_id (void);
 
-static int nested_field_access_p (tree, tree);
+static int nested_member_access_p (tree, tree);
 static int nested_field_expanded_access_p (tree, tree *, tree *, tree *);
 static tree nested_field_access_fix (tree, tree, tree);
 
@@ -3911,6 +3911,14 @@ maybe_create_class_interface_decl (tree decl, tree raw_name,
   /* Install a new dependency list element */
   create_jdep_list (ctxp);
 
+  /* We keep the compilation unit imports in the class so that
+     they can be used later to resolve type dependencies that
+     aren't necessary to solve now. */
+  TYPE_IMPORT_LIST (TREE_TYPE (decl)) = ctxp->import_list;
+  TYPE_IMPORT_DEMAND_LIST (TREE_TYPE (decl)) = ctxp->import_demand_list;
+
+  TYPE_PACKAGE (TREE_TYPE (decl)) = ctxp->package;
+
   SOURCE_FRONTEND_DEBUG (("Defining class/interface %s",
 			  IDENTIFIER_POINTER (qualified_name)));
   return decl;
@@ -4184,12 +4192,6 @@ create_class (int flags, tree id, tree super, tree interfaces)
      virtual function tables.  In gcj, every class has a common base
      virtual function table in java.lang.object.  */
   TYPE_VFIELD (TREE_TYPE (decl)) = TYPE_VFIELD (object_type_node);
-
-  /* We keep the compilation unit imports in the class so that
-     they can be used later to resolve type dependencies that
-     aren't necessary to solve now. */
-  TYPE_IMPORT_LIST (TREE_TYPE (decl)) = ctxp->import_list;
-  TYPE_IMPORT_DEMAND_LIST (TREE_TYPE (decl)) = ctxp->import_demand_list;
 
   /* Add the private this$<n> field, Replicate final locals still in
      scope as private final fields mangled like val$<local_name>.
@@ -5644,6 +5646,9 @@ static tree
 jdep_resolve_class (jdep *dep)
 {
   tree decl;
+  
+  /* Set the correct context for class resolution.  */
+  current_class = TREE_TYPE (JDEP_ENCLOSING (dep));
 
   if (JDEP_RESOLVED_P (dep))
     decl = JDEP_RESOLVED_DECL (dep);
@@ -5947,8 +5952,8 @@ do_resolve_class (tree enclosing, tree import_type, tree class_type, tree decl,
   /* 3- Search according to the current package definition */
   if (!QUALIFIED_P (TYPE_NAME (class_type)))
     {
-      if ((new_class_decl = qualify_and_find (class_type, ctxp->package,
-					     TYPE_NAME (class_type))))
+      if ((new_class_decl = qualify_and_find (class_type, 
+      		TYPE_PACKAGE (current_class), TYPE_NAME (class_type))))
 	return new_class_decl;
     }
 
@@ -6074,8 +6079,8 @@ resolve_and_layout (tree something, tree cl)
   if (TREE_CODE (something) == EXPR_WITH_FILE_LOCATION)
     something = EXPR_WFL_NODE (something);
 
-  /* Otherwise, if something is not and IDENTIFIER_NODE, it can be a a
-     TYPE_DECL or a real TYPE */
+  /* Otherwise, if something is not and IDENTIFIER_NODE, it can be a
+     TYPE_DECL or a real TYPE.  */
   else if (TREE_CODE (something) != IDENTIFIER_NODE)
     something = (TREE_CODE (TYPE_NAME (something)) == TYPE_DECL ?
 	    DECL_NAME (TYPE_NAME (something)) : TYPE_NAME (something));
@@ -6518,7 +6523,7 @@ java_check_regular_methods (tree class_decl)
 	  tree found_decl = TYPE_NAME (DECL_CONTEXT (found));
 	  parse_error_context (method_wfl, "Class %qs must override %qs with a public method in order to implement interface %qs",
 			       IDENTIFIER_POINTER (DECL_NAME (class_decl)),
-			       lang_printable_name (method, 2),
+			       lang_printable_name (found, 0),
 			       IDENTIFIER_POINTER (DECL_NAME (found_decl)));
 	}
 
@@ -8371,20 +8376,22 @@ build_nested_field_access (tree id, tree decl)
   return resolve_expression_name (access, NULL);
 }
 
-/* Return a nonzero value if DECL describes a field access across nested
+/* Return a nonzero value if DECL describes a member access across nested
    class boundaries.  That is, DECL is in a class that either encloses,
-   is enclosed by or shares a common enclosing class with, the class
+   is enclosed by or shares a common enclosing class with the class
    TYPE.  */
 
 static int
-nested_field_access_p (tree type, tree decl)
+nested_member_access_p (tree type, tree decl)
 {
   bool is_static = false;
   tree decl_type = DECL_CONTEXT (decl);
   tree type_root, decl_type_root;
 
   if (decl_type == type
-      || (TREE_CODE (decl) != FIELD_DECL && TREE_CODE (decl) != VAR_DECL))
+      || (TREE_CODE (decl) != FIELD_DECL
+          && TREE_CODE (decl) != VAR_DECL
+          && TREE_CODE (decl) != FUNCTION_DECL))
     return 0;
   
   if (!INNER_CLASS_TYPE_P (type)
@@ -8392,10 +8399,12 @@ nested_field_access_p (tree type, tree decl)
            && INNER_CLASS_TYPE_P (decl_type)))
     return 0;
 
-  is_static = FIELD_STATIC (decl);
+  is_static = (TREE_CODE (decl) == FUNCTION_DECL)
+              ? METHOD_STATIC (decl)
+              : FIELD_STATIC (decl);
 
   /* If TYPE extends the declaration context of the non-static
-     field we're trying to access, then this isn't a nested field
+     member we're trying to access, then this isn't a nested member
      access we need to worry about.  */
   if (!is_static && inherits_from_p (type, decl_type))
     return 0;
@@ -8672,10 +8681,10 @@ build_nested_field_access_method (tree class, tree type, tree name,
 
 
 /* This section deals with building access function necessary for
-   certain kinds of method invocation from inner classes.  */
+   certain kinds of method invocation across nested class boundaries.  */
 
 static tree
-build_outer_method_access_method (tree decl)
+build_nested_method_access_method (tree decl)
 {
   tree saved_current_function_decl, mdecl;
   tree args = NULL_TREE, call_args = NULL_TREE;
@@ -8724,8 +8733,7 @@ build_outer_method_access_method (tree decl)
   start_artificial_method_body (mdecl);
 
   /* The actual method invocation uses the same args. When invoking a
-     static methods that way, we don't want to skip the first
-     argument. */
+     static methods that way, we don't want to skip the first argument.  */
   carg = args;
   if (!METHOD_STATIC (decl))
     carg = TREE_CHAIN (carg);
@@ -8744,10 +8752,10 @@ build_outer_method_access_method (tree decl)
   end_artificial_method_body (mdecl);
   current_function_decl = saved_current_function_decl;
 
-  /* Back tag the access function so it know what it accesses */
+  /* Back tag the access function so it know what it accesses.  */
   DECL_FUNCTION_ACCESS_DECL (decl) = mdecl;
 
-  /* Tag the current method so it knows it has an access generated */
+  /* Tag the current method so it knows it has an access generated.  */
   return DECL_FUNCTION_INNER_ACCESS (decl) = mdecl;
 }
 
@@ -9572,7 +9580,7 @@ resolve_expression_name (tree id, tree *orig)
 	      /* If we're processing an inner class and we're trying
 		 to access a field belonging to an outer class, build
 		 the access to the field.  */
-	      if (nested_field_access_p (current_class, decl))
+	      if (nested_member_access_p (current_class, decl))
 		{
 		  if (!fs && CLASS_STATIC (TYPE_NAME (current_class)))
 		    {
@@ -10129,7 +10137,7 @@ resolve_qualified_expression_name (tree wfl, tree *found_decl,
                           if (TREE_CODE (*where_found) == POINTER_TYPE)
                             *where_found = TREE_TYPE (*where_found);
                         }
-                      if (nested_field_access_p (current_class, decl))
+                      if (nested_member_access_p (current_class, decl))
                         decl = build_nested_field_access (qual_wfl, decl);
 		    }
 		  else
@@ -10272,7 +10280,7 @@ resolve_qualified_expression_name (tree wfl, tree *found_decl,
               if (is_static
                   && FIELD_PRIVATE (field_decl)
                   && flag_emit_class_files
-                  && nested_field_access_p (current_class, field_decl))
+                  && nested_member_access_p (current_class, field_decl))
                 field_decl = build_nested_field_access (qual_wfl, field_decl);
 
 	      /* This is the decl found and eventually the next one to
@@ -10443,37 +10451,11 @@ check_deprecation (tree wfl, tree decl)
 
 /* Returns 1 if class was declared in the current package, 0 otherwise */
 
-static GTY(()) tree cicp_cache;
 static int
 class_in_current_package (tree class)
 {
-  int qualified_flag;
-  tree left;
-
-  if (cicp_cache == class)
+  if (TYPE_PACKAGE (current_class) == TYPE_PACKAGE (class))
     return 1;
-
-  qualified_flag = QUALIFIED_P (DECL_NAME (TYPE_NAME (class)));
-
-  /* If the current package is empty and the name of CLASS is
-     qualified, class isn't in the current package.  If there is a
-     current package and the name of the CLASS is not qualified, class
-     isn't in the current package */
-  if ((!ctxp->package && qualified_flag) || (ctxp->package && !qualified_flag))
-    return 0;
-
-  /* If there is not package and the name of CLASS isn't qualified,
-     they belong to the same unnamed package */
-  if (!ctxp->package && !qualified_flag)
-    return 1;
-
-  /* Compare the left part of the name of CLASS with the package name */
-  split_qualified_name (&left, NULL, DECL_NAME (TYPE_NAME (class)));
-  if (ctxp->package == left)
-    {
-      cicp_cache = class;
-      return 1;
-    }
   return 0;
 }
 
@@ -10572,16 +10554,22 @@ patch_method_invocation (tree patch, tree primary, tree where, int from_super,
 		 IDENTIFIER_POINTER (name));
 	      PATCH_METHOD_RETURN_ERROR ();
 	    }
-	  if (list && !METHOD_STATIC (list))
+	  if (list)
 	    {
-	      char *fct_name = xstrdup (lang_printable_name (list, 2));
-	      parse_error_context
-		(identifier_wfl,
-		 "Can't make static reference to method %<%s %s%> in class %qs",
-		 lang_printable_name (TREE_TYPE (TREE_TYPE (list)), 0),
-		 fct_name, IDENTIFIER_POINTER (DECL_NAME (TYPE_NAME (type))));
-	      free (fct_name);
-	      PATCH_METHOD_RETURN_ERROR ();
+              if (METHOD_STATIC (list))
+                maybe_use_access_method (0, &list, NULL);
+              else
+                {
+                  char *fct_name = xstrdup (lang_printable_name (list, 2));
+                  parse_error_context
+                    (identifier_wfl,
+                     "Can't make static reference to method %<%s %s%> in class %qs",
+                     lang_printable_name (TREE_TYPE (TREE_TYPE (list)), 0),
+                     fct_name,
+                     IDENTIFIER_POINTER (DECL_NAME (TYPE_NAME (type))));
+                  free (fct_name);
+                  PATCH_METHOD_RETURN_ERROR ();
+                }
 	    }
 	}
       else
@@ -10698,7 +10686,7 @@ patch_method_invocation (tree patch, tree primary, tree where, int from_super,
           && DECL_NAME (list) == get_identifier ("clone"))
         is_array_clone_call = 1;
 
-      /* Check for static reference if non static methods */
+      /* Check for static reference of non static methods.  */
       if (check_for_static_method_reference (wfl, patch, list,
 					     class_to_search, primary))
 	PATCH_METHOD_RETURN_ERROR ();
@@ -10718,8 +10706,8 @@ patch_method_invocation (tree patch, tree primary, tree where, int from_super,
 	}
 
       /* Non static methods are called with the current object extra
-	 argument. If patch a `new TYPE()', the argument is the value
-	 returned by the object allocator. If method is resolved as a
+	 argument.  If PATCH is a `new TYPE()', the argument is the value
+	 returned by the object allocator.  If method is resolved as a
 	 primary, use the primary otherwise use the current THIS. */
       args = nreverse (args);
       if (TREE_CODE (patch) != NEW_CLASS_EXPR)
@@ -10731,16 +10719,16 @@ patch_method_invocation (tree patch, tree primary, tree where, int from_super,
 
 	     1) We're not generating bytecodes:
 
-	     - LIST is non static. It's invocation is transformed from
+	     - LIST is non-static.  Its invocation is transformed from
 	       x(a1,...,an) into this$<n>.x(a1,....an).
-	     - LIST is static. It's invocation is transformed from
+	     - LIST is static.  Its invocation is transformed from
 	       x(a1,...,an) into TYPE_OF(this$<n>).x(a1,....an)
 
 	     2) We're generating bytecodes:
 
-	     - LIST is non static. It's invocation is transformed from
+	     - LIST is non-static.  Its invocation is transformed from
 	       x(a1,....,an) into access$<n>(this$<n>,a1,...,an).
-	     - LIST is static. It's invocation is transformed from
+	     - LIST is static.  Its invocation is transformed from
 	       x(a1,....,an) into TYPE_OF(this$<n>).x(a1,....an).
 
 	     Of course, this$<n> can be arbitrarily complex, ranging from
@@ -10749,10 +10737,12 @@ patch_method_invocation (tree patch, tree primary, tree where, int from_super,
 
 	     maybe_use_access_method returns a nonzero value if the
 	     this_arg has to be moved into the (then generated) stub
-	     argument list. In the meantime, the selected function
-	     might have be replaced by a generated stub. */
-	  if (!primary &&
-	      maybe_use_access_method (is_super_init, &list, &this_arg))
+	     argument list.  In the meantime, the selected function
+	     might have been replaced by a generated stub.  */
+          if (METHOD_STATIC (list))
+            maybe_use_access_method (0, &list, NULL);
+	  else if (!primary &&
+	           maybe_use_access_method (is_super_init, &list, &this_arg))
 	    {
 	      args = tree_cons (NULL_TREE, this_arg, args);
 	      this_arg = NULL_TREE; /* So it doesn't get chained twice */
@@ -10920,8 +10910,8 @@ check_for_static_method_reference (tree wfl, tree node, tree method,
   return 0;
 }
 
-/* Fix the invocation of *MDECL if necessary in the case of a
-   invocation from an inner class. *THIS_ARG might be modified
+/* Fix the invocation of *MDECL if necessary in the case of an
+   invocation across a nested class.  *THIS_ARG might be modified
    appropriately and an alternative access to *MDECL might be
    returned.  */
 
@@ -10929,24 +10919,26 @@ static int
 maybe_use_access_method (int is_super_init, tree *mdecl, tree *this_arg)
 {
   tree ctx;
-  tree md = *mdecl, ta = *this_arg;
+  tree md = *mdecl, ta = NULL_TREE;
   int to_return = 0;
   int non_static_context = !METHOD_STATIC (md);
 
   if (is_super_init
-      || DECL_CONTEXT (md) == current_class
-      || !PURE_INNER_CLASS_TYPE_P (current_class)
       || DECL_FINIT_P (md)
-      || DECL_INSTINIT_P (md))
+      || DECL_INSTINIT_P (md)
+      || !nested_member_access_p (current_class, md))
     return 0;
 
   /* If we're calling a method found in an enclosing class, generate
-     what it takes to retrieve the right this. Don't do that if we're
-     invoking a static method. Note that if MD's type is unrelated to
+     what it takes to retrieve the right `this'.  Don't do that if we're
+     invoking a static method.  Note that if MD's type is unrelated to
      CURRENT_CLASS, then the current this can be used. */
 
-  if (non_static_context && DECL_CONTEXT (md) != object_type_node)
+  if (non_static_context 
+      && !inherits_from_p (current_class, DECL_CONTEXT (md))
+      && DECL_CONTEXT (TYPE_NAME (current_class)))
     {
+      ta = *this_arg;
       ctx = TREE_TYPE (DECL_CONTEXT (TYPE_NAME (current_class)));
       if (inherits_from_p (ctx, DECL_CONTEXT (md)))
 	{
@@ -10972,16 +10964,17 @@ maybe_use_access_method (int is_super_init, tree *mdecl, tree *this_arg)
     }
 
   /* We might have to use an access method to get to MD. We can
-     break the method access rule as far as we're not generating
-     bytecode */
+     break the method access rule as long as we're not generating
+     bytecode.  */
   if (METHOD_PRIVATE (md) && flag_emit_class_files)
     {
-      md = build_outer_method_access_method (md);
+      md = build_nested_method_access_method (md);
       to_return = 1;
     }
 
   *mdecl = md;
-  *this_arg = ta;
+  if (this_arg)
+    *this_arg = ta;
 
   /* Returning a nonzero value indicates we were doing a non static
      method invocation that is now a static invocation. It will have
@@ -12382,26 +12375,30 @@ java_complete_lhs (tree node)
 
     case COMPONENT_REF:
       /* The first step in the re-write of qualified name handling.  FIXME.
-	 So far, this is only to support PRIMTYPE.class -> PRIMCLASS.TYPE. */
-      TREE_OPERAND (node, 0) = java_complete_tree (TREE_OPERAND (node, 0));
-      if (TREE_CODE (TREE_OPERAND (node, 0)) == RECORD_TYPE)
-	{
-	  tree name = TREE_OPERAND (node, 1);
-	  tree field = lookup_field_wrapper (TREE_OPERAND (node, 0), name);
-	  if (field == NULL_TREE)
-	    {
-	      error ("missing static field %qs", IDENTIFIER_POINTER (name));
-	      return error_mark_node;
-	    }
-	  if (! FIELD_STATIC (field))
-	    {
-	      error ("not a static field %qs", IDENTIFIER_POINTER (name));
-	      return error_mark_node;
-	    }
-	  return field;
-	}
-      else
-	abort ();
+	 So far, this is only to support PRIMTYPE.class ->
+	 PRIMCLASS.TYPE. */
+      {
+	tree prim_class = TREE_OPERAND (node, 0);
+	tree name = TREE_OPERAND (node, 1);
+	tree field;
+	
+	gcc_assert (TREE_CODE (prim_class) == NOP_EXPR);
+	prim_class = java_complete_tree (TREE_TYPE (prim_class));
+	gcc_assert (TREE_CODE (prim_class) == RECORD_TYPE);
+	field = lookup_field_wrapper (prim_class, name);
+	
+	if (field == NULL_TREE)
+	  {
+	    error ("missing static field %qs", IDENTIFIER_POINTER (name));
+	    return error_mark_node;
+	  }
+	if (! FIELD_STATIC (field))
+	  {
+	    error ("not a static field %qs", IDENTIFIER_POINTER (name));
+	    return error_mark_node;
+	  }
+	return field;
+      }
       break;
 
     case THIS_EXPR:
@@ -13646,11 +13643,11 @@ patch_binop (tree node, tree wfl_op1, tree wfl_op2, int folding)
 
       /* Shift int only up to 0x1f and long up to 0x3f */
       if (prom_type == int_type_node)
-	op2 = fold (build2 (BIT_AND_EXPR, int_type_node, op2,
-			    build_int_cst (NULL_TREE, 0x1f)));
+	op2 = fold_build2 (BIT_AND_EXPR, int_type_node, op2,
+			   build_int_cst (NULL_TREE, 0x1f));
       else
-	op2 = fold (build2 (BIT_AND_EXPR, int_type_node, op2,
-			    build_int_cst (NULL_TREE, 0x3f)));
+	op2 = fold_build2 (BIT_AND_EXPR, int_type_node, op2,
+			   build_int_cst (NULL_TREE, 0x3f));
 
       /* The >>> operator is a >> operating on unsigned quantities */
       if (code == URSHIFT_EXPR && (folding || ! flag_emit_class_files))
@@ -15425,7 +15422,7 @@ patch_exit_expr (tree node)
   /* Now we know things are allright, invert the condition, fold and
      return */
   TREE_OPERAND (node, 0) =
-    fold (build1 (TRUTH_NOT_EXPR, boolean_type_node, expression));
+    fold_build1 (TRUTH_NOT_EXPR, boolean_type_node, expression);
 
   if (! integer_zerop (TREE_OPERAND (node, 0))
       && ctxp->current_loop != NULL_TREE

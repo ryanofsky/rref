@@ -549,9 +549,11 @@ inherits_from_p (tree type1, tree type2)
     {
       if (type1 == type2)
 	return 1;
+
       if (! CLASS_LOADED_P (type1))
 	load_class (type1, 1);
-      type1 = CLASSTYPE_SUPER (type1);
+
+      type1 = maybe_layout_super_class (CLASSTYPE_SUPER (type1), type1);
     }
   return 0;
 }
@@ -1011,6 +1013,11 @@ build_class_ref (tree type)
 		abort ();
 
 	      prim_class = lookup_class (get_identifier (prim_class_name));
+	      /* We wrap the class in a NOP_EXPR, because it is a
+	         type.  We can't hold it in the COMPONENT_REF itself,
+	         as that type must remain NULL.  */
+	      prim_class = build1 (NOP_EXPR, prim_class, NULL_TREE);
+	      
 	      return build3 (COMPONENT_REF, NULL_TREE,
 			     prim_class, TYPE_identifier_node, NULL_TREE);
 	    }
@@ -1855,13 +1862,9 @@ make_class_data (tree type)
   PUSH_FIELD_VALUE (cons, "loader", null_pointer_node);
   PUSH_FIELD_VALUE (cons, "interface_count",
 		    build_int_cst (NULL_TREE, interface_len));
-  PUSH_FIELD_VALUE 
-    (cons, "state",
-     convert (byte_type_node,
-	      build_int_cst (NULL_TREE,
-			     flag_indirect_dispatch
-			     ? JV_STATE_PRELOADING
-			     : JV_STATE_COMPILED)));
+  PUSH_FIELD_VALUE (cons, "state",
+		    convert (byte_type_node,
+			     build_int_cst (NULL_TREE, JV_STATE_PRELOADING)));
 
   PUSH_FIELD_VALUE (cons, "thread", null_pointer_node);
   PUSH_FIELD_VALUE (cons, "depth", integer_zero_node);
@@ -2057,7 +2060,9 @@ push_super_field (tree this_class, tree super_class)
 static tree
 maybe_layout_super_class (tree super_class, tree this_class)
 {
-  if (TREE_CODE (super_class) == RECORD_TYPE)
+  if (!super_class)
+    return NULL_TREE;
+  else if (TREE_CODE (super_class) == RECORD_TYPE)
     {
       if (!CLASS_LOADED_P (super_class) && CLASS_FROM_SOURCE_P (super_class))
 	safe_layout_class (super_class);
@@ -2088,8 +2093,9 @@ maybe_layout_super_class (tree super_class, tree this_class)
 					  DECL_SOURCE_LINE (this_decl), 0);
 #endif
 	    }
-	  super_class = do_resolve_class (NULL_TREE, this_class,
-					  super_class, NULL_TREE, this_wrap);
+	  super_class
+	    = do_resolve_class (DECL_CONTEXT (TYPE_NAME (this_class)),
+				this_class, super_class, NULL_TREE, this_wrap);
 	  if (!super_class)
 	    return NULL_TREE;	/* FIXME, NULL_TREE not checked by caller. */
 	  super_class = TREE_TYPE (super_class);
@@ -2378,8 +2384,8 @@ layout_class_method (tree this_class, tree super_class,
 	  /* We generate vtable entries for final methods because they
 	     may one day be changed to non-final.  */
 	  set_method_index (method_decl, dtable_count);
-	  dtable_count = fold (build2 (PLUS_EXPR, integer_type_node,
-				       dtable_count, integer_one_node));
+	  dtable_count = fold_build2 (PLUS_EXPR, integer_type_node,
+				      dtable_count, integer_one_node);
 	}
     }
 

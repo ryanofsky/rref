@@ -1,5 +1,5 @@
 /.cvsignore/1.1/Tue Jun 15 07:42:07 2004//
-/ChangeLog/1.245/Fri Jul 22 22:56:27 2005/-ko/
+/ChangeLog/1.249/Thu Aug 25 00:54:54 2005/-ko/
 /ChangeLog.libgcj/1.6/Thu Jan 15 03:41:46 2004//
 /ChangeLog.v1/1.1.1.1/Sun Aug  8 13:27:19 1999/-ko/
 /LICENSE/1.2/Tue Oct 21 19:01:53 2003/-ko/
@@ -8,12 +8,10 @@
 /README/1.5/Sun Jan 25 06:58:33 2004/-ko/
 /acinclude.m4/1.5/Tue Nov 23 04:11:28 2004//
 /aclocal.m4/1.14/Wed May 18 01:49:32 2005/-ko/
-/configure/1.80/Tue Jul 19 21:15:35 2005/-ko/
-/configure.ac/1.16/Tue Jul 19 21:15:35 2005//
+/configure/1.82/Thu Aug 11 21:18:19 2005/-ko/
+/configure.ac/1.18/Thu Aug 11 21:18:23 2005//
 /configure.host/1.1/Mon Aug 30 15:43:00 2004//
-/fficonfig.h.in/1.11/Wed May 18 01:49:40 2005/-ko/
+/fficonfig.h.in/1.12/Thu Aug 11 21:18:23 2005/-ko/
 /libtool-version/1.2/Sat Jun 26 20:37:03 2004//
 /stamp-h.in/1.1.1.1/Sun Aug  8 13:27:19 1999/-ko/
-D/include////
-D/src////
-D/testsuite////
+D

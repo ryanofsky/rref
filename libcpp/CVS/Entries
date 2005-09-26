@@ -1,5 +1,5 @@
 /.cvsignore/1.1/Sat Jun 12 05:53:54 2004//
-/ChangeLog/1.75/Sun Jul 24 03:44:26 2005//
+/ChangeLog/1.77/Tue Sep 20 20:31:35 2005//
 /Makefile.in/1.15/Wed Jun 29 02:34:36 2005//
 /aclocal.m4/1.9/Mon Jun 13 08:26:05 2005//
 /charset.c/1.10/Wed Jun 29 02:34:36 2005//
@@ -9,11 +9,11 @@
 /directives.c/1.17/Wed Jun 29 02:34:36 2005//
 /errors.c/1.3/Wed Jun 29 02:34:36 2005//
 /expr.c/1.4/Wed Jun 29 02:34:36 2005//
-/files.c/1.12/Wed Jun 29 02:34:36 2005//
+/files.c/1.13/Tue Aug 30 06:28:21 2005//
 /identifiers.c/1.3/Wed Jun 29 02:34:36 2005//
-/init.c/1.10/Wed Jun 29 02:34:36 2005//
+/init.c/1.11/Tue Sep 20 20:31:35 2005//
 /internal.h/1.16/Wed Jun 29 02:34:36 2005//
-/lex.c/1.11/Wed Jun 29 02:34:36 2005//
+/lex.c/1.12/Tue Sep 20 20:31:35 2005//
 /line-map.c/1.4/Wed Jun 29 02:34:36 2005//
 /macro.c/1.14/Wed Jun 29 02:34:36 2005//
 /makedepend.c/1.5/Wed Jun 29 02:34:36 2005//
@@ -25,5 +25,4 @@
 /traditional.c/1.6/Wed Jun 29 02:34:37 2005//
 /ucnid.h/1.3/Wed Jun 29 02:34:37 2005//
 /ucnid.tab/1.3/Wed Jun 29 02:34:38 2005//
-D/include////
-D/po////
+D

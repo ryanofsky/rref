@@ -3,10 +3,10 @@
 /darwin_stop_world.h/1.2/Fri Aug 13 23:05:33 2004//
 /dbg_mlc.h/1.6/Fri Aug 13 23:05:33 2004/-ko/
 /gc_hdrs.h/1.4/Mon Jul 28 04:18:23 2003//
-/gc_locks.h/1.10/Tue Apr 19 16:01:38 2005/-ko/
+/gc_locks.h/1.11/Thu Sep 15 22:35:52 2005/-ko/
 /gc_pmark.h/1.8/Mon Aug 23 21:40:17 2004/-ko/
 /gc_priv.h/1.17/Wed Feb 16 04:10:42 2005//
-/gcconfig.h/1.46/Sun Jul 17 07:33:58 2005//
+/gcconfig.h/1.47/Tue Sep  6 14:22:01 2005//
 /pthread_stop_world.h/1.1/Mon Jul 28 03:46:18 2003//
 /pthread_support.h/1.2/Fri Aug 13 23:05:35 2004//
 /solaris_threads.h/1.5/Fri Aug 13 23:05:35 2004/-ko/

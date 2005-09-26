@@ -1,3 +1,5 @@
+/20010124-1-lib.c/1.1/Fri Sep  9 23:32:57 2005//
+/20010124-1.c/1.1/Fri Sep  9 23:32:57 2005//
 /abs-1-lib.c/1.2/Fri Apr  1 13:31:28 2005//
 /abs-1.c/1.2/Sat Jul  3 02:16:49 2004//
 /abs-1.x/1.1/Sun May 11 08:20:34 2003//
@@ -35,6 +37,8 @@
 /memset-chk.c/1.2/Mon Jun 27 12:17:38 2005//
 /memset-lib.c/1.1/Sat Jul  3 02:16:49 2004//
 /memset.c/1.1/Sat Jul  3 02:16:49 2004//
+/pr23484-chk-lib.c/1.1/Mon Aug 29 08:40:48 2005//
+/pr23484-chk.c/1.1/Mon Aug 29 08:40:48 2005//
 /printf-lib.c/1.1/Sat Jul  3 02:16:49 2004//
 /printf.c/1.1/Sat Jul  3 02:16:49 2004//
 /snprintf-chk-lib.c/1.2/Mon Jun 27 12:17:38 2005//
@@ -97,4 +101,4 @@
 /vsnprintf-chk.c/1.2/Mon Jun 27 12:17:38 2005//
 /vsprintf-chk-lib.c/1.2/Mon Jun 27 12:17:38 2005//
 /vsprintf-chk.c/1.2/Mon Jun 27 12:17:38 2005//
-D/lib////
+D
