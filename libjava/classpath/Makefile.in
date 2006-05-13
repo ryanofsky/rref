@@ -44,8 +44,12 @@ DIST_COMMON = README $(am__configure_deps) $(srcdir)/Makefile.am \
 	ltmain.sh missing mkinstalldirs
 subdir = .
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
-am__aclocal_m4_deps = $(top_srcdir)/../../libtool.m4 \
+am__aclocal_m4_deps = $(top_srcdir)/../../config/depstand.m4 \
+	$(top_srcdir)/../../config/lead-dot.m4 \
+	$(top_srcdir)/../../config/no-executables.m4 \
+	$(top_srcdir)/../../libtool.m4 $(top_srcdir)/m4/acattribute.m4 \
 	$(top_srcdir)/m4/accross.m4 $(top_srcdir)/m4/acinclude.m4 \
+	$(top_srcdir)/m4/ax_create_stdint_h.m4 \
 	$(top_srcdir)/m4/iconv.m4 $(top_srcdir)/m4/lib-ld.m4 \
 	$(top_srcdir)/m4/lib-link.m4 $(top_srcdir)/m4/lib-prefix.m4 \
 	$(top_srcdir)/m4/pkg.m4 $(top_srcdir)/configure.ac
@@ -94,13 +98,20 @@ CCDEPMODE = @CCDEPMODE@
 CFLAGS = @CFLAGS@
 CLASSPATH_INCLUDES = @CLASSPATH_INCLUDES@
 CLASSPATH_MODULE = @CLASSPATH_MODULE@
+COLLECTIONS_PREFIX = @COLLECTIONS_PREFIX@
 CP = @CP@
 CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
+CREATE_ALSA_LIBRARIES_FALSE = @CREATE_ALSA_LIBRARIES_FALSE@
+CREATE_ALSA_LIBRARIES_TRUE = @CREATE_ALSA_LIBRARIES_TRUE@
 CREATE_API_DOCS_FALSE = @CREATE_API_DOCS_FALSE@
 CREATE_API_DOCS_TRUE = @CREATE_API_DOCS_TRUE@
+CREATE_COLLECTIONS_FALSE = @CREATE_COLLECTIONS_FALSE@
+CREATE_COLLECTIONS_TRUE = @CREATE_COLLECTIONS_TRUE@
 CREATE_CORE_JNI_LIBRARIES_FALSE = @CREATE_CORE_JNI_LIBRARIES_FALSE@
 CREATE_CORE_JNI_LIBRARIES_TRUE = @CREATE_CORE_JNI_LIBRARIES_TRUE@
+CREATE_DSSI_LIBRARIES_FALSE = @CREATE_DSSI_LIBRARIES_FALSE@
+CREATE_DSSI_LIBRARIES_TRUE = @CREATE_DSSI_LIBRARIES_TRUE@
 CREATE_GTK_PEER_LIBRARIES_FALSE = @CREATE_GTK_PEER_LIBRARIES_FALSE@
 CREATE_GTK_PEER_LIBRARIES_TRUE = @CREATE_GTK_PEER_LIBRARIES_TRUE@
 CREATE_JNI_HEADERS_FALSE = @CREATE_JNI_HEADERS_FALSE@
@@ -127,6 +138,7 @@ EGREP = @EGREP@
 ERROR_CFLAGS = @ERROR_CFLAGS@
 EXAMPLESDIR = @EXAMPLESDIR@
 EXEEXT = @EXEEXT@
+FASTJAR = @FASTJAR@
 FIND = @FIND@
 FOUND_ECJ_FALSE = @FOUND_ECJ_FALSE@
 FOUND_ECJ_TRUE = @FOUND_ECJ_TRUE@
@@ -138,6 +150,8 @@ FOUND_JIKES_FALSE = @FOUND_JIKES_FALSE@
 FOUND_JIKES_TRUE = @FOUND_JIKES_TRUE@
 FOUND_KJC_FALSE = @FOUND_KJC_FALSE@
 FOUND_KJC_TRUE = @FOUND_KJC_TRUE@
+FREETYPE2_CFLAGS = @FREETYPE2_CFLAGS@
+FREETYPE2_LIBS = @FREETYPE2_LIBS@
 GCJ = @GCJ@
 GCJX = @GCJX@
 GJDOC = @GJDOC@
@@ -160,6 +174,7 @@ JAY = @JAY@
 JAY_SKELETON = @JAY_SKELETON@
 JIKES = @JIKES@
 JIKESENCODING = @JIKESENCODING@
+JIKESWARNINGS = @JIKESWARNINGS@
 KJC = @KJC@
 LDFLAGS = @LDFLAGS@
 LIBDEBUG = @LIBDEBUG@
@@ -187,6 +202,7 @@ PACKAGE_VERSION = @PACKAGE_VERSION@
 PANGOFT2_CFLAGS = @PANGOFT2_CFLAGS@
 PANGOFT2_LIBS = @PANGOFT2_LIBS@
 PATH_SEPARATOR = @PATH_SEPARATOR@
+PERL = @PERL@
 PKG_CONFIG = @PKG_CONFIG@
 QT_CFLAGS = @QT_CFLAGS@
 QT_LIBS = @QT_LIBS@
@@ -237,6 +253,7 @@ build_vendor = @build_vendor@
 datadir = @datadir@
 default_toolkit = @default_toolkit@
 exec_prefix = @exec_prefix@
+glibjdir = @glibjdir@
 host = @host@
 host_alias = @host_alias@
 host_cpu = @host_cpu@
@@ -250,6 +267,7 @@ libexecdir = @libexecdir@
 localstatedir = @localstatedir@
 mandir = @mandir@
 mkdir_p = @mkdir_p@
+nativelibdir = @nativelibdir@
 oldincludedir = @oldincludedir@
 prefix = @prefix@
 program_transform_name = @program_transform_name@
@@ -266,10 +284,11 @@ vm_classes = @vm_classes@
 # lib first, to compile .class files before native code, last examples
 SUBDIRS = lib doc external include native resource scripts $(EXAMPLESDIR)
 DIST_SUBDIRS = lib doc external include native resource scripts examples
-ACLOCAL_AMFLAGS = -I m4 -I ../..
+ACLOCAL_AMFLAGS = -I m4 -I ../.. -I ../../config
 EXTRA_DIST = HACKING BUGS THANKYOU mauve-classpath LICENSE \
-             ChangeLog-2003 ChangeLog-2004 \
-             ChangeLog.gnujaxp.1 ChangeLog.gnujaxp.2 ChangeLog.libxmlj
+             ChangeLog-2003 ChangeLog-2004 ChangeLog-2005 \
+             ChangeLog.gnujaxp.1 ChangeLog.gnujaxp.2 ChangeLog.libxmlj \
+	     autogen.sh
 
 all: all-recursive
 
@@ -443,7 +462,7 @@ distclean-tags:
 distdir: $(DISTFILES)
 	$(am__remove_distdir)
 	mkdir $(distdir)
-	$(mkdir_p) $(distdir)/../.. $(distdir)/examples $(distdir)/gnu/classpath $(distdir)/lib $(distdir)/m4 $(distdir)/scripts
+	$(mkdir_p) $(distdir)/../.. $(distdir)/../../config $(distdir)/examples $(distdir)/gnu/classpath $(distdir)/lib $(distdir)/m4 $(distdir)/scripts
 	@srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`; \
 	topsrcdirstrip=`echo "$(top_srcdir)" | sed 's|.|.|g'`; \
 	list='$(DISTFILES)'; for file in $$list; do \

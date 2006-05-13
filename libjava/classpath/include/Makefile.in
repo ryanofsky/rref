@@ -13,7 +13,6 @@
 # PARTICULAR PURPOSE.
 
 @SET_MAKE@
-
 srcdir = @srcdir@
 top_srcdir = @top_srcdir@
 VPATH = @srcdir@
@@ -38,11 +37,13 @@ build_triplet = @build@
 host_triplet = @host@
 target_triplet = @target@
 subdir = include
-DIST_COMMON = $(include_HEADERS) $(srcdir)/Makefile.am \
-	$(srcdir)/Makefile.in $(srcdir)/config.h.in
+DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in \
+	$(srcdir)/config.h.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/../../libtool.m4 \
-	$(top_srcdir)/m4/accross.m4 $(top_srcdir)/m4/acinclude.m4 \
+	$(top_srcdir)/m4/acattribute.m4 $(top_srcdir)/m4/accross.m4 \
+	$(top_srcdir)/m4/acinclude.m4 \
+	$(top_srcdir)/m4/ax_create_stdint_h.m4 \
 	$(top_srcdir)/m4/iconv.m4 $(top_srcdir)/m4/lib-ld.m4 \
 	$(top_srcdir)/m4/lib-link.m4 $(top_srcdir)/m4/lib-prefix.m4 \
 	$(top_srcdir)/m4/pkg.m4 $(top_srcdir)/configure.ac
@@ -53,17 +54,6 @@ CONFIG_HEADER = config.h
 CONFIG_CLEAN_FILES =
 SOURCES =
 DIST_SOURCES =
-am__vpath_adj_setup = srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`;
-am__vpath_adj = case $$p in \
-    $(srcdir)/*) f=`echo "$$p" | sed "s|^$$srcdirstrip/||"`;; \
-    *) f=$$p;; \
-  esac;
-am__strip_dir = `echo $$p | sed -e 's|^.*/||'`;
-am__installdirs = "$(DESTDIR)$(includedir)"
-includeHEADERS_INSTALL = $(INSTALL_HEADER)
-HEADERS = $(include_HEADERS)
-ETAGS = etags
-CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
 ACLOCAL = @ACLOCAL@
 AMDEP_FALSE = @AMDEP_FALSE@
@@ -82,13 +72,20 @@ CCDEPMODE = @CCDEPMODE@
 CFLAGS = @CFLAGS@
 CLASSPATH_INCLUDES = @CLASSPATH_INCLUDES@
 CLASSPATH_MODULE = @CLASSPATH_MODULE@
+COLLECTIONS_PREFIX = @COLLECTIONS_PREFIX@
 CP = @CP@
 CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
+CREATE_ALSA_LIBRARIES_FALSE = @CREATE_ALSA_LIBRARIES_FALSE@
+CREATE_ALSA_LIBRARIES_TRUE = @CREATE_ALSA_LIBRARIES_TRUE@
 CREATE_API_DOCS_FALSE = @CREATE_API_DOCS_FALSE@
 CREATE_API_DOCS_TRUE = @CREATE_API_DOCS_TRUE@
+CREATE_COLLECTIONS_FALSE = @CREATE_COLLECTIONS_FALSE@
+CREATE_COLLECTIONS_TRUE = @CREATE_COLLECTIONS_TRUE@
 CREATE_CORE_JNI_LIBRARIES_FALSE = @CREATE_CORE_JNI_LIBRARIES_FALSE@
 CREATE_CORE_JNI_LIBRARIES_TRUE = @CREATE_CORE_JNI_LIBRARIES_TRUE@
+CREATE_DSSI_LIBRARIES_FALSE = @CREATE_DSSI_LIBRARIES_FALSE@
+CREATE_DSSI_LIBRARIES_TRUE = @CREATE_DSSI_LIBRARIES_TRUE@
 CREATE_GTK_PEER_LIBRARIES_FALSE = @CREATE_GTK_PEER_LIBRARIES_FALSE@
 CREATE_GTK_PEER_LIBRARIES_TRUE = @CREATE_GTK_PEER_LIBRARIES_TRUE@
 CREATE_JNI_HEADERS_FALSE = @CREATE_JNI_HEADERS_FALSE@
@@ -115,6 +112,7 @@ EGREP = @EGREP@
 ERROR_CFLAGS = @ERROR_CFLAGS@
 EXAMPLESDIR = @EXAMPLESDIR@
 EXEEXT = @EXEEXT@
+FASTJAR = @FASTJAR@
 FIND = @FIND@
 FOUND_ECJ_FALSE = @FOUND_ECJ_FALSE@
 FOUND_ECJ_TRUE = @FOUND_ECJ_TRUE@
@@ -126,6 +124,8 @@ FOUND_JIKES_FALSE = @FOUND_JIKES_FALSE@
 FOUND_JIKES_TRUE = @FOUND_JIKES_TRUE@
 FOUND_KJC_FALSE = @FOUND_KJC_FALSE@
 FOUND_KJC_TRUE = @FOUND_KJC_TRUE@
+FREETYPE2_CFLAGS = @FREETYPE2_CFLAGS@
+FREETYPE2_LIBS = @FREETYPE2_LIBS@
 GCJ = @GCJ@
 GCJX = @GCJX@
 GJDOC = @GJDOC@
@@ -148,6 +148,7 @@ JAY = @JAY@
 JAY_SKELETON = @JAY_SKELETON@
 JIKES = @JIKES@
 JIKESENCODING = @JIKESENCODING@
+JIKESWARNINGS = @JIKESWARNINGS@
 KJC = @KJC@
 LDFLAGS = @LDFLAGS@
 LIBDEBUG = @LIBDEBUG@
@@ -175,6 +176,7 @@ PACKAGE_VERSION = @PACKAGE_VERSION@
 PANGOFT2_CFLAGS = @PANGOFT2_CFLAGS@
 PANGOFT2_LIBS = @PANGOFT2_LIBS@
 PATH_SEPARATOR = @PATH_SEPARATOR@
+PERL = @PERL@
 PKG_CONFIG = @PKG_CONFIG@
 QT_CFLAGS = @QT_CFLAGS@
 QT_LIBS = @QT_LIBS@
@@ -225,6 +227,7 @@ build_vendor = @build_vendor@
 datadir = @datadir@
 default_toolkit = @default_toolkit@
 exec_prefix = @exec_prefix@
+glibjdir = @glibjdir@
 host = @host@
 host_alias = @host_alias@
 host_cpu = @host_cpu@
@@ -238,6 +241,7 @@ libexecdir = @libexecdir@
 localstatedir = @localstatedir@
 mandir = @mandir@
 mkdir_p = @mkdir_p@
+nativelibdir = @nativelibdir@
 oldincludedir = @oldincludedir@
 prefix = @prefix@
 program_transform_name = @program_transform_name@
@@ -250,11 +254,18 @@ target_cpu = @target_cpu@
 target_os = @target_os@
 target_vendor = @target_vendor@
 vm_classes = @vm_classes@
-include_HEADERS = jni.h jni_md.h jawt.h jawt_md.h
-DISTCLEANFILES = jni_md.h
+DISTCLEANFILES = jni_md.h config-int.h
 ARG_JNI_JAVAH = -jni
 ARG_CLASSPATH_JAVAH = -bootclasspath
 JAVAH = $(USER_JAVAH) $(ARG_JNI_JAVAH) $(ARG_CLASSPATH_JAVAH) ../lib:$(USER_CLASSLIB)
+CLASSDIR = lib
+SOUND_H_FILES = \
+$(top_srcdir)/include/gnu_javax_sound_midi_alsa_AlsaPortDevice.h \
+$(top_srcdir)/include/gnu_javax_sound_midi_alsa_AlsaMidiSequencerDevice.h \
+$(top_srcdir)/include/gnu_javax_sound_midi_alsa_AlsaMidiDeviceProvider.h \
+$(top_srcdir)/include/gnu_javax_sound_midi_dssi_DSSIMidiDeviceProvider.h \
+$(top_srcdir)/include/gnu_javax_sound_midi_dssi_DSSISynthesizer.h
+
 XMLJ_H_FILES = \
 $(top_srcdir)/include/gnu_xml_libxmlj_dom_GnomeDocument.h \
 $(top_srcdir)/include/gnu_xml_libxmlj_dom_GnomeXPathNodeList.h \
@@ -354,6 +365,7 @@ $(top_srcdir)/include/gnu_java_awt_peer_qt_QtContainerPeer.h \
 $(top_srcdir)/include/gnu_java_awt_peer_qt_QtEmbeddedWindowPeer.h 
 
 H_FILES = \
+$(SOUND_H_FILES) \
 $(XMLJ_H_FILES) \
 $(GTKPEER_H_FILES) \
 $(QTPEER_H_FILES) \
@@ -367,9 +379,9 @@ $(top_srcdir)/include/gnu_java_nio_charset_iconv_IconvDecoder.h \
 $(top_srcdir)/include/java_io_VMFile.h \
 $(top_srcdir)/include/java_io_VMObjectInputStream.h \
 $(top_srcdir)/include/java_io_VMObjectStreamClass.h \
-$(top_srcdir)/include/java_lang_Math.h \
 $(top_srcdir)/include/java_lang_VMDouble.h \
 $(top_srcdir)/include/java_lang_VMFloat.h \
+$(top_srcdir)/include/java_lang_VMMath.h \
 $(top_srcdir)/include/java_lang_VMProcess.h \
 $(top_srcdir)/include/java_lang_VMSystem.h \
 $(top_srcdir)/include/java_lang_reflect_Array.h \
@@ -439,71 +451,12 @@ clean-libtool:
 distclean-libtool:
 	-rm -f libtool
 uninstall-info-am:
-install-includeHEADERS: $(include_HEADERS)
-	@$(NORMAL_INSTALL)
-	test -z "$(includedir)" || $(mkdir_p) "$(DESTDIR)$(includedir)"
-	@list='$(include_HEADERS)'; for p in $$list; do \
-	  if test -f "$$p"; then d=; else d="$(srcdir)/"; fi; \
-	  f=$(am__strip_dir) \
-	  echo " $(includeHEADERS_INSTALL) '$$d$$p' '$(DESTDIR)$(includedir)/$$f'"; \
-	  $(includeHEADERS_INSTALL) "$$d$$p" "$(DESTDIR)$(includedir)/$$f"; \
-	done
-
-uninstall-includeHEADERS:
-	@$(NORMAL_UNINSTALL)
-	@list='$(include_HEADERS)'; for p in $$list; do \
-	  f=$(am__strip_dir) \
-	  echo " rm -f '$(DESTDIR)$(includedir)/$$f'"; \
-	  rm -f "$(DESTDIR)$(includedir)/$$f"; \
-	done
-
-ID: $(HEADERS) $(SOURCES) $(LISP) $(TAGS_FILES)
-	list='$(SOURCES) $(HEADERS) $(LISP) $(TAGS_FILES)'; \
-	unique=`for i in $$list; do \
-	    if test -f "$$i"; then echo $$i; else echo $(srcdir)/$$i; fi; \
-	  done | \
-	  $(AWK) '    { files[$$0] = 1; } \
-	       END { for (i in files) print i; }'`; \
-	mkid -fID $$unique
 tags: TAGS
+TAGS:
 
-TAGS:  $(HEADERS) $(SOURCES) config.h.in $(TAGS_DEPENDENCIES) \
-		$(TAGS_FILES) $(LISP)
-	tags=; \
-	here=`pwd`; \
-	list='$(SOURCES) $(HEADERS) config.h.in $(LISP) $(TAGS_FILES)'; \
-	unique=`for i in $$list; do \
-	    if test -f "$$i"; then echo $$i; else echo $(srcdir)/$$i; fi; \
-	  done | \
-	  $(AWK) '    { files[$$0] = 1; } \
-	       END { for (i in files) print i; }'`; \
-	if test -z "$(ETAGS_ARGS)$$tags$$unique"; then :; else \
-	  test -n "$$unique" || unique=$$empty_fix; \
-	  $(ETAGS) $(ETAGSFLAGS) $(AM_ETAGSFLAGS) $(ETAGS_ARGS) \
-	    $$tags $$unique; \
-	fi
 ctags: CTAGS
-CTAGS:  $(HEADERS) $(SOURCES) config.h.in $(TAGS_DEPENDENCIES) \
-		$(TAGS_FILES) $(LISP)
-	tags=; \
-	here=`pwd`; \
-	list='$(SOURCES) $(HEADERS) config.h.in $(LISP) $(TAGS_FILES)'; \
-	unique=`for i in $$list; do \
-	    if test -f "$$i"; then echo $$i; else echo $(srcdir)/$$i; fi; \
-	  done | \
-	  $(AWK) '    { files[$$0] = 1; } \
-	       END { for (i in files) print i; }'`; \
-	test -z "$(CTAGS_ARGS)$$tags$$unique" \
-	  || $(CTAGS) $(CTAGSFLAGS) $(AM_CTAGSFLAGS) $(CTAGS_ARGS) \
-	     $$tags $$unique
+CTAGS:
 
-GTAGS:
-	here=`$(am__cd) $(top_builddir) && pwd` \
-	  && cd $(top_srcdir) \
-	  && gtags -i $(GTAGS_ARGS) $$here
-
-distclean-tags:
-	-rm -f TAGS ID GTAGS GRTAGS GSYMS GPATH tags
 
 distdir: $(DISTFILES)
 	@srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`; \
@@ -535,11 +488,8 @@ distdir: $(DISTFILES)
 check-am: all-am
 check: check-am
 @CREATE_JNI_HEADERS_FALSE@all-local:
-all-am: Makefile $(HEADERS) config.h all-local
+all-am: Makefile config.h all-local
 installdirs:
-	for dir in "$(DESTDIR)$(includedir)"; do \
-	  test -z "$$dir" || $(mkdir_p) "$$dir"; \
-	done
 install: install-am
 install-exec: install-exec-am
 install-data: install-data-am
@@ -572,7 +522,7 @@ clean-am: clean-generic clean-libtool mostlyclean-am
 distclean: distclean-am
 	-rm -f Makefile
 distclean-am: clean-am distclean-generic distclean-hdr \
-	distclean-libtool distclean-tags
+	distclean-libtool
 
 dvi: dvi-am
 
@@ -584,7 +534,7 @@ info: info-am
 
 info-am:
 
-install-data-am: install-includeHEADERS
+install-data-am:
 
 install-exec-am:
 
@@ -610,37 +560,41 @@ ps: ps-am
 
 ps-am:
 
-uninstall-am: uninstall-includeHEADERS uninstall-info-am
+uninstall-am: uninstall-info-am
 
-.PHONY: CTAGS GTAGS all all-am all-local check check-am clean \
-	clean-generic clean-libtool ctags distclean distclean-generic \
-	distclean-hdr distclean-libtool distclean-tags distdir dvi \
-	dvi-am html html-am info info-am install install-am \
-	install-data install-data-am install-exec install-exec-am \
-	install-includeHEADERS install-info install-info-am \
-	install-man install-strip installcheck installcheck-am \
-	installdirs maintainer-clean maintainer-clean-generic \
-	mostlyclean mostlyclean-generic mostlyclean-libtool pdf pdf-am \
-	ps ps-am tags uninstall uninstall-am uninstall-includeHEADERS \
-	uninstall-info-am
+.PHONY: all all-am all-local check check-am clean clean-generic \
+	clean-libtool distclean distclean-generic distclean-hdr \
+	distclean-libtool distdir dvi dvi-am html html-am info info-am \
+	install install-am install-data install-data-am install-exec \
+	install-exec-am install-info install-info-am install-man \
+	install-strip installcheck installcheck-am installdirs \
+	maintainer-clean maintainer-clean-generic mostlyclean \
+	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
+	uninstall uninstall-am uninstall-info-am
 
 
 @CREATE_JNI_HEADERS_TRUE@all-local: $(H_FILES)
 
-@CREATE_JNI_HEADERS_TRUE@$(top_srcdir)/include/gnu_xml_libxmlj_dom_%.h: $(top_builddir)/lib/gnu/xml/libxmlj/dom/%.class
+@CREATE_JNI_HEADERS_TRUE@$(top_srcdir)/include/gnu_xml_libxmlj_dom_%.h: $(top_builddir)/$(CLASSDIR)/gnu/xml/libxmlj/dom/%.class
 @CREATE_JNI_HEADERS_TRUE@	$(JAVAH) -o $@ gnu.xml.libxmlj.dom.$*
 
-@CREATE_JNI_HEADERS_TRUE@$(top_srcdir)/include/gnu_xml_libxmlj_sax_%.h: $(top_builddir)/lib/gnu/xml/libxmlj/sax/%.class
+@CREATE_JNI_HEADERS_TRUE@$(top_srcdir)/include/gnu_xml_libxmlj_sax_%.h: $(top_builddir)/$(CLASSDIR)/gnu/xml/libxmlj/sax/%.class
 @CREATE_JNI_HEADERS_TRUE@	$(JAVAH) -o $@ gnu.xml.libxmlj.sax.$*
 
-@CREATE_JNI_HEADERS_TRUE@$(top_srcdir)/include/gnu_xml_libxmlj_transform_%.h: $(top_builddir)/lib/gnu/xml/libxmlj/transform/%.class
+@CREATE_JNI_HEADERS_TRUE@$(top_srcdir)/include/gnu_xml_libxmlj_transform_%.h: $(top_builddir)/$(CLASSDIR)/gnu/xml/libxmlj/transform/%.class
 @CREATE_JNI_HEADERS_TRUE@	$(JAVAH) -o $@ gnu.xml.libxmlj.transform.$*
 
-@CREATE_JNI_HEADERS_TRUE@$(top_srcdir)/include/gnu_java_awt_peer_gtk_%.h: $(top_builddir)/lib/gnu/java/awt/peer/gtk/%.class
+@CREATE_JNI_HEADERS_TRUE@$(top_srcdir)/include/gnu_java_awt_peer_gtk_%.h: $(top_builddir)/$(CLASSDIR)/gnu/java/awt/peer/gtk/%.class
 @CREATE_JNI_HEADERS_TRUE@	$(JAVAH) -o $@ gnu.java.awt.peer.gtk.$*
 
-@CREATE_JNI_HEADERS_TRUE@$(top_srcdir)/include/gnu_java_awt_peer_qt_%.h: $(top_builddir)/lib/gnu/java/awt/peer/qt/%.class
+@CREATE_JNI_HEADERS_TRUE@$(top_srcdir)/include/gnu_java_awt_peer_qt_%.h: $(top_builddir)/$(CLASSDIR)/gnu/java/awt/peer/qt/%.class
 @CREATE_JNI_HEADERS_TRUE@	$(JAVAH) -o $@ gnu.java.awt.peer.qt.$*
+
+@CREATE_JNI_HEADERS_TRUE@$(top_srcdir)/include/gnu_javax_sound_midi_alsa_%.h: $(top_builddir)/$(CLASSDIR)/gnu/javax/sound/midi/alsa/%.class
+@CREATE_JNI_HEADERS_TRUE@	$(JAVAH) -o $@ gnu.javax.sound.midi.alsa.$*
+
+@CREATE_JNI_HEADERS_TRUE@$(top_srcdir)/include/gnu_javax_sound_midi_dssi_%.h: $(top_builddir)/$(CLASSDIR)/gnu/javax/sound/midi/dssi/%.class
+@CREATE_JNI_HEADERS_TRUE@	$(JAVAH) -o $@ gnu.javax.sound.midi.dssi.$*
 
 @CREATE_JNI_HEADERS_TRUE@$(top_srcdir)/include/gnu_java_net_PlainDatagramSocketImpl.h: $(top_srcdir)/gnu/java/net/PlainDatagramSocketImpl.java
 @CREATE_JNI_HEADERS_TRUE@	$(JAVAH) -o $@ gnu.java.net.PlainDatagramSocketImpl
@@ -656,8 +610,8 @@ uninstall-am: uninstall-includeHEADERS uninstall-info-am
 @CREATE_JNI_HEADERS_TRUE@	$(JAVAH) -o $@ java.io.VMObjectInputStream
 @CREATE_JNI_HEADERS_TRUE@$(top_srcdir)/include/java_io_VMObjectStreamClass.h: $(top_srcdir)/vm/reference/java/io/VMObjectStreamClass.java
 @CREATE_JNI_HEADERS_TRUE@	$(JAVAH) -o $@ java.io.VMObjectStreamClass
-@CREATE_JNI_HEADERS_TRUE@$(top_srcdir)/include/java_lang_Math.h: $(top_srcdir)/java/lang/Math.java
-@CREATE_JNI_HEADERS_TRUE@	$(JAVAH) -o $@ java.lang.Math
+@CREATE_JNI_HEADERS_TRUE@$(top_srcdir)/include/java_lang_VMMath.h: $(top_srcdir)/vm/reference/java/lang/VMMath.java
+@CREATE_JNI_HEADERS_TRUE@	$(JAVAH) -o $@ java.lang.VMMath
 @CREATE_JNI_HEADERS_TRUE@$(top_srcdir)/include/java_lang_VMDouble.h: $(top_srcdir)/vm/reference/java/lang/VMDouble.java
 @CREATE_JNI_HEADERS_TRUE@	$(JAVAH) -o $@ java.lang.VMDouble
 @CREATE_JNI_HEADERS_TRUE@$(top_srcdir)/include/java_lang_VMFloat.h: $(top_srcdir)/vm/reference/java/lang/VMFloat.java

@@ -1,6 +1,6 @@
 ;;- Machine description for Renesas / SuperH SH.
 ;;  Copyright (C) 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002,
-;;  2003, 2004, 2005 Free Software Foundation, Inc.
+;;  2003, 2004, 2005, 2006 Free Software Foundation, Inc.
 ;;  Contributed by Steve Chamberlain (sac@cygnus.com).
 ;;  Improved by Jim Wilson (wilson@cygnus.com).
 
@@ -1094,6 +1094,8 @@
   "(HARD_REGNO_NREGS (REGNO (operands[0]), GET_MODE (operands[2]))
     <= HARD_REGNO_NREGS (REGNO (operands[0]), GET_MODE (operands[0])))
    && peep2_reg_dead_p (3, operands[0]) && peep2_reg_dead_p (3, operands[2])
+   && ! FIND_REG_INC_NOTE (peep2_next_insn (2), operands[0])
+   && ! FIND_REG_INC_NOTE (peep2_next_insn (2), operands[2])
    && ! reg_overlap_mentioned_p (operands[0], operands[3])
    && ! reg_overlap_mentioned_p (operands[2], operands[0])
    && ! reg_overlap_mentioned_p (operands[0], operands[1])
@@ -1180,19 +1182,72 @@
   DONE;
 }")
 
+(define_insn "*movsicc_t_false"
+  [(set (match_operand:SI 0 "arith_reg_dest" "=r,r")
+	(if_then_else (eq (reg:SI T_REG) (const_int 0))
+		      (match_operand:SI 1 "general_movsrc_operand" "r,I08")
+		      (match_operand:SI 2 "arith_reg_operand" "0,0")))]
+  "TARGET_PRETEND_CMOVE
+   && (arith_reg_operand (operands[1], SImode)
+       || (immediate_operand (operands[1], SImode)
+	   && CONST_OK_FOR_I08 (INTVAL (operands[1]))))"
+  "bt 0f\;mov %1,%0\\n0:"
+  [(set_attr "type" "mt_group,arith") ;; poor approximation
+   (set_attr "length" "4")])
+
+(define_insn "*movsicc_t_true"
+  [(set (match_operand:SI 0 "arith_reg_dest" "=r,r")
+	(if_then_else (ne (reg:SI T_REG) (const_int 0))
+		      (match_operand:SI 1 "general_movsrc_operand" "r,I08")
+		      (match_operand:SI 2 "arith_reg_operand" "0,0")))]
+  "TARGET_PRETEND_CMOVE
+   && (arith_reg_operand (operands[1], SImode)
+       || (immediate_operand (operands[1], SImode)
+	   && CONST_OK_FOR_I08 (INTVAL (operands[1]))))"
+  "bf 0f\;mov %1,%0\\n0:"
+  [(set_attr "type" "mt_group,arith") ;; poor approximation
+   (set_attr "length" "4")])
+
 (define_expand "movsicc"
-  [(set (match_operand:SI 0 "register_operand" "")
+  [(set (match_operand:SI 0 "arith_reg_dest" "")
 	(if_then_else:SI (match_operand 1 "comparison_operator" "")
-			 (match_operand:SI 2 "register_operand" "")
-			 (match_operand:SI 3 "register_operand" "")))]
-  "TARGET_SHMEDIA"
+			 (match_operand:SI 2 "arith_reg_or_0_operand" "")
+			 (match_operand:SI 3 "arith_reg_operand" "")))]
+  "TARGET_SHMEDIA || TARGET_PRETEND_CMOVE"
   "
 {
   if ((GET_CODE (operands[1]) == EQ || GET_CODE (operands[1]) == NE)
       && GET_MODE (sh_compare_op0) == SImode
+      && (TARGET_SHMEDIA
+	  || (REG_P (sh_compare_op0) && REGNO (sh_compare_op0) == T_REG))
       && sh_compare_op1 == const0_rtx)
     operands[1] = gen_rtx_fmt_ee (GET_CODE (operands[1]), VOIDmode,
 				  sh_compare_op0, sh_compare_op1);
+  else if (TARGET_PRETEND_CMOVE)
+    {
+      enum rtx_code code = GET_CODE (operands[1]);
+      enum rtx_code new_code = code;
+      rtx tmp;
+
+      if (! currently_expanding_to_rtl)
+	FAIL;
+      switch (code)
+	{
+	case LT: case LE: case LEU: case LTU:
+	  if (GET_MODE_CLASS (GET_MODE (sh_compare_op0)) != MODE_INT)
+	    break;
+	case NE:
+	  new_code = reverse_condition (code);
+	  break;
+	case EQ: case GT: case GE: case GEU: case GTU:
+	  break;
+	default:
+	  FAIL;
+	}
+      tmp = prepare_scc_operands (new_code);
+      operands[1] = gen_rtx_fmt_ee (new_code == code ? NE : EQ, VOIDmode,
+				    tmp, const0_rtx);
+    }
   else
     {
       rtx tmp;
@@ -1739,6 +1794,21 @@
   [(set_attr "type" "sfunc")
    (set_attr "needs_delay_slot" "yes")])
 
+(define_insn "udivsi3_i4_int"
+  [(set (match_operand:SI 0 "register_operand" "=z")
+	(udiv:SI (reg:SI R4_REG) (reg:SI R5_REG)))
+   (clobber (reg:SI T_REG))
+   (clobber (reg:SI R1_REG))
+   (clobber (reg:SI PR_REG))
+   (clobber (reg:SI MACH_REG))
+   (clobber (reg:SI MACL_REG))
+   (use (match_operand:SI 1 "arith_reg_operand" "r"))]
+  "TARGET_SH1"
+  "jsr	@%1%#"
+  [(set_attr "type" "sfunc")
+   (set_attr "needs_delay_slot" "yes")])
+
+
 (define_expand "udivsi3"
   [(set (match_dup 3) (symbol_ref:SI "__udivsi3"))
    (set (reg:SI R4_REG) (match_operand:SI 1 "general_operand" ""))
@@ -1757,7 +1827,12 @@
 
   operands[3] = gen_reg_rtx (Pmode);
   /* Emit the move of the address to a pseudo outside of the libcall.  */
-  if (TARGET_HARD_SH4 && TARGET_SH2E)
+  if (TARGET_DIVIDE_CALL_TABLE)
+    {
+      function_symbol (operands[3], \"__udivsi3_i4i\", SFUNC_GOT);
+      last = gen_udivsi3_i4_int (operands[0], operands[3]);
+    }
+  else if (TARGET_DIVIDE_CALL_FP)
     {
       function_symbol (operands[3], \"__udivsi3_i4\", SFUNC_STATIC);
       if (TARGET_FPU_SINGLE)
@@ -1975,6 +2050,20 @@
   [(set_attr "type" "sfunc")
    (set_attr "needs_delay_slot" "yes")])
 
+(define_insn "divsi3_i4_int"
+  [(set (match_operand:SI 0 "register_operand" "=z")
+	(div:SI (reg:SI R4_REG) (reg:SI R5_REG)))
+   (clobber (reg:SI T_REG))
+   (clobber (reg:SI PR_REG))
+   (clobber (reg:SI R1_REG))
+   (clobber (reg:SI MACH_REG))
+   (clobber (reg:SI MACL_REG))
+   (use (match_operand:SI 1 "arith_reg_operand" "r"))]
+  "TARGET_SH1"
+  "jsr	@%1%#"
+  [(set_attr "type" "sfunc")
+   (set_attr "needs_delay_slot" "yes")])
+
 (define_expand "divsi3"
   [(set (match_dup 3) (symbol_ref:SI "__sdivsi3"))
    (set (reg:SI R4_REG) (match_operand:SI 1 "general_operand" ""))
@@ -1995,7 +2084,12 @@
 
   operands[3] = gen_reg_rtx (Pmode);
   /* Emit the move of the address to a pseudo outside of the libcall.  */
-  if (TARGET_HARD_SH4 && TARGET_SH2E)
+  if (TARGET_DIVIDE_CALL_TABLE)
+    {
+      function_symbol (operands[3], sh_divsi3_libfunc, SFUNC_GOT);
+      last = gen_divsi3_i4_int (operands[0], operands[3]);
+    }
+  else if (TARGET_DIVIDE_CALL_FP)
     {
       function_symbol (operands[3], sh_divsi3_libfunc, SFUNC_STATIC);
       if (TARGET_FPU_SINGLE)
@@ -4844,7 +4938,7 @@ label:
   [(set (match_operand:SI 0 "general_movdst_operand"
 	        "=r,r,r,r,m,f?,m,f?,r,f?,*b,r,b")
 	(match_operand:SI 1 "general_movsrc_operand"
-	 "r,I16C16,nCpg,m,rZ,m,f?,rZ,f?,f?,r,*b,Csy"))]
+	 "r,I16Css,nCpg,m,rZ,m,f?,rZ,f?,f?,r,*b,Csy"))]
   "TARGET_SHMEDIA_FPU
    && (register_operand (operands[0], SImode)
        || sh_register_operand (operands[1], SImode)
@@ -4874,7 +4968,7 @@ label:
   [(set (match_operand:SI 0 "general_movdst_operand"
 	        "=r,r,r,r,m,*b,r,*b")
 	(match_operand:SI 1 "general_movsrc_operand"
-	 "r,I16C16,nCpg,m,rZ,r,*b,Csy"))]
+	 "r,I16Css,nCpg,m,rZ,r,*b,Csy"))]
   "TARGET_SHMEDIA
    && (register_operand (operands[0], SImode)
        || sh_register_operand (operands[1], SImode)
@@ -4904,11 +4998,9 @@ label:
 		     (const_int 16))))))
    (set (match_dup 0)
 	(ior:SI (ashift:SI (match_dup 0) (const_int 16))
-		(zero_extend:SI
-		 (truncate:HI
-		  (const:SI
-		   (sign_extend:SI
- 		    (truncate:HI (match_dup 1))))))))]
+		(const:SI
+		  (zero_extend:SI
+ 		   (truncate:HI (match_dup 1))))))]
   "TARGET_SHMEDIA && reload_completed
    && MOVI_SHORI_BASE_OPERAND_P (operands[1])"
   "
@@ -5092,7 +5184,7 @@ label:
 
 (define_insn "*movqi_media"
   [(set (match_operand:QI 0 "general_movdst_operand" "=r,r,r,m")
-	(match_operand:QI 1 "general_movsrc_operand" "r,I16C16,m,rZ"))]
+	(match_operand:QI 1 "general_movsrc_operand" "r,I16Css,m,rZ"))]
   "TARGET_SHMEDIA
    && (arith_reg_operand (operands[0], QImode)
        || extend_reg_or_0_operand (operands[1], QImode))"
@@ -5153,7 +5245,7 @@ label:
 
 (define_insn "*movhi_media"
   [(set (match_operand:HI 0 "general_movdst_operand"     "=r,r,r,r,m")
-	(match_operand:HI 1 "general_movsrc_operand" "r,I16C16,n,m,rZ"))]
+	(match_operand:HI 1 "general_movsrc_operand" "r,I16Css,n,m,rZ"))]
   "TARGET_SHMEDIA
    && (arith_reg_operand (operands[0], HImode)
        || arith_reg_or_0_operand (operands[1], HImode))"
@@ -5272,7 +5364,7 @@ label:
   [(set (match_operand:DI 0 "general_movdst_operand"
 	         "=r,r,r,rl,m,f?,m,f?,r,f?,*b,r,*b")
 	(match_operand:DI 1 "general_movsrc_operand"
-	 "r,I16C16,nCpgF,m,rlZ,m,f?,rZ,f?,f?,r,*b,Csy"))]
+	 "r,I16Css,nCpgF,m,rlZ,m,f?,rZ,f?,f?,r,*b,Csy"))]
   "TARGET_SHMEDIA_FPU
    && (register_operand (operands[0], DImode)
        || sh_register_operand (operands[1], DImode))"
@@ -5295,7 +5387,7 @@ label:
 
 (define_insn "*movdi_media_nofpu"
   [(set (match_operand:DI 0 "general_movdst_operand" "=r,r,r,rl,m,*b,r,*b");
-	(match_operand:DI 1 "general_movsrc_operand" "r,I16C16,nCpgF,m,rlZ,r,*b,Csy"))]
+	(match_operand:DI 1 "general_movsrc_operand" "r,I16Css,nCpgF,m,rlZ,r,*b,Csy"))]
   "TARGET_SHMEDIA
    && (register_operand (operands[0], DImode)
        || sh_register_operand (operands[1], DImode))"
@@ -5349,32 +5441,26 @@ label:
 		     (const_int 48))))))
    (set (match_dup 0)
 	(ior:DI (ashift:DI (match_dup 0) (const_int 16))
-		(zero_extend:DI
-		 (truncate:HI
-		  (const:DI
-		   (sign_extend:DI
-		    (truncate:HI
-		     (ashiftrt:SI
-		      (match_dup 1)
-		      (const_int 32)))))))))
+		(const:DI
+		 (zero_extend:DI
+		  (truncate:HI
+		   (ashiftrt:SI
+		    (match_dup 1)
+		    (const_int 32)))))))
    (set (match_dup 0)
 	(ior:DI (ashift:DI (match_dup 0) (const_int 16))
-		(zero_extend:DI
-		 (truncate:HI
-		  (const:DI
-		   (sign_extend:DI
-		    (truncate:HI
-		     (ashiftrt:SI
-		      (match_dup 1)
-		      (const_int 16)))))))))
+		(const:DI
+		 (zero_extend:DI
+		  (truncate:HI
+		   (ashiftrt:SI
+		    (match_dup 1)
+		    (const_int 16)))))))
    (set (match_dup 0)
 	(ior:DI (ashift:DI (match_dup 0) (const_int 16))
-		(zero_extend:DI
-		 (truncate:HI
-		  (const:DI
-		   (sign_extend:DI
-		    (truncate:HI
-		     (match_dup 1))))))))]
+		(const:DI
+		 (zero_extend:DI
+		  (truncate:HI
+		   (match_dup 1))))))]
   "TARGET_SHMEDIA64 && reload_completed
    && MOVI_SHORI_BASE_OPERAND_P (operands[1])"
   "
@@ -5391,12 +5477,10 @@ label:
 		     (const_int 16))))))
    (set (match_dup 0)
 	(ior:DI (ashift:DI (match_dup 0) (const_int 16))
-		(zero_extend:DI
-		 (truncate:HI
-		  (const:DI
-		   (sign_extend:DI
-		    (truncate:HI
-		     (match_dup 1))))))))]
+		(const:DI
+		 (zero_extend:DI
+		  (truncate:HI
+		   (match_dup 1))))))]
   "TARGET_SHMEDIA32 && reload_completed
    && MOVI_SHORI_BASE_OPERAND_P (operands[1])"
   "
@@ -5429,10 +5513,8 @@ label:
   unsigned HOST_WIDE_INT sign;
   unsigned HOST_WIDE_INT val2 = val ^ (val-1);
 
-  /* Sign-extend the 16 least-significant bits.  */
+  /* Zero-extend the 16 least-significant bits.  */
   low &= 0xffff;
-  low ^= 0x8000;
-  low -= 0x8000;
 
   /* Arithmetic shift right the word by 16 bits.  */
   high >>= 16;
@@ -5529,8 +5611,7 @@ label:
    && GET_CODE (operands[1]) == CONST_DOUBLE"
   [(set (match_dup 0) (match_dup 2))
   (set (match_dup 0)
-       (ior:DI (ashift:DI (match_dup 0) (const_int 16))
-	       (zero_extend:DI (truncate:HI (match_dup 1)))))]
+       (ior:DI (ashift:DI (match_dup 0) (const_int 16)) (match_dup 1)))]
   "
 {
   unsigned HOST_WIDE_INT low = CONST_DOUBLE_LOW (operands[1]);
@@ -5538,10 +5619,8 @@ label:
   unsigned HOST_WIDE_INT val = low;
   unsigned HOST_WIDE_INT sign;
 
-  /* Sign-extend the 16 least-significant bits.  */
+  /* Zero-extend the 16 least-significant bits.  */
   val &= 0xffff;
-  val ^= 0x8000;
-  val -= 0x8000;
   operands[1] = GEN_INT (val);
 
   /* Arithmetic shift right the double-word by 16 bits.  */
@@ -5566,9 +5645,7 @@ label:
   [(set (match_operand:DI 0 "ext_dest_operand" "=r,r")
 	(ior:DI (ashift:DI (match_operand:DI 1 "arith_reg_operand" "0,0")
 			   (const_int 16))
-		(zero_extend:DI
-		 (truncate:HI
-		  (match_operand:DI 2 "immediate_operand" "I16C16,nF")))))]
+		(match_operand:DI 2 "immediate_operand" "K16Csu,nF")))]
   "TARGET_SHMEDIA && (reload_completed || arith_reg_dest (operands[0], DImode))"
   "@
 	shori	%u2, %0
@@ -5579,9 +5656,7 @@ label:
   [(set (match_operand:SI 0 "arith_reg_dest" "=r")
 	(ior:SI (ashift:SI (match_operand:SI 1 "arith_reg_operand" "0")
 			   (const_int 16))
-		(zero_extend:SI
-		 (truncate:HI
-		  (match_operand:SI 2 "immediate_operand" "I16C16")))))]
+		(match_operand:SI 2 "immediate_operand" "K16Csu")))]
   "TARGET_SHMEDIA"
   "shori	%u2, %0")
 
@@ -5845,15 +5920,15 @@ label:
 	      (clobber (scratch:SI))])]
   "")
 
-(define_expand "reload_indf"
-  [(parallel [(set (match_operand:DF 0 "register_operand" "=f")
+(define_expand "reload_indf__frn"
+  [(parallel [(set (match_operand:DF 0 "register_operand" "=a")
 		   (match_operand:DF 1 "immediate_operand" "FQ"))
 	      (use (reg:PSI FPSCR_REG))
 	      (clobber (match_operand:SI 2 "register_operand" "=&z"))])]
   "TARGET_SH1"
   "")
 
-(define_expand "reload_outdf"
+(define_expand "reload_outdf__RnFRm"
   [(parallel [(set (match_operand:DF 0 "register_operand" "=r,f")
 		   (match_operand:DF 1 "register_operand" "af,r"))
 	      (clobber (match_operand:SI 2 "register_operand" "=&y,y"))])]
@@ -6475,7 +6550,7 @@ label:
   [(set_attr "length" "0")
    (set_attr "type" "nil")])
 
-(define_expand "reload_insf"
+(define_expand "reload_insf__frn"
   [(parallel [(set (match_operand:SF 0 "register_operand" "=a")
 		   (match_operand:SF 1 "immediate_operand" "FQ"))
 	      (use (reg:PSI FPSCR_REG))
@@ -6483,7 +6558,7 @@ label:
   "TARGET_SH1"
   "")
 
-(define_expand "reload_insi"
+(define_expand "reload_insi__i_fpul"
   [(parallel [(set (match_operand:SI 0 "fpul_operand" "=y")
 		   (match_operand:SI 1 "immediate_operand" "i"))
 	      (clobber (match_operand:SI 2 "register_operand" "=&z"))])]
@@ -8315,17 +8390,16 @@ label:
   DONE;
 }")
 
-(define_expand "sym2GOTPLT"
-  [(const (unspec [(match_operand 0 "" "")] UNSPEC_GOTPLT))]
-  ""
-  "")
-
 (define_expand "symGOTPLT2reg"
   [(match_operand 0 "" "") (match_operand 1 "" "")]
   ""
   "
 {
-  emit_insn (gen_symGOT_load (operands[0], gen_sym2GOTPLT (operands[1])));
+  rtx pltsym = gen_rtx_CONST (Pmode,
+			      gen_rtx_UNSPEC (Pmode,
+					      gen_rtvec (1, operands[1]),
+					      UNSPEC_GOTPLT));
+  emit_insn (gen_symGOT_load (operands[0], pltsym));
   DONE;
 }")
 
@@ -8801,10 +8875,20 @@ mov.l\\t1f,r0\\n\\
   "TARGET_SH1 && ! (TARGET_SHCOMPACT
 		    && (current_function_args_info.call_cookie
 			& CALL_COOKIE_RET_TRAMP (1)))
-   && reload_completed"
+   && reload_completed
+   && lookup_attribute (\"trap_exit\",
+			DECL_ATTRIBUTES (current_function_decl)) == NULL_TREE"
   "%@	%#"
   [(set_attr "type" "return")
    (set_attr "needs_delay_slot" "yes")])
+
+;; trapa has no delay slot.
+(define_insn "*return_trapa"
+  [(return)]
+  "TARGET_SH1 && !TARGET_SHCOMPACT
+   && reload_completed"
+  "%@"
+  [(set_attr "type" "return")])
 
 (define_expand "shcompact_return_tramp"
   [(return)]
@@ -9760,34 +9844,6 @@ mov.l\\t1f,r0\\n\\
 
 ;; ??? All patterns should have a type attribute.
 
-(define_expand "fpu_switch0"
-  [(set (match_operand:SI 0 "" "") (match_dup 2))
-   (set (match_dup 1) (mem:PSI (match_dup 0)))]
-  "(TARGET_SH4 || TARGET_SH2A_DOUBLE)"
-  "
-{
-  operands[1] = get_fpscr_rtx ();
-  operands[2] = gen_rtx_SYMBOL_REF (SImode, \"__fpscr_values\");
-  if (flag_pic)
-    operands[2] = legitimize_pic_address (operands[2], SImode,
-					  no_new_pseudos ? operands[0] : 0);
-}")
-
-(define_expand "fpu_switch1"
-  [(set (match_operand:SI 0 "" "") (match_dup 2))
-   (set (match_dup 3) (plus:SI (match_dup 0) (const_int 4)))
-   (set (match_dup 1) (mem:PSI (match_dup 3)))]
-  "(TARGET_SH4 || TARGET_SH2A_DOUBLE)"
-  "
-{
-  operands[1] = get_fpscr_rtx ();
-  operands[2] = gen_rtx_SYMBOL_REF (SImode, \"__fpscr_values\");
-  if (flag_pic)
-    operands[2] = legitimize_pic_address (operands[2], SImode,
-					  no_new_pseudos ? operands[0] : 0);
-  operands[3] = no_new_pseudos ? operands[0] : gen_reg_rtx (SImode);
-}")
-
 (define_expand "movpsi"
   [(set (match_operand:PSI 0 "register_operand" "")
 	(match_operand:PSI 1 "general_movsrc_operand" ""))]
@@ -9822,35 +9878,43 @@ mov.l\\t1f,r0\\n\\
   [(set_attr "length" "0,2,2,4,2,2,2,2,2")
    (set_attr "type" "nil,mem_fpscr,load,mem_fpscr,gp_fpscr,move,store,mac_gp,store")])
 
+(define_peephole2
+  [(set (reg:PSI FPSCR_REG)
+	(mem:PSI (match_operand:SI 0 "register_operand" "")))]
+  "(TARGET_SH4 || TARGET_SH2A_DOUBLE) && peep2_reg_dead_p (1, operands[0])"
+  [(const_int 0)]
+{
+  rtx fpscr, mem, new_insn;
+
+  fpscr = SET_DEST (PATTERN (curr_insn));
+  mem = SET_SRC (PATTERN (curr_insn));
+  mem = replace_equiv_address (mem, gen_rtx_POST_INC (Pmode, operands[0]));
+
+  new_insn = emit_insn (gen_fpu_switch (fpscr, mem));
+  REG_NOTES (new_insn) = gen_rtx_EXPR_LIST (REG_INC, operands[0], NULL_RTX);
+  DONE;
+})
+
 (define_split
   [(set (reg:PSI FPSCR_REG)
 	(mem:PSI (match_operand:SI 0 "register_operand" "")))]
-  "(TARGET_SH4 || TARGET_SH2A_DOUBLE) && find_regno_note (insn, REG_DEAD, true_regnum (operands[0]))"
-  [(set (match_dup 0) (match_dup 0))]
-  "
+  "(TARGET_SH4 || TARGET_SH2A_DOUBLE)
+   && (flag_peephole2 ? flow2_completed : reload_completed)"
+  [(const_int 0)]
 {
-  rtx mem, insn;
+  rtx fpscr, mem, new_insn;
 
+  fpscr = SET_DEST (PATTERN (curr_insn));
   mem = SET_SRC (PATTERN (curr_insn));
-  mem = change_address (mem, PSImode, gen_rtx_POST_INC (Pmode, operands[0]));
-  insn = emit_insn (gen_fpu_switch (get_fpscr_rtx (), mem));
-  REG_NOTES (insn) = gen_rtx_EXPR_LIST (REG_INC, operands[0], NULL_RTX);
-}")
+  mem = replace_equiv_address (mem, gen_rtx_POST_INC (Pmode, operands[0]));
 
-(define_split
-  [(set (reg:PSI FPSCR_REG)
-	(mem:PSI (match_operand:SI 0 "register_operand" "")))]
-  "(TARGET_SH4 || TARGET_SH2A_DOUBLE)"
-  [(set (match_dup 0) (plus:SI (match_dup 0) (const_int -4)))]
-  "
-{
-  rtx mem, insn;
+  new_insn = emit_insn (gen_fpu_switch (fpscr, mem));
+  REG_NOTES (new_insn) = gen_rtx_EXPR_LIST (REG_INC, operands[0], NULL_RTX);
 
-  mem = SET_SRC (PATTERN (curr_insn));
-  mem = change_address (mem, PSImode, gen_rtx_POST_INC (Pmode, operands[0]));
-  insn = emit_insn (gen_fpu_switch (get_fpscr_rtx (), mem));
-  REG_NOTES (insn) = gen_rtx_EXPR_LIST (REG_INC, operands[0], NULL_RTX);
-}")
+  if (!find_regno_note (curr_insn, REG_DEAD, true_regnum (operands[0])))
+    emit_insn (gen_addsi3 (operands[0], operands[0], GEN_INT (-4)));
+  DONE;
+})
 
 ;; ??? This uses the fp unit, but has no type indicating that.
 ;; If we did that, this would either give a bogus latency or introduce
@@ -11249,15 +11313,12 @@ mov.l\\t1f,r0\\n\\
 
 ;; Switch to a new stack with its address in sp_switch (a SYMBOL_REF).  */
 (define_insn "sp_switch_1"
-  [(const_int 1)]
+  [(const_int 1) (match_operand:SI 0 "symbol_ref_operand" "s")]
   "TARGET_SH1"
   "*
 {
-  rtx xoperands[1];
-
-  xoperands[0] = sp_switch;
-  output_asm_insn (\"mov.l r0,@-r15\;mov.l %0,r0\", xoperands);
-  output_asm_insn (\"mov.l @r0,r0\;mov.l r15,@-r0\", xoperands);
+  output_asm_insn (\"mov.l r0,@-r15\;mov.l %0,r0\", operands);
+  output_asm_insn (\"mov.l @r0,r0\;mov.l r15,@-r0\", operands);
   return \"mov r0,r15\";
 }"
   [(set_attr "length" "10")])
@@ -11280,7 +11341,7 @@ mov.l\\t1f,r0\\n\\
 
 (define_insn "movv8qi_i"
   [(set (match_operand:V8QI 0 "general_movdst_operand" "=r,r,r,rl,m")
-	(match_operand:V8QI 1 "general_movsrc_operand" "r,I16C16Z,nW,m,rlZ"))]
+	(match_operand:V8QI 1 "general_movsrc_operand" "r,I16CssZ,nW,m,rlZ"))]
   "TARGET_SHMEDIA
    && (register_operand (operands[0], V8QImode)
        || sh_register_operand (operands[1], V8QImode))"
@@ -11372,7 +11433,7 @@ mov.l\\t1f,r0\\n\\
 
 (define_insn "movv2hi_i"
   [(set (match_operand:V2HI 0 "general_movdst_operand" "=r,r,r,rl,m")
-	(match_operand:V2HI 1 "general_movsrc_operand" "r,I16C16Z,nW,m,rlZ"))]
+	(match_operand:V2HI 1 "general_movsrc_operand" "r,I16CssZ,nW,m,rlZ"))]
   "TARGET_SHMEDIA
    && (register_operand (operands[0], V2HImode)
        || sh_register_operand (operands[1], V2HImode))"
@@ -11397,7 +11458,7 @@ mov.l\\t1f,r0\\n\\
 
 (define_insn "movv4hi_i"
   [(set (match_operand:V4HI 0 "general_movdst_operand" "=r,r,r,rl,m")
-	(match_operand:V4HI 1 "general_movsrc_operand" "r,I16C16Z,nW,m,rlZ"))]
+	(match_operand:V4HI 1 "general_movsrc_operand" "r,I16CssZ,nW,m,rlZ"))]
   "TARGET_SHMEDIA
    && (register_operand (operands[0], V4HImode)
        || sh_register_operand (operands[1], V4HImode))"
@@ -11419,7 +11480,7 @@ mov.l\\t1f,r0\\n\\
 
 (define_insn "movv2si_i"
   [(set (match_operand:V2SI 0 "general_movdst_operand" "=r,r,r,rl,m")
-	(match_operand:V2SI 1 "general_movsrc_operand" "r,I16C16Z,nW,m,rlZ"))]
+	(match_operand:V2SI 1 "general_movsrc_operand" "r,I16CssZ,nW,m,rlZ"))]
   "TARGET_SHMEDIA
    && (register_operand (operands[0], V2SImode)
        || sh_register_operand (operands[1], V2SImode))"
@@ -12365,7 +12426,7 @@ mov.l\\t1f,r0\\n\\
                            (const_int 32))
 		(match_operand:DI 2 "const_int_operand" "n")))]
   "TARGET_SHMEDIA
-   && INTVAL (operands[2]) == trunc_int_for_mode (INTVAL (operands[2]), SImode)"
+   && ! (INTVAL (operands[2]) & ~(unsigned HOST_WIDE_INT) 0xffffffffUL)"
   "#"
   "rtx_equal_p (operands[0], operands[1])"
   [(const_int 0)]
@@ -12373,10 +12434,8 @@ mov.l\\t1f,r0\\n\\
 {
   HOST_WIDE_INT v = INTVAL (operands[2]);
 
-  emit_insn (gen_shori_media (operands[0], operands[0],
-	     gen_int_mode (INTVAL (operands[2]) >> 16, HImode)));
-  emit_insn (gen_shori_media (operands[0], operands[0],
-			      gen_int_mode (v, HImode)));
+  emit_insn (gen_shori_media (operands[0], operands[0], GEN_INT (v >> 16)));
+  emit_insn (gen_shori_media (operands[0], operands[0], GEN_INT (v & 65535)));
   DONE;
 }"
   [(set_attr "highpart" "ignore")])

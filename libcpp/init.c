@@ -301,6 +301,7 @@ struct builtin
 #define B(n, t)    { DSC(n), t }
 static const struct builtin builtin_array[] =
 {
+  B("__TIMESTAMP__",	 BT_TIMESTAMP),
   B("__TIME__",		 BT_TIME),
   B("__DATE__",		 BT_DATE),
   B("__FILE__",		 BT_FILE),
@@ -357,8 +358,14 @@ cpp_init_builtins (cpp_reader *pfile, int hosted)
 
   if (CPP_OPTION (pfile, traditional))
     n -= 2;
+  else if (! CPP_OPTION (pfile, stdc_0_in_system_headers)
+	   || CPP_OPTION (pfile, std))
+    {
+      n--;
+      _cpp_define_builtin (pfile, "__STDC__ 1");
+    }
 
-  for(b = builtin_array; b < builtin_array + n; b++)
+  for (b = builtin_array; b < builtin_array + n; b++)
     {
       cpp_hashnode *hp = cpp_lookup (pfile, b->name, b->len);
       hp->type = NT_MACRO;
@@ -467,7 +474,7 @@ cpp_read_main_file (cpp_reader *pfile, const char *fname)
     }
 
   pfile->main_file
-    = _cpp_find_file (pfile, fname, &pfile->no_search_path, false);
+    = _cpp_find_file (pfile, fname, &pfile->no_search_path, false, 0);
   if (_cpp_find_failed (pfile->main_file))
     return NULL;
 
@@ -497,8 +504,10 @@ read_original_filename (cpp_reader *pfile)
   token = _cpp_lex_direct (pfile);
   if (token->type == CPP_HASH)
     {
+      pfile->state.in_directive = 1;
       token1 = _cpp_lex_direct (pfile);
       _cpp_backup_tokens (pfile, 1);
+      pfile->state.in_directive = 0;
 
       /* If it's a #line directive, handle it.  */
       if (token1->type == CPP_NUMBER)

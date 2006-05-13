@@ -1,6 +1,6 @@
 // TR1 unordered_map -*- C++ -*-
 
-// Copyright (C) 2005 Free Software Foundation, Inc.
+// Copyright (C) 2005, 2006 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -36,14 +36,11 @@
 
 #include <tr1/hashtable>
 #include <tr1/functional>
-#include <tr1/functional>
-#include <utility>
-#include <memory>
 
 namespace std
 {
-namespace tr1
-{
+_GLIBCXX_BEGIN_NAMESPACE(tr1)
+
   // XXX When we get typedef templates these class definitions
   // will be unnecessary.
 
@@ -59,7 +56,7 @@ namespace tr1
 			Hash, Internal::mod_range_hashing,
 			Internal::default_ranged_hash,
 			Internal::prime_rehash_policy,
-			cache_hash_code, true, true>
+			cache_hash_code, false, true>
     {
       typedef hashtable <Key, std::pair<const Key, T>,
 			 Alloc,
@@ -67,7 +64,7 @@ namespace tr1
 			 Hash, Internal::mod_range_hashing,
 			 Internal::default_ranged_hash,
 			 Internal::prime_rehash_policy,
-			 cache_hash_code, true, true>
+			 cache_hash_code, false, true>
         Base;
 
     public:
@@ -110,7 +107,7 @@ namespace tr1
 			Hash, Internal::mod_range_hashing,
 			Internal::default_ranged_hash,
 			Internal::prime_rehash_policy,
-			cache_hash_code, true, false>
+			cache_hash_code, false, false>
     {
       typedef hashtable <Key, std::pair<const Key, T>,
 			 Alloc,
@@ -118,7 +115,7 @@ namespace tr1
 			 Hash, Internal::mod_range_hashing,
 			 Internal::default_ranged_hash,
 			 Internal::prime_rehash_policy,
-			 cache_hash_code, true, false>
+			 cache_hash_code, false, false>
         Base;
 
     public:
@@ -164,7 +161,7 @@ namespace tr1
 	 unordered_multimap<Key, T, Hash, Pred, Alloc, cache_hash_code>& y)
     { x.swap(y); }
 
-}
+_GLIBCXX_END_NAMESPACE
 }
 
 #endif /* GNU_LIBSTDCXX_TR1_UNORDERED_MAP_ */

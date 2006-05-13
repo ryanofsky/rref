@@ -59,7 +59,7 @@ reachable_at_most_once (basic_block va_arg_bb, basic_block va_start_bb)
   if (! dominated_by_p (CDI_DOMINATORS, va_arg_bb, va_start_bb))
     return false;
 
-  stack = xmalloc ((n_basic_blocks + 1) * sizeof (edge));
+  stack = XNEWVEC (edge, n_basic_blocks + 1);
   sp = 0;
 
   visited = sbitmap_alloc (last_basic_block);
@@ -125,7 +125,7 @@ va_list_counter_bump (struct stdarg_info *si, tree counter, tree rhs,
     {
       unsigned int i;
 
-      si->offsets = xmalloc (num_ssa_names * sizeof (int));
+      si->offsets = XNEWVEC (int, num_ssa_names);
       for (i = 0; i < num_ssa_names; ++i)
 	si->offsets[i] = -1;
     }
@@ -603,7 +603,7 @@ gate_optimize_stdarg (void)
 
 /* Entry point to the stdarg optimization pass.  */
 
-static void
+static unsigned int
 execute_optimize_stdarg (void)
 {
   basic_block bb;
@@ -624,6 +624,7 @@ execute_optimize_stdarg (void)
   va_list_simple_ptr = POINTER_TYPE_P (va_list_type_node)
 		       && (TREE_TYPE (va_list_type_node) == void_type_node
 			   || TREE_TYPE (va_list_type_node) == char_type_node);
+  gcc_assert (is_gimple_reg_type (va_list_type_node) == va_list_simple_ptr);
 
   FOR_EACH_BB (bb)
     {
@@ -742,6 +743,50 @@ execute_optimize_stdarg (void)
 
       si.compute_sizes = -1;
       si.bb = bb;
+
+      /* For va_list_simple_ptr, we have to check PHI nodes too.  We treat
+	 them as assignments for the purpose of escape analysis.  This is
+	 not needed for non-simple va_list because virtual phis don't perform
+	 any real data movement.  */
+      if (va_list_simple_ptr)
+	{
+	  tree phi, lhs, rhs;
+	  use_operand_p uop;
+	  ssa_op_iter soi;
+
+	  for (phi = phi_nodes (bb); phi; phi = PHI_CHAIN (phi))
+	    {
+	      lhs = PHI_RESULT (phi);
+
+	      if (!is_gimple_reg (lhs))
+		continue;
+
+	      FOR_EACH_PHI_ARG (uop, phi, soi, SSA_OP_USE)
+		{
+		  rhs = USE_FROM_PTR (uop);
+		  if (va_list_ptr_read (&si, rhs, lhs))
+		    continue;
+		  else if (va_list_ptr_write (&si, lhs, rhs))
+		    continue;
+		  else
+		    check_va_list_escapes (&si, lhs, rhs);
+
+		  if (si.va_list_escapes
+		      || walk_tree (&phi, find_va_list_reference,
+				    si.va_list_vars, NULL))
+		    {
+		      if (dump_file && (dump_flags & TDF_DETAILS))
+			{
+			  fputs ("va_list escapes in ", dump_file);
+			  print_generic_expr (dump_file, phi, dump_flags);
+			  fputc ('\n', dump_file);
+			}
+		      va_list_escapes = true;
+		    }
+		}
+	    }
+	}
+
       for (i = bsi_start (bb);
 	   !bsi_end_p (i) && !va_list_escapes;
 	   bsi_next (&i))
@@ -858,6 +903,7 @@ finish:
 	fprintf (dump_file, "%d", cfun->va_list_fpr_size);
       fputs (" FPR units.\n", dump_file);
     }
+  return 0;
 }
 
 

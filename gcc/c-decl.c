@@ -803,6 +803,7 @@ pop_scope (void)
 	case VAR_DECL:
 	  /* Warnings for unused variables.  */
 	  if (!TREE_USED (p)
+	      && !TREE_NO_WARNING (p)
 	      && !DECL_IN_SYSTEM_HEADER (p)
 	      && DECL_NAME (p)
 	      && !DECL_ARTIFICIAL (p)
@@ -1384,7 +1385,14 @@ diagnose_mismatched_decls (tree newdecl, tree olddecl,
     {
       /* Only variables can be thread-local, and all declarations must
 	 agree on this property.  */
-      if (DECL_THREAD_LOCAL_P (newdecl) != DECL_THREAD_LOCAL_P (olddecl))
+      if (C_DECL_THREADPRIVATE_P (olddecl) && !DECL_THREAD_LOCAL_P (newdecl))
+	{
+	  /* Nothing to check.  Since OLDDECL is marked threadprivate
+	     and NEWDECL does not have a thread-local attribute, we
+	     will merge the threadprivate attribute into NEWDECL.  */
+	  ;
+	}
+      else if (DECL_THREAD_LOCAL_P (newdecl) != DECL_THREAD_LOCAL_P (olddecl))
 	{
 	  if (DECL_THREAD_LOCAL_P (newdecl))
 	    error ("thread-local declaration of %q+D follows "
@@ -1671,6 +1679,13 @@ merge_decls (tree newdecl, tree olddecl, tree newtype, tree oldtype)
    if (DECL_INITIAL (newdecl) == 0)
     DECL_INITIAL (newdecl) = DECL_INITIAL (olddecl);
 
+  /* Merge the threadprivate attribute.  */
+  if (TREE_CODE (olddecl) == VAR_DECL && C_DECL_THREADPRIVATE_P (olddecl))
+    {
+      DECL_TLS_MODEL (newdecl) = DECL_TLS_MODEL (olddecl);
+      C_DECL_THREADPRIVATE_P (newdecl) = 1;
+    }
+
    if (CODE_CONTAINS_STRUCT (TREE_CODE (olddecl), TS_DECL_WITH_VIS))
      {
        /* Merge the unused-warning information.  */
@@ -1876,7 +1891,11 @@ duplicate_decls (tree newdecl, tree olddecl)
   tree newtype = NULL, oldtype = NULL;
 
   if (!diagnose_mismatched_decls (newdecl, olddecl, &newtype, &oldtype))
-    return false;
+    {
+      /* Avoid `unused variable' and other warnings warnings for OLDDECL.  */
+      TREE_NO_WARNING (olddecl) = 1;
+      return false;
+    }
 
   merge_decls (newdecl, olddecl, newtype, oldtype);
   return true;
@@ -3049,6 +3068,33 @@ set_array_declarator_inner (struct c_declarator *decl,
     error ("static or type qualifiers in abstract declarator");
   return decl;
 }
+
+/* INIT is a constructor that forms DECL's initializer.  If the final
+   element initializes a flexible array field, add the size of that
+   initializer to DECL's size.  */
+
+static void
+add_flexible_array_elts_to_size (tree decl, tree init)
+{
+  tree elt, type;
+
+  if (VEC_empty (constructor_elt, CONSTRUCTOR_ELTS (init)))
+    return;
+
+  elt = VEC_last (constructor_elt, CONSTRUCTOR_ELTS (init))->value;
+  type = TREE_TYPE (elt);
+  if (TREE_CODE (type) == ARRAY_TYPE
+      && TYPE_SIZE (type) == NULL_TREE
+      && TYPE_DOMAIN (type) != NULL_TREE
+      && TYPE_MAX_VALUE (TYPE_DOMAIN (type)) == NULL_TREE)
+    {
+      complete_array_type (&type, elt, false);
+      DECL_SIZE (decl)
+	= size_binop (PLUS_EXPR, DECL_SIZE (decl), TYPE_SIZE (type));
+      DECL_SIZE_UNIT (decl)
+	= size_binop (PLUS_EXPR, DECL_SIZE_UNIT (decl), TYPE_SIZE_UNIT (type));
+    }
+}
 
 /* Decode a "typename", such as "int **", returning a ..._TYPE node.  */
 
@@ -3348,6 +3394,9 @@ finish_decl (tree decl, tree init, tree asmspec_tree)
 
   if (TREE_CODE (decl) == VAR_DECL)
     {
+      if (init && TREE_CODE (init) == CONSTRUCTOR)
+	add_flexible_array_elts_to_size (decl, init);
+
       if (DECL_SIZE (decl) == 0 && TREE_TYPE (decl) != error_mark_node
 	  && COMPLETE_TYPE_P (TREE_TYPE (decl)))
 	layout_decl (decl, 0);
@@ -3426,8 +3475,6 @@ finish_decl (tree decl, tree init, tree asmspec_tree)
 	      && !TREE_STATIC (decl))
 	    warning (0, "ignoring asm-specifier for non-static local "
 		     "variable %q+D", decl);
-	  else if (C_DECL_REGISTER (decl))
-	    change_decl_assembler_name (decl, get_identifier (asmspec));
 	  else
 	    set_user_assembler_name (decl, asmspec);
 	}
@@ -3598,8 +3645,6 @@ mark_forward_parm_decls (void)
       TREE_ASM_WRITTEN (b->decl) = 1;
 }
 
-static GTY(()) int compound_literal_number;
-
 /* Build a COMPOUND_LITERAL_EXPR.  TYPE is the type given in the compound
    literal, which may be an incomplete array type completed by the
    initializer; INIT is a CONSTRUCTOR that initializes the compound
@@ -3649,14 +3694,8 @@ build_compound_literal (tree type, tree init)
 
   if (TREE_STATIC (decl))
     {
-      /* This decl needs a name for the assembler output.  We also need
-	 a unique suffix to be added to the name.  */
-      char *name;
-
-      ASM_FORMAT_PRIVATE_NAME (name, "__compound_literal",
-			       compound_literal_number);
-      compound_literal_number++;
-      DECL_NAME (decl) = get_identifier (name);
+      /* This decl needs a name for the assembler output.  */
+      set_compound_literal_name (decl);
       DECL_DEFER_OUTPUT (decl) = 1;
       DECL_COMDAT (decl) = 1;
       DECL_ARTIFICIAL (decl) = 1;
@@ -3745,6 +3784,7 @@ check_bitfield_type_and_width (tree *type, tree *width, const char *orig_name)
 
   type_mv = TYPE_MAIN_VARIANT (*type);
   if (pedantic
+      && !in_system_header
       && type_mv != integer_type_node
       && type_mv != unsigned_type_node
       && type_mv != boolean_type_node)
@@ -3774,29 +3814,6 @@ check_bitfield_type_and_width (tree *type, tree *width, const char *orig_name)
     }
 }
 
-/* Build a bit-field integer type for the given WIDTH and UNSIGNEDP.  */
-static tree
-c_build_bitfield_integer_type (unsigned HOST_WIDE_INT width, int unsignedp)
-{
-  /* Extended integer types of the same width as a standard type have
-     lesser rank, so those of the same width as int promote to int or
-     unsigned int and are valid for printf formats expecting int or
-     unsigned int.  To avoid such special cases, avoid creating
-     extended integer types for bit-fields if a standard integer type
-     is available.  */
-  if (width == TYPE_PRECISION (integer_type_node))
-    return unsignedp ? unsigned_type_node : integer_type_node;
-  if (width == TYPE_PRECISION (signed_char_type_node))
-    return unsignedp ? unsigned_char_type_node : signed_char_type_node;
-  if (width == TYPE_PRECISION (short_integer_type_node))
-    return unsignedp ? short_unsigned_type_node : short_integer_type_node;
-  if (width == TYPE_PRECISION (long_integer_type_node))
-    return unsignedp ? long_unsigned_type_node : long_integer_type_node;
-  if (width == TYPE_PRECISION (long_long_integer_type_node))
-    return (unsignedp ? long_long_unsigned_type_node
-	    : long_long_integer_type_node);
-  return build_nonstandard_integer_type (width, unsignedp);
-}
 
 /* Given declspecs and a declarator,
    determine the name and type of the object declared
@@ -4011,8 +4028,13 @@ grokdeclarator (const struct c_declarator *declarator,
 	   && !funcdef_flag)
     {
       /* 'extern' with initialization is invalid if not at file scope.  */
-      if (current_scope == file_scope)
-	warning (0, "%qs initialized and declared %<extern%>", name);
+       if (current_scope == file_scope)
+         {
+           /* It is fine to have 'extern const' when compiling at C
+              and C++ intersection.  */
+           if (!(warn_cxx_compat && constp))
+             warning (0, "%qs initialized and declared %<extern%>", name);
+         }
       else
 	error ("%qs has both %<extern%> and initializer", name);
     }
@@ -4250,16 +4272,19 @@ grokdeclarator (const struct c_declarator *declarator,
 	    else
 	      type = build_array_type (type, itype);
 
-	    if (size_varies)
-	      C_TYPE_VARIABLE_SIZE (type) = 1;
-
-	    /* The GCC extension for zero-length arrays differs from
-	       ISO flexible array members in that sizeof yields
-	       zero.  */
-	    if (size && integer_zerop (size))
+	    if (type != error_mark_node)
 	      {
-		TYPE_SIZE (type) = bitsize_zero_node;
-		TYPE_SIZE_UNIT (type) = size_zero_node;
+		if (size_varies)
+		C_TYPE_VARIABLE_SIZE (type) = 1;
+
+		/* The GCC extension for zero-length arrays differs from
+		   ISO flexible array members in that sizeof yields
+		   zero.  */
+		if (size && integer_zerop (size))
+		  {
+		    TYPE_SIZE (type) = bitsize_zero_node;
+		    TYPE_SIZE_UNIT (type) = size_zero_node;
+		  }
 	      }
 
 	    if (decl_context != PARM
@@ -4688,11 +4713,10 @@ grokdeclarator (const struct c_declarator *declarator,
 	/* At file scope, the presence of a `static' or `register' storage
 	   class specifier, or the absence of all storage class specifiers
 	   makes this declaration a definition (perhaps tentative).  Also,
-	   the absence of both `static' and `register' makes it public.  */
+	   the absence of `static' makes it public.  */
 	if (current_scope == file_scope)
 	  {
-	    TREE_PUBLIC (decl) = !(storage_class == csc_static
-				   || storage_class == csc_register);
+	    TREE_PUBLIC (decl) = storage_class != csc_static;
 	    TREE_STATIC (decl) = !extern_ref;
 	  }
 	/* Not at file scope, only `static' makes a static definition.  */
@@ -5316,7 +5340,9 @@ finish_struct (tree t, tree fieldlist, tree attributes)
   for (x = fieldlist; x; x = TREE_CHAIN (x))
     {
       DECL_CONTEXT (x) = t;
-      DECL_PACKED (x) |= TYPE_PACKED (t);
+
+      if (TYPE_PACKED (t) && TYPE_ALIGN (TREE_TYPE (x)) > BITS_PER_UNIT)
+	DECL_PACKED (x) = 1;
 
       /* If any field is const, the structure type is pseudo-const.  */
       if (TREE_READONLY (x))
@@ -6450,21 +6476,25 @@ store_parm_decls (void)
   cfun->x_dont_save_pending_sizes_p = 1;
 }
 
-/* Handle attribute((warn_unused_result)) on FNDECL and all its nested
-   functions.  */
+/* Emit diagnostics that require gimple input for detection.  Operate on
+   FNDECL and all its nested functions.  */
 
 static void
-c_warn_unused_result_recursively (tree fndecl)
+c_gimple_diagnostics_recursively (tree fndecl)
 {
   struct cgraph_node *cgn;
 
   /* Handle attribute((warn_unused_result)).  Relies on gimple input.  */
   c_warn_unused_result (&DECL_SAVED_TREE (fndecl));
 
+  /* Notice when OpenMP structured block constraints are violated.  */
+  if (flag_openmp)
+    diagnose_omp_structured_block_errors (fndecl);
+
   /* Finalize all nested functions now.  */
   cgn = cgraph_node (fndecl);
   for (cgn = cgn->nested; cgn ; cgn = cgn->next_nested)
-    c_warn_unused_result_recursively (cgn->decl);
+    c_gimple_diagnostics_recursively (cgn->decl);
 }
 
 /* Finish up a function declaration and compile that function
@@ -6592,7 +6622,7 @@ finish_function (void)
       if (!decl_function_context (fndecl))
         {
           c_genericize (fndecl);
-          c_warn_unused_result_recursively (fndecl);
+          c_gimple_diagnostics_recursively (fndecl);
 
 	  /* ??? Objc emits functions after finalizing the compilation unit.
 	     This should be cleaned up later and this conditional removed.  */
@@ -6646,11 +6676,15 @@ c_expand_body (tree fndecl)
 }
 
 /* Check the declarations given in a for-loop for satisfying the C99
-   constraints.  */
-void
+   constraints.  If exactly one such decl is found, return it.  */
+
+tree
 check_for_loop_decls (void)
 {
   struct c_binding *b;
+  tree one_decl = NULL_TREE;
+  int n_decls = 0;
+
 
   if (!flag_isoc99)
     {
@@ -6658,7 +6692,7 @@ check_for_loop_decls (void)
 	 the C99 for loop scope.  This doesn't make much sense, so don't
 	 allow it.  */
       error ("%<for%> loop initial declaration used outside C99 mode");
-      return;
+      return NULL_TREE;
     }
   /* C99 subclause 6.8.5 paragraph 3:
 
@@ -6709,7 +6743,12 @@ check_for_loop_decls (void)
 	  error ("declaration of non-variable %q+D in %<for%> loop "
 		 "initial declaration", decl);
 	}
+
+      n_decls++;
+      one_decl = decl;
     }
+
+  return n_decls == 1 ? one_decl : NULL_TREE;
 }
 
 /* Save and reinitialize the variables
@@ -7057,6 +7096,15 @@ declspecs_add_type (struct c_declspecs *specs, struct c_typespec spec)
 	      else if (specs->typespec_word == cts_float)
 		error ("both %<long%> and %<float%> in "
 		       "declaration specifiers");
+	      else if (specs->typespec_word == cts_dfloat32)
+		error ("both %<long%> and %<_Decimal32%> in "
+		       "declaration specifiers");
+	      else if (specs->typespec_word == cts_dfloat64)
+		error ("both %<long%> and %<_Decimal64%> in "
+		       "declaration specifiers");
+	      else if (specs->typespec_word == cts_dfloat128)
+		error ("both %<long%> and %<_Decimal128%> in "
+		       "declaration specifiers");
 	      else
 		specs->long_p = true;
 	      break;
@@ -7080,6 +7128,15 @@ declspecs_add_type (struct c_declspecs *specs, struct c_typespec spec)
 	      else if (specs->typespec_word == cts_double)
 		error ("both %<short%> and %<double%> in "
 		       "declaration specifiers");
+	      else if (specs->typespec_word == cts_dfloat32)
+                error ("both %<short%> and %<_Decimal32%> in "
+		       "declaration specifiers");
+	      else if (specs->typespec_word == cts_dfloat64)
+		error ("both %<short%> and %<_Decimal64%> in "
+		                        "declaration specifiers");
+	      else if (specs->typespec_word == cts_dfloat128)
+		error ("both %<short%> and %<_Decimal128%> in "
+		       "declaration specifiers");
 	      else
 		specs->short_p = true;
 	      break;
@@ -7099,6 +7156,15 @@ declspecs_add_type (struct c_declspecs *specs, struct c_typespec spec)
 		       "declaration specifiers");
 	      else if (specs->typespec_word == cts_double)
 		error ("both %<signed%> and %<double%> in "
+		       "declaration specifiers");
+	      else if (specs->typespec_word == cts_dfloat32)
+		error ("both %<signed%> and %<_Decimal32%> in "
+		       "declaration specifiers");
+	      else if (specs->typespec_word == cts_dfloat64)
+		error ("both %<signed%> and %<_Decimal64%> in "
+		       "declaration specifiers");
+	      else if (specs->typespec_word == cts_dfloat128)
+		error ("both %<signed%> and %<_Decimal128%> in "
 		       "declaration specifiers");
 	      else
 		specs->signed_p = true;
@@ -7120,6 +7186,15 @@ declspecs_add_type (struct c_declspecs *specs, struct c_typespec spec)
 	      else if (specs->typespec_word == cts_double)
 		error ("both %<unsigned%> and %<double%> in "
 		       "declaration specifiers");
+              else if (specs->typespec_word == cts_dfloat32)
+		error ("both %<unsigned%> and %<_Decimal32%> in "
+		       "declaration specifiers");
+	      else if (specs->typespec_word == cts_dfloat64)
+		error ("both %<unsigned%> and %<_Decimal64%> in "
+		       "declaration specifiers");
+	      else if (specs->typespec_word == cts_dfloat128)
+		error ("both %<unsigned%> and %<_Decimal128%> in "
+		       "declaration specifiers");
 	      else
 		specs->unsigned_p = true;
 	      break;
@@ -7132,6 +7207,15 @@ declspecs_add_type (struct c_declspecs *specs, struct c_typespec spec)
 		       "declaration specifiers");
 	      else if (specs->typespec_word == cts_bool)
 		error ("both %<complex%> and %<_Bool%> in "
+		       "declaration specifiers");
+              else if (specs->typespec_word == cts_dfloat32)
+		error ("both %<complex%> and %<_Decimal32%> in "
+		       "declaration specifiers");
+	      else if (specs->typespec_word == cts_dfloat64)
+		error ("both %<complex%> and %<_Decimal64%> in "
+		       "declaration specifiers");
+	      else if (specs->typespec_word == cts_dfloat128)
+		error ("both %<complex%> and %<_Decimal128%> in "
 		       "declaration specifiers");
 	      else
 		specs->complex_p = true;
@@ -7237,6 +7321,47 @@ declspecs_add_type (struct c_declspecs *specs, struct c_typespec spec)
 		       "declaration specifiers");
 	      else
 		specs->typespec_word = cts_double;
+	      return specs;
+	    case RID_DFLOAT32:
+	    case RID_DFLOAT64:
+	    case RID_DFLOAT128:
+	      { 
+		const char *str;
+		if (i == RID_DFLOAT32)
+		  str = "_Decimal32";
+		else if (i == RID_DFLOAT64)
+		  str = "_Decimal64";
+		else
+		  str = "_Decimal128";
+		if (specs->long_long_p)
+		  error ("both %<long long%> and %<%s%> in "
+			 "declaration specifiers", str);
+		if (specs->long_p)
+		  error ("both %<long%> and %<%s%> in "
+			 "declaration specifiers", str);
+		else if (specs->short_p)
+		  error ("both %<short%> and %<%s%> in "
+			 "declaration specifiers", str);
+		else if (specs->signed_p)
+		  error ("both %<signed%> and %<%s%> in "
+			 "declaration specifiers", str);
+		else if (specs->unsigned_p)
+		  error ("both %<unsigned%> and %<%s%> in "
+			 "declaration specifiers", str);
+                else if (specs->complex_p)
+                  error ("both %<complex%> and %<%s%> in "
+                         "declaration specifiers", str);
+		else if (i == RID_DFLOAT32)
+		  specs->typespec_word = cts_dfloat32;
+		else if (i == RID_DFLOAT64)
+		  specs->typespec_word = cts_dfloat64;
+		else
+		  specs->typespec_word = cts_dfloat128;
+	      }
+	      if (!targetm.decimal_float_supported_p ())
+		error ("decimal floating point not supported for this target");
+	      if (pedantic)
+		pedwarn ("ISO C does not support decimal floating point");
 	      return specs;
 	    default:
 	      /* ObjC reserved word "id", handled below.  */
@@ -7515,6 +7640,18 @@ finish_declspecs (struct c_declspecs *specs)
 			 : double_type_node);
 	}
       break;
+    case cts_dfloat32:
+    case cts_dfloat64:
+    case cts_dfloat128:
+      gcc_assert (!specs->long_p && !specs->long_long_p && !specs->short_p
+		  && !specs->signed_p && !specs->unsigned_p && !specs->complex_p);
+      if (specs->typespec_word == cts_dfloat32)
+	specs->type = dfloat32_type_node;
+      else if (specs->typespec_word == cts_dfloat64)
+	specs->type = dfloat64_type_node;
+      else
+	specs->type = dfloat128_type_node;
+      break;
     default:
       gcc_unreachable ();
     }
@@ -7548,6 +7685,7 @@ static void
 c_write_global_declarations_1 (tree globals)
 {
   tree decl;
+  bool reconsider;
 
   /* Process the decls in the order they were written.  */
   for (decl = globals; decl; decl = TREE_CHAIN (decl))
@@ -7566,9 +7704,18 @@ c_write_global_declarations_1 (tree globals)
 	}
 
       wrapup_global_declaration_1 (decl);
-      wrapup_global_declaration_2 (decl);
-      check_global_declaration_1 (decl);
     }
+
+  do
+    {
+      reconsider = false;
+      for (decl = globals; decl; decl = TREE_CHAIN (decl))
+	reconsider |= wrapup_global_declaration_2 (decl);
+    }
+  while (reconsider);
+
+  for (decl = globals; decl; decl = TREE_CHAIN (decl))
+    check_global_declaration_1 (decl);
 }
 
 /* A subroutine of c_write_global_declarations Emit debug information for each

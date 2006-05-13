@@ -46,7 +46,6 @@ static cp_lvalue_kind lvalue_p_1 (tree, int);
 static tree build_target_expr (tree, tree);
 static tree count_trees_r (tree *, int *, void *);
 static tree verify_stmt_tree_r (tree *, int *, void *);
-static tree find_tree_r (tree *, int *, void *);
 static tree build_local_temp (tree);
 
 static tree handle_java_interface_attribute (tree *, tree, tree, int, bool *);
@@ -87,9 +86,6 @@ lvalue_p_1 (tree ref,
     case COMPONENT_REF:
       op1_lvalue_kind = lvalue_p_1 (TREE_OPERAND (ref, 0),
 				    treat_class_rvalues_as_lvalues);
-      /* In an expression of the form "X.Y", the packed-ness of the
-	 expression does not depend on "X".  */
-      op1_lvalue_kind &= ~clk_packed;
       /* Look at the member designator.  */
       if (!op1_lvalue_kind
 	  /* The "field" can be a FUNCTION_DECL or an OVERLOAD in some
@@ -158,8 +154,12 @@ lvalue_p_1 (tree ref,
     case TARGET_EXPR:
       return treat_class_rvalues_as_lvalues ? clk_class : clk_none;
 
-    case CALL_EXPR:
     case VA_ARG_EXPR:
+      return (treat_class_rvalues_as_lvalues
+	      && CLASS_TYPE_P (TREE_TYPE (ref))
+	      ? clk_class : clk_none);
+
+    case CALL_EXPR:
       /* Any class-valued call would be wrapped in a TARGET_EXPR.  */
       return clk_none;
 
@@ -321,8 +321,6 @@ build_cplus_new (tree type, tree init)
 tree
 build_target_expr_with_type (tree init, tree type)
 {
-  tree slot;
-
   gcc_assert (!VOID_TYPE_P (type));
 
   if (TREE_CODE (init) == TARGET_EXPR)
@@ -338,8 +336,7 @@ build_target_expr_with_type (tree init, tree type)
        aggregate; there's no additional work to be done.  */
     return force_rvalue (init);
 
-  slot = build_local_temp (type);
-  return build_target_expr (slot, init);
+  return force_target_expr (type, init);
 }
 
 /* Like the above function, but without the checking.  This function should
@@ -374,6 +371,9 @@ rvalue (tree expr)
   tree type;
   if (real_lvalue_p (expr))
     {
+      type = is_bitfield_expr_with_lowered_type (expr);
+      if (type)
+	return cp_convert (TYPE_MAIN_VARIANT (type), expr);
       type = TREE_TYPE (expr);
       /* [basic.lval]
 	 
@@ -759,7 +759,7 @@ hash_tree_cons (tree purpose, tree value, tree chain)
   /* If not, create a new node.  */
   if (!*slot)
     *slot = tree_cons (purpose, value, chain);
-  return *slot;
+  return (tree) *slot;
 }
 
 /* Constructor for hashed lists.  */
@@ -801,6 +801,27 @@ debug_binfo (tree elem)
     }
 }
 
+/* Build a representation for the qualified name SCOPE::NAME.  TYPE is
+   the type of the result expression, if known, or NULL_TREE if the
+   resulting expression is type-dependent.  If TEMPLATE_P is true,
+   NAME is known to be a template because the user explicitly used the
+   "template" keyword after the "::".   
+
+   All SCOPE_REFs should be built by use of this function.  */
+
+tree
+build_qualified_name (tree type, tree scope, tree name, bool template_p)
+{
+  tree t;
+  if (type == error_mark_node
+      || scope == error_mark_node
+      || name == error_mark_node)
+    return error_mark_node;
+  t = build2 (SCOPE_REF, type, scope, name);
+  QUALIFIED_NAME_IS_TEMPLATE (t) = template_p;
+  return t;
+}
+
 int
 is_overloaded_fn (tree x)
 {
@@ -818,9 +839,9 @@ is_overloaded_fn (tree x)
 int
 really_overloaded_fn (tree x)
 {
-  /* A baselink is also considered an overloaded function.  */
   if (TREE_CODE (x) == OFFSET_REF)
     x = TREE_OPERAND (x, 1);
+  /* A baselink is also considered an overloaded function.  */
   if (BASELINK_P (x))
     x = BASELINK_FUNCTIONS (x);
 
@@ -1018,27 +1039,6 @@ verify_stmt_tree (tree t)
   htab_delete (statements);
 }
 
-/* Called from find_tree via walk_tree.  */
-
-static tree
-find_tree_r (tree* tp,
-	     int* walk_subtrees ATTRIBUTE_UNUSED ,
-	     void* data)
-{
-  if (*tp == (tree) data)
-    return (tree) data;
-
-  return NULL_TREE;
-}
-
-/* Returns X if X appears in the tree structure rooted at T.  */
-
-tree
-find_tree (tree t, tree x)
-{
-  return walk_tree_without_duplicates (&t, find_tree_r, x);
-}
-
 /* Check if the type T depends on a type with no linkage and if so, return
    it.  If RELAXED_P then do not consider a class type declared within
    a TREE_PUBLIC function to have no linkage.  */
@@ -1176,16 +1176,11 @@ bot_manip (tree* tp, int* walk_subtrees, void* data)
       tree u;
 
       if (TREE_CODE (TREE_OPERAND (t, 1)) == AGGR_INIT_EXPR)
-	{
-	  mark_used (TREE_OPERAND (TREE_OPERAND (TREE_OPERAND (t, 1), 0), 0));
-	  u = build_cplus_new
-	    (TREE_TYPE (t), break_out_target_exprs (TREE_OPERAND (t, 1)));
-	}
+	u = build_cplus_new
+	  (TREE_TYPE (t), break_out_target_exprs (TREE_OPERAND (t, 1)));
       else
-	{
-	  u = build_target_expr_with_type
-	    (break_out_target_exprs (TREE_OPERAND (t, 1)), TREE_TYPE (t));
-	}
+	u = build_target_expr_with_type
+	  (break_out_target_exprs (TREE_OPERAND (t, 1)), TREE_TYPE (t));
 
       /* Map the old variable to the new one.  */
       splay_tree_insert (target_remap,
@@ -1200,8 +1195,6 @@ bot_manip (tree* tp, int* walk_subtrees, void* data)
       *walk_subtrees = 0;
       return NULL_TREE;
     }
-  else if (TREE_CODE (t) == CALL_EXPR)
-    mark_used (TREE_OPERAND (TREE_OPERAND (t, 0), 0));
 
   /* Make a copy of this node.  */
   return copy_tree_r (tp, walk_subtrees, NULL);

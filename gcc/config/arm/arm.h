@@ -1,6 +1,6 @@
 /* Definitions of target machine for GNU compiler, for ARM.
    Copyright (C) 1991, 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000,
-   2001, 2002, 2003, 2004, 2005 Free Software Foundation, Inc.
+   2001, 2002, 2003, 2004, 2005, 2006 Free Software Foundation, Inc.
    Contributed by Pieter `Tiggr' Schoenmakers (rcpieter@win.tue.nl)
    and Martin Simmons (@harleqn.co.uk).
    More major hacks by Richard Earnshaw (rearnsha@arm.com)
@@ -192,6 +192,9 @@ extern GTY(()) rtx aof_pic_label;
 #define TARGET_AAPCS_BASED \
     (arm_abi != ARM_ABI_APCS && arm_abi != ARM_ABI_ATPCS)
 
+#define TARGET_HARD_TP			(target_thread_pointer == TP_CP15)
+#define TARGET_SOFT_TP			(target_thread_pointer == TP_SOFT)
+
 /* True iff the full BPABI is being used.  If TARGET_BPABI is true,
    then TARGET_AAPCS_BASED must be true -- but the converse does not
    hold.  TARGET_BPABI implies the use of the BPABI runtime library,
@@ -217,7 +220,8 @@ extern GTY(()) rtx aof_pic_label;
   {"float", \
     "%{!msoft-float:%{!mhard-float:%{!mfloat-abi=*:-mfloat-abi=%(VALUE)}}}" }, \
   {"fpu", "%{!mfpu=*:-mfpu=%(VALUE)}"}, \
-  {"abi", "%{!mabi=*:-mabi=%(VALUE)}"},
+  {"abi", "%{!mabi=*:-mabi=%(VALUE)}"}, \
+  {"mode", "%{!marm:%{!mthumb:-m%(VALUE)}}"},
 
 /* Which floating point model to use.  */
 enum arm_fp_model
@@ -279,7 +283,8 @@ enum arm_abi_type
   ARM_ABI_APCS,
   ARM_ABI_ATPCS,
   ARM_ABI_AAPCS,
-  ARM_ABI_IWMMXT
+  ARM_ABI_IWMMXT,
+  ARM_ABI_AAPCS_LINUX
 };
 
 extern enum arm_abi_type arm_abi;
@@ -287,6 +292,15 @@ extern enum arm_abi_type arm_abi;
 #ifndef ARM_DEFAULT_ABI
 #define ARM_DEFAULT_ABI ARM_ABI_APCS
 #endif
+
+/* Which thread pointer access sequence to use.  */
+enum arm_tp_type {
+  TP_AUTO,
+  TP_SOFT,
+  TP_CP15
+};
+
+extern enum arm_tp_type target_thread_pointer;
 
 /* Nonzero if this chip supports the ARM Architecture 3M extensions.  */
 extern int arm_arch3m;
@@ -499,6 +513,10 @@ extern int arm_structure_size_boundary;
 
 #ifndef SIZE_TYPE
 #define SIZE_TYPE (TARGET_AAPCS_BASED ? "unsigned int" : "long unsigned int")
+#endif
+
+#ifndef PTRDIFF_TYPE
+#define PTRDIFF_TYPE (TARGET_AAPCS_BASED ? "int" : "long int")
 #endif
 
 /* AAPCS requires that structure alignment is affected by bitfields.  */
@@ -1043,119 +1061,6 @@ enum reg_class
    registers.  */
 #define SMALL_REGISTER_CLASSES   TARGET_THUMB
 
-/* Get reg_class from a letter such as appears in the machine description.
-   We only need constraint `f' for FPA_REGS (`r' == GENERAL_REGS) for the
-   ARM, but several more letters for the Thumb.  */
-#define REG_CLASS_FROM_LETTER(C)  	\
-  (  (C) == 'f' ? FPA_REGS		\
-   : (C) == 'v' ? CIRRUS_REGS		\
-   : (C) == 'w' ? VFP_REGS		\
-   : (C) == 'y' ? IWMMXT_REGS		\
-   : (C) == 'z' ? IWMMXT_GR_REGS	\
-   : (C) == 'l' ? (TARGET_ARM ? GENERAL_REGS : LO_REGS)	\
-   : TARGET_ARM ? NO_REGS		\
-   : (C) == 'h' ? HI_REGS		\
-   : (C) == 'b' ? BASE_REGS		\
-   : (C) == 'k' ? STACK_REG		\
-   : (C) == 'c' ? CC_REG		\
-   : NO_REGS)
-
-/* The letters I, J, K, L and M in a register constraint string
-   can be used to stand for particular ranges of immediate operands.
-   This macro defines what the ranges are.
-   C is the letter, and VALUE is a constant value.
-   Return 1 if VALUE is in the range specified by C.
-	I: immediate arithmetic operand (i.e. 8 bits shifted as required).
-	J: valid indexing constants.
-	K: ~value ok in rhs argument of data operand.
-	L: -value ok in rhs argument of data operand.
-        M: 0..32, or a power of 2  (for shifts, or mult done by shift).  */
-#define CONST_OK_FOR_ARM_LETTER(VALUE, C)  		\
-  ((C) == 'I' ? const_ok_for_arm (VALUE) :		\
-   (C) == 'J' ? ((VALUE) < 4096 && (VALUE) > -4096) :	\
-   (C) == 'K' ? (const_ok_for_arm (~(VALUE))) :		\
-   (C) == 'L' ? (const_ok_for_arm (-(VALUE))) :		\
-   (C) == 'M' ? (((VALUE >= 0 && VALUE <= 32))		\
-		 || (((VALUE) & ((VALUE) - 1)) == 0))	\
-   : 0)
-
-#define CONST_OK_FOR_THUMB_LETTER(VAL, C)		\
-  ((C) == 'I' ? (unsigned HOST_WIDE_INT) (VAL) < 256 :	\
-   (C) == 'J' ? (VAL) > -256 && (VAL) < 0 :		\
-   (C) == 'K' ? thumb_shiftable_const (VAL) :		\
-   (C) == 'L' ? (VAL) > -8 && (VAL) < 8	:		\
-   (C) == 'M' ? ((unsigned HOST_WIDE_INT) (VAL) < 1024	\
-		   && ((VAL) & 3) == 0) :		\
-   (C) == 'N' ? ((unsigned HOST_WIDE_INT) (VAL) < 32) :	\
-   (C) == 'O' ? ((VAL) >= -508 && (VAL) <= 508)		\
-   : 0)
-
-#define CONST_OK_FOR_LETTER_P(VALUE, C)					\
-  (TARGET_ARM ?								\
-   CONST_OK_FOR_ARM_LETTER (VALUE, C) : CONST_OK_FOR_THUMB_LETTER (VALUE, C))
-
-/* Constant letter 'G' for the FP immediate constants.
-   'H' means the same constant negated.  */
-#define CONST_DOUBLE_OK_FOR_ARM_LETTER(X, C)			\
-    ((C) == 'G' ? arm_const_double_rtx (X) :			\
-     (C) == 'H' ? neg_const_double_rtx_ok_for_fpa (X) : 0)
-
-#define CONST_DOUBLE_OK_FOR_LETTER_P(X, C)			\
-  (TARGET_ARM ?							\
-   CONST_DOUBLE_OK_FOR_ARM_LETTER (X, C) : 0)
-
-/* For the ARM, `Q' means that this is a memory operand that is just
-   an offset from a register.
-   `S' means any symbol that has the SYMBOL_REF_FLAG set or a CONSTANT_POOL
-   address.  This means that the symbol is in the text segment and can be
-   accessed without using a load.
-   'D' Prefixes a number of const_double operands where:
-   'Da' is a constant that takes two ARM insns to load.
-   'Db' takes three ARM insns.
-   'Dc' takes four ARM insns, if we allow that in this compilation.
-   'U' Prefixes an extended memory constraint where:
-   'Uv' is an address valid for VFP load/store insns.
-   'Uy' is an address valid for iwmmxt load/store insns.
-   'Uq' is an address valid for ldrsb.  */
-
-#define EXTRA_CONSTRAINT_STR_ARM(OP, C, STR)				\
-  (((C) == 'D') ? ((GET_CODE (OP) == CONST_DOUBLE			\
-		    || GET_CODE (OP) == CONST_INT			\
-		    || GET_CODE (OP) == CONST_VECTOR)			\
-		   && (((STR)[1] == 'a'					\
-			&& arm_const_double_inline_cost (OP) == 2)	\
-		       || ((STR)[1] == 'b'				\
-			   && arm_const_double_inline_cost (OP) == 3)	\
-		       || ((STR)[1] == 'c'				\
-			   && arm_const_double_inline_cost (OP) == 4	\
-			   && !(optimize_size || arm_ld_sched)))) :	\
-   ((C) == 'Q') ? (GET_CODE (OP) == MEM					\
-		 && GET_CODE (XEXP (OP, 0)) == REG) :			\
-   ((C) == 'R') ? (GET_CODE (OP) == MEM					\
-		   && GET_CODE (XEXP (OP, 0)) == SYMBOL_REF		\
-		   && CONSTANT_POOL_ADDRESS_P (XEXP (OP, 0))) :		\
-   ((C) == 'S') ? (optimize > 0 && CONSTANT_ADDRESS_P (OP)) :		\
-   ((C) == 'T') ? cirrus_memory_offset (OP) :				\
-   ((C) == 'U' && (STR)[1] == 'v') ? arm_coproc_mem_operand (OP, FALSE) : \
-   ((C) == 'U' && (STR)[1] == 'y') ? arm_coproc_mem_operand (OP, TRUE) : \
-   ((C) == 'U' && (STR)[1] == 'q')					\
-    ? arm_extendqisi_mem_op (OP, GET_MODE (OP))				\
-   : 0)
-
-#define CONSTRAINT_LEN(C,STR)				\
-  (((C) == 'U' || (C) == 'D') ? 2 : DEFAULT_CONSTRAINT_LEN (C, STR))
-
-#define EXTRA_CONSTRAINT_THUMB(X, C)					\
-  ((C) == 'Q' ? (GET_CODE (X) == MEM					\
-		 && GET_CODE (XEXP (X, 0)) == LABEL_REF) : 0)
-
-#define EXTRA_CONSTRAINT_STR(X, C, STR)		\
-  (TARGET_ARM					\
-   ? EXTRA_CONSTRAINT_STR_ARM (X, C, STR)	\
-   : EXTRA_CONSTRAINT_THUMB (X, C))
-
-#define EXTRA_MEMORY_CONSTRAINT(C, STR) ((C) == 'U')
-
 /* Given an rtx X being reloaded into a reg required to be
    in class CLASS, return the class of reg to actually use.
    In general this is just CLASS, but for the Thumb we prefer
@@ -1502,6 +1407,8 @@ typedef struct machine_function GTY(())
   /* Records if sibcalls are blocked because an argument
      register is needed to preserve stack alignment.  */
   int sibcall_blocked;
+  /* The PIC register for this function.  This might be a pseudo.  */
+  rtx pic_reg;
   /* Labels for per-function Thumb call-via stubs.  One per potential calling
      register.  We can never call via LR or PC.  We can call via SP if a
      trampoline happens to be on the top of the stack.  */
@@ -1510,7 +1417,7 @@ typedef struct machine_function GTY(())
 machine_function;
 
 /* As in the machine_function, a global set of call-via labels, for code 
-   that is in text_section().  */
+   that is in text_section.  */
 extern GTY(()) rtx thumb_call_via_label[14];
 
 /* A C type for declaring a variable that is used as the first argument of
@@ -1877,8 +1784,10 @@ typedef struct
   || CONSTANT_ADDRESS_P (X)		\
   || flag_pic)
 
-#define LEGITIMATE_CONSTANT_P(X)	\
-  (TARGET_ARM ? ARM_LEGITIMATE_CONSTANT_P (X) : THUMB_LEGITIMATE_CONSTANT_P (X))
+#define LEGITIMATE_CONSTANT_P(X)			\
+  (!arm_tls_referenced_p (X)				\
+   && (TARGET_ARM ? ARM_LEGITIMATE_CONSTANT_P (X)	\
+		  : THUMB_LEGITIMATE_CONSTANT_P (X)))
 
 /* Special characters prefixed to function names
    in order to encode attribute like information.
@@ -2187,21 +2096,23 @@ do {							\
 /* We decide which register to use based on the compilation options and
    the assembler in use; this is more general than the APCS restriction of
    using sb (r9) all the time.  */
-extern int arm_pic_register;
+extern unsigned arm_pic_register;
 
 /* The register number of the register used to address a table of static
    data addresses in memory.  */
 #define PIC_OFFSET_TABLE_REGNUM arm_pic_register
 
 /* We can't directly access anything that contains a symbol,
-   nor can we indirect via the constant pool.  */
+   nor can we indirect via the constant pool.  One exception is
+   UNSPEC_TLS, which is always PIC.  */
 #define LEGITIMATE_PIC_OPERAND_P(X)					\
 	(!(symbol_mentioned_p (X)					\
 	   || label_mentioned_p (X)					\
 	   || (GET_CODE (X) == SYMBOL_REF				\
 	       && CONSTANT_POOL_ADDRESS_P (X)				\
 	       && (symbol_mentioned_p (get_pool_constant (X))		\
-		   || label_mentioned_p (get_pool_constant (X))))))
+		   || label_mentioned_p (get_pool_constant (X)))))	\
+	 || tls_mentioned_p (X))
 
 /* We need to know when we are making a constant pool; this determines
    whether data needs to be in the GOT or can be referenced via a GOT
@@ -2482,10 +2393,9 @@ extern int making_const_table;
   else						\
     THUMB_PRINT_OPERAND_ADDRESS (STREAM, X)
 
-#define OUTPUT_ADDR_CONST_EXTRA(FILE, X, FAIL)	\
-  if (GET_CODE (X) != CONST_VECTOR		\
-      || ! arm_emit_vector_const (FILE, X))	\
-    goto FAIL;
+#define OUTPUT_ADDR_CONST_EXTRA(file, x, fail)		\
+  if (arm_output_addr_const_extra (file, x) == FALSE)	\
+    goto fail
 
 /* A C expression whose value is RTL representing the value of the return
    address for the frame COUNT steps up from the current frame.  */
@@ -2676,6 +2586,8 @@ enum arm_builtins
   ARM_BUILTIN_WUNPCKELUB,
   ARM_BUILTIN_WUNPCKELUH,
   ARM_BUILTIN_WUNPCKELUW,
+
+  ARM_BUILTIN_THREAD_POINTER,
 
   ARM_BUILTIN_MAX
 };

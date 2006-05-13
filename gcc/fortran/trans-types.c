@@ -1,5 +1,6 @@
 /* Backend support for Fortran 95 basic types and derived types.
-   Copyright (C) 2002, 2003, 2004, 2005 Free Software Foundation, Inc.
+   Copyright (C) 2002, 2003, 2004, 2005, 2006 Free Software Foundation,
+   Inc.
    Contributed by Paul Brook <paul@nowt.org>
    and Steven Bosscher <s.bosscher@student.tudelft.nl>
 
@@ -152,6 +153,14 @@ gfc_init_kinds (void)
       if (!targetm.scalar_mode_supported_p (mode))
 	continue;
 
+      /* Only let float/double/long double go through because the fortran
+	 library assumes these are the only floating point types.  */
+
+      if (mode != TYPE_MODE (float_type_node)
+	  && (mode != TYPE_MODE (double_type_node))
+          && (mode != TYPE_MODE (long_double_type_node)))
+	continue;
+
       /* Let the kind equal the precision divided by 8, rounding up.  Again,
 	 this insulates the programmer from the underlying byte size.
 
@@ -184,6 +193,15 @@ gfc_init_kinds (void)
       gfc_real_kinds[r_index].digits = fmt->p;
       gfc_real_kinds[r_index].min_exponent = fmt->emin;
       gfc_real_kinds[r_index].max_exponent = fmt->emax;
+      if (fmt->pnan < fmt->p)
+	/* This is an IBM extended double format (or the MIPS variant)
+	   made up of two IEEE doubles.  The value of the long double is
+	   the sum of the values of the two parts.  The most significant
+	   part is required to be the value of the long double rounded
+	   to the nearest double.  If we use emax of 1024 then we can't
+	   represent huge(x) = (1 - b**(-p)) * b**(emax-1) * b, because
+	   rounding will make the most significant part overflow.  */
+	gfc_real_kinds[r_index].max_exponent = fmt->emax - 1;
       gfc_real_kinds[r_index].mode_precision = GET_MODE_PRECISION (mode);
       r_index += 1;
     }
@@ -566,29 +584,29 @@ gfc_init_types (void)
 tree
 gfc_get_int_type (int kind)
 {
-  int index = gfc_validate_kind (BT_INTEGER, kind, false);
-  return gfc_integer_types[index];
+  int index = gfc_validate_kind (BT_INTEGER, kind, true);
+  return index < 0 ? 0 : gfc_integer_types[index];
 }
 
 tree
 gfc_get_real_type (int kind)
 {
-  int index = gfc_validate_kind (BT_REAL, kind, false);
-  return gfc_real_types[index];
+  int index = gfc_validate_kind (BT_REAL, kind, true);
+  return index < 0 ? 0 : gfc_real_types[index];
 }
 
 tree
 gfc_get_complex_type (int kind)
 {
-  int index = gfc_validate_kind (BT_COMPLEX, kind, false);
-  return gfc_complex_types[index];
+  int index = gfc_validate_kind (BT_COMPLEX, kind, true);
+  return index < 0 ? 0 : gfc_complex_types[index];
 }
 
 tree
 gfc_get_logical_type (int kind)
 {
-  int index = gfc_validate_kind (BT_LOGICAL, kind, false);
-  return gfc_logical_types[index];
+  int index = gfc_validate_kind (BT_LOGICAL, kind, true);
+  return index < 0 ? 0 : gfc_logical_types[index];
 }
 
 /* Create a character type with the given kind and length.  */
@@ -1378,13 +1396,57 @@ gfc_add_field_to_struct (tree *fieldlist, tree context,
 }
 
 
-/* Build a tree node for a derived type.  */
+/* Copy the backend_decl and component backend_decls if
+   the two derived type symbols are "equal", as described
+   in 4.4.2 and resolved by gfc_compare_derived_types.  */
+
+static int
+copy_dt_decls_ifequal (gfc_symbol *from, gfc_symbol *to)
+{
+  gfc_component *to_cm;
+  gfc_component *from_cm;
+
+  if (from->backend_decl == NULL
+	|| !gfc_compare_derived_types (from, to))
+    return 0;
+
+  to->backend_decl = from->backend_decl;
+
+  to_cm = to->components;
+  from_cm = from->components;
+
+  /* Copy the component declarations.  If a component is itself
+     a derived type, we need a copy of its component declarations.
+     This is done by recursing into gfc_get_derived_type and
+     ensures that the component's component declarations have
+     been built.  If it is a character, we need the character 
+     length, as well.  */
+  for (; to_cm; to_cm = to_cm->next, from_cm = from_cm->next)
+    {
+      to_cm->backend_decl = from_cm->backend_decl;
+      if (from_cm->ts.type == BT_DERIVED)
+	gfc_get_derived_type (to_cm->ts.derived);
+
+      else if (from_cm->ts.type == BT_CHARACTER)
+	to_cm->ts.cl->backend_decl = from_cm->ts.cl->backend_decl;
+    }
+
+  return 1;
+}
+
+
+/* Build a tree node for a derived type.  If there are equal
+   derived types, with different local names, these are built
+   at the same time.  If an equal derived type has been built
+   in a parent namespace, this is used.  */
 
 static tree
 gfc_get_derived_type (gfc_symbol * derived)
 {
   tree typenode, field, field_type, fieldlist;
   gfc_component *c;
+  gfc_dt_list *dt;
+  gfc_namespace * ns;
 
   gcc_assert (derived && derived->attr.flavor == FL_DERIVED);
 
@@ -1400,6 +1462,29 @@ gfc_get_derived_type (gfc_symbol * derived)
     }
   else
     {
+      /* In a module, if an equal derived type is already available in the
+	 specification block, use its backend declaration and those of its
+	 components, rather than building anew so that potential dummy and
+	 actual arguments use the same TREE_TYPE.  Non-module structures,
+	 need to be built, if found, because the order of visits to the 
+	 namespaces is different.  */
+
+      for (ns = derived->ns->parent; ns; ns = ns->parent)
+	{
+	  for (dt = ns->derived_types; dt; dt = dt->next)
+	    {
+	      if (derived->module == NULL
+		    && dt->derived->backend_decl == NULL
+		    && gfc_compare_derived_types (dt->derived, derived))
+		gfc_get_derived_type (dt->derived);
+
+	      if (copy_dt_decls_ifequal (dt->derived, derived))
+		break;
+	    }
+	  if (derived->backend_decl)
+	    goto other_equal_dts;
+	}
+
       /* We see this derived type first time, so build the type node.  */
       typenode = make_node (RECORD_TYPE);
       TYPE_NAME (typenode) = get_identifier (derived->name);
@@ -1407,21 +1492,30 @@ gfc_get_derived_type (gfc_symbol * derived)
       derived->backend_decl = typenode;
     }
 
+  /* Go through the derived type components, building them as
+     necessary. The reason for doing this now is that it is
+     possible to recurse back to this derived type through a
+     pointer component (PR24092). If this happens, the fields
+     will be built and so we can return the type.  */
+  for (c = derived->components; c; c = c->next)
+    {
+      if (c->ts.type != BT_DERIVED)
+	continue;
+
+      if (!c->pointer || c->ts.derived->backend_decl == NULL)
+	c->ts.derived->backend_decl = gfc_get_derived_type (c->ts.derived);
+    }
+
+  if (TYPE_FIELDS (derived->backend_decl))
+    return derived->backend_decl;
+
   /* Build the type member list. Install the newly created RECORD_TYPE
      node as DECL_CONTEXT of each FIELD_DECL.  */
   fieldlist = NULL_TREE;
   for (c = derived->components; c; c = c->next)
     {
-      if (c->ts.type == BT_DERIVED && c->pointer)
-        {
-          if (c->ts.derived->backend_decl)
-	    /* We already saw this derived type so use the exiting type.
-	       It doesn't matter if it is incomplete.  */
-	    field_type = c->ts.derived->backend_decl;
-          else
-	    /* Recurse into the type.  */
-	    field_type = gfc_get_derived_type (c->ts.derived);
-        }
+      if (c->ts.type == BT_DERIVED)
+        field_type = c->ts.derived->backend_decl;
       else
 	{
 	  if (c->ts.type == BT_CHARACTER)
@@ -1456,8 +1550,9 @@ gfc_get_derived_type (gfc_symbol * derived)
 
       DECL_PACKED (field) |= TYPE_PACKED (typenode);
 
-      gcc_assert (!c->backend_decl);
-      c->backend_decl = field;
+      gcc_assert (field);
+      if (!c->backend_decl)
+	c->backend_decl = field;
     }
 
   /* Now we have the final fieldlist.  Record it, then lay out the
@@ -1468,9 +1563,16 @@ gfc_get_derived_type (gfc_symbol * derived)
 
   derived->backend_decl = typenode;
 
-  return typenode;
+other_equal_dts:
+  /* Add this backend_decl to all the other, equal derived types and
+     their components in this namespace.  */
+  for (dt = derived->ns->derived_types; dt; dt = dt->next)
+    copy_dt_decls_ifequal (derived, dt->derived);
+
+  return derived->backend_decl;
 }
-
+
+
 int
 gfc_return_by_reference (gfc_symbol * sym)
 {

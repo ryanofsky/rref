@@ -37,6 +37,7 @@ Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA
 #include "alloc-pool.h"
 #include "flags.h"
 #include "tree-pass.h"
+#include "vecprim.h"
 
 /* Holds the interesting trailing notes for the function.  */
 rtx cfg_layout_function_footer, cfg_layout_function_header;
@@ -99,7 +100,6 @@ skip_insns_after_block (basic_block bb)
 	case NOTE:
 	  switch (NOTE_LINE_NUMBER (insn))
 	    {
-	    case NOTE_INSN_LOOP_END:
 	    case NOTE_INSN_BLOCK_END:
 	      last_insn = insn;
 	      continue;
@@ -135,12 +135,12 @@ skip_insns_after_block (basic_block bb)
   /* It is possible to hit contradictory sequence.  For instance:
 
      jump_insn
-     NOTE_INSN_LOOP_BEG
+     NOTE_INSN_BLOCK_BEG
      barrier
 
      Where barrier belongs to jump_insn, but the note does not.  This can be
      created by removing the basic block originally following
-     NOTE_INSN_LOOP_BEG.  In such case reorder the notes.  */
+     NOTE_INSN_BLOCK_BEG.  In such case reorder the notes.  */
 
   for (insn = last_insn; insn != BB_END (bb); insn = prev)
     {
@@ -148,7 +148,6 @@ skip_insns_after_block (basic_block bb)
       if (NOTE_P (insn))
 	switch (NOTE_LINE_NUMBER (insn))
 	  {
-	  case NOTE_INSN_LOOP_END:
 	  case NOTE_INSN_BLOCK_END:
 	  case NOTE_INSN_DELETED:
 	  case NOTE_INSN_DELETED_LABEL:
@@ -223,9 +222,6 @@ record_effective_endpoints (void)
     cfg_layout_function_footer = unlink_insn_chain (cfg_layout_function_footer, get_last_insn ());
 }
 
-DEF_VEC_I(int);
-DEF_VEC_ALLOC_I(int,heap);
-
 /* Data structures representing mapping of INSN_LOCATOR into scope blocks, line
    numbers and files.  In order to be GGC friendly we need to use separate
    varrays.  This also slightly improve the memory locality in binary search.
@@ -246,7 +242,7 @@ int epilogue_locator;
    represented via INSN_NOTEs.  Replace them by representation using
    INSN_LOCATORs.  */
 
-void
+unsigned int
 insn_locators_initialize (void)
 {
   tree block = NULL;
@@ -329,6 +325,7 @@ insn_locators_initialize (void)
   set_block_levels (DECL_INITIAL (cfun->decl), 0);
 
   free_block_changes ();
+  return 0;
 }
 
 struct tree_opt_pass pass_insn_locators_initialize =
@@ -601,7 +598,7 @@ fixup_reorder_chain (void)
   /* First do the bulk reordering -- rechain the blocks without regard to
      the needed changes to jumps and labels.  */
 
-  for (bb = ENTRY_BLOCK_PTR->next_bb, index = 0;
+  for (bb = ENTRY_BLOCK_PTR->next_bb, index = NUM_FIXED_BLOCKS;
        bb != 0;
        bb = bb->aux, index++)
     {
@@ -680,41 +677,13 @@ fixup_reorder_chain (void)
 		continue;
 
 	      /* The degenerated case of conditional jump jumping to the next
-		 instruction can happen on target having jumps with side
-		 effects.
-
-		 Create temporarily the duplicated edge representing branch.
-		 It will get unidentified by force_nonfallthru_and_redirect
-		 that would otherwise get confused by fallthru edge not pointing
-		 to the next basic block.  */
+		 instruction can happen for jumps with side effects.  We need
+		 to construct a forwarder block and this will be done just
+		 fine by force_nonfallthru below.  */
 	      if (!e_taken)
-		{
-		  rtx note;
-		  edge e_fake;
-		  bool redirected;
+		;
 
-		  e_fake = unchecked_make_edge (bb, e_fall->dest, 0);
-
-		  redirected = redirect_jump (BB_END (bb),
-					      block_label (bb), 0);
-		  gcc_assert (redirected);
-		  
-		  note = find_reg_note (BB_END (bb), REG_BR_PROB, NULL_RTX);
-		  if (note)
-		    {
-		      int prob = INTVAL (XEXP (note, 0));
-
-		      e_fake->probability = prob;
-		      e_fake->count = e_fall->count * prob / REG_BR_PROB_BASE;
-		      e_fall->probability -= e_fall->probability;
-		      e_fall->count -= e_fake->count;
-		      if (e_fall->probability < 0)
-			e_fall->probability = 0;
-		      if (e_fall->count < 0)
-			e_fall->count = 0;
-		    }
-		}
-	      /* There is one special case: if *neither* block is next,
+	      /* There is another special case: if *neither* block is next,
 		 such as happens at the very end of a function, then we'll
 		 need to add a new unconditional jump.  Choose the taken
 		 edge based on known or assumed probability.  */
@@ -818,7 +787,7 @@ fixup_reorder_chain (void)
   if (dump_file)
     {
       fprintf (dump_file, "Reordered sequence:\n");
-      for (bb = ENTRY_BLOCK_PTR->next_bb, index = 0;
+      for (bb = ENTRY_BLOCK_PTR->next_bb, index = NUM_FIXED_BLOCKS;
 	   bb;
 	   bb = bb->aux, index++)
 	{
@@ -837,12 +806,12 @@ fixup_reorder_chain (void)
 
   prev_bb = ENTRY_BLOCK_PTR;
   bb = ENTRY_BLOCK_PTR->next_bb;
-  index = 0;
+  index = NUM_FIXED_BLOCKS;
 
   for (; bb; prev_bb = bb, bb = bb->aux, index ++)
     {
       bb->index = index;
-      BASIC_BLOCK (index) = bb;
+      SET_BASIC_BLOCK (index, bb);
 
       bb->prev_bb = prev_bb;
       prev_bb->next_bb = bb;
@@ -1013,10 +982,6 @@ duplicate_insn_chain (rtx from, rtx to)
 	         in first BB, we may want to copy the block.  */
 	    case NOTE_INSN_PROLOGUE_END:
 
-	    case NOTE_INSN_LOOP_BEG:
-	    case NOTE_INSN_LOOP_END:
-	      /* Strip down the loop notes - we don't really want to keep
-	         them consistent in loop copies.  */
 	    case NOTE_INSN_DELETED:
 	    case NOTE_INSN_DELETED_LABEL:
 	      /* No problem to strip these.  */

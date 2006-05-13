@@ -38,12 +38,14 @@ Boston, MA 02110-1301, USA.  */
 include(iparm.m4)dnl
 include(iforeach.m4)dnl
 
+`#if defined (HAVE_'atype_name`) && defined (HAVE_'rtype_name`)'
+
 FOREACH_FUNCTION(
 `  atype_name maxval;
 
   maxval = atype_min;'
 ,
-`  if (*base > maxval)
+`  if (*base > maxval || !dest[0])
     {
       maxval = *base;
       for (n = 0; n < rank; n++)
@@ -55,9 +57,12 @@ MASKED_FOREACH_FUNCTION(
 
   maxval = atype_min;'
 ,
-`  if (*mbase && *base > maxval)
+`  if (*mbase && (*base > maxval || !dest[0]))
     {
       maxval = *base;
       for (n = 0; n < rank; n++)
         dest[n * dstride] = count[n] + 1;
     }')
+
+SCALAR_FOREACH_FUNCTION(`0')
+#endif

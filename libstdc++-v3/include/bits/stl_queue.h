@@ -1,6 +1,7 @@
 // Queue implementation -*- C++ -*-
 
-// Copyright (C) 2001, 2002, 2003, 2004 Free Software Foundation, Inc.
+// Copyright (C) 2001, 2002, 2003, 2004, 2005
+// Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -64,8 +65,8 @@
 #include <bits/concept_check.h>
 #include <debug/debug.h>
 
-namespace std
-{
+_GLIBCXX_BEGIN_NAMESPACE(std)
+
   // Forward declarations of operators < and ==, needed for friend declaration.
   template<typename _Tp, typename _Sequence = deque<_Tp> >
     class queue;
@@ -304,10 +305,9 @@ namespace std
    *
    *  This is not a true container, but an @e adaptor.  It holds
    *  another container, and provides a wrapper interface to that
-   *  container.  The wrapper is what enforces sorting and
-   *  first-in-first-out %queue behavior.  Very few of the standard
-   *  container/sequence interface requirements are met (e.g.,
-   *  iterators).
+   *  container.  The wrapper is what enforces priority-based sorting 
+   *  and %queue behavior.  Very few of the standard container/sequence
+   *  interface requirements are met (e.g., iterators).
    *
    *  The second template parameter defines the type of the underlying
    *  sequence/container.  It defaults to std::vector, but it can be
@@ -321,8 +321,7 @@ namespace std
    *
    *  Members not found in "normal" containers are @c container_type,
    *  which is a typedef for the second Sequence parameter, and @c
-   *  push, @c pop, and @c top, which are standard %queue/FIFO
-   *  operations.
+   *  push, @c pop, and @c top, which are standard %queue operations.
    *
    *  @note No equality/comparison operators are provided for
    *  %priority_queue.
@@ -467,6 +466,7 @@ namespace std
     };
 
   // No equality/comparison operators are provided for priority_queue.
-} // namespace std
+
+_GLIBCXX_END_NAMESPACE
 
 #endif /* _QUEUE_H */

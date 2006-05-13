@@ -1,6 +1,6 @@
 // MT-optimized allocator -*- C++ -*-
 
-// Copyright (C) 2003, 2004, 2005 Free Software Foundation, Inc.
+// Copyright (C) 2003, 2004, 2005, 2006 Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
 // software; you can redistribute it and/or modify it under the
@@ -40,8 +40,11 @@
 #include <bits/gthr.h>
 #include <bits/atomicity.h>
 
-namespace __gnu_cxx
-{
+_GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
+
+  using std::size_t;
+  using std::ptrdiff_t;
+
   typedef void (*__destroy_handler)(void*);
 
   /// @brief  Base class for pool object.
@@ -108,7 +111,7 @@ namespace __gnu_cxx
       : _M_align(_S_align), _M_max_bytes(_S_max_bytes), _M_min_bin(_S_min_bin),
       _M_chunk_size(_S_chunk_size), _M_max_threads(_S_max_threads), 
       _M_freelist_headroom(_S_freelist_headroom), 
-      _M_force_new(getenv("GLIBCXX_FORCE_NEW") ? true : false)
+      _M_force_new(std::getenv("GLIBCXX_FORCE_NEW") ? true : false)
       { }
 
       explicit
@@ -432,8 +435,11 @@ namespace __gnu_cxx
 		static __gthread_once_t __once = __GTHREAD_ONCE_INIT;
 		__gthread_once(&__once, _S_initialize);
 	      }
-	    else
-	      _S_get_pool()._M_initialize_once(); 
+
+	    // Double check initialization. May be necessary on some
+	    // systems for proper construction when not compiling with
+	    // thread flags.
+	    _S_get_pool()._M_initialize_once(); 
 	    __init = true;
 	  }
       }
@@ -474,7 +480,7 @@ namespace __gnu_cxx
 			     sizeof(_Tp) * size_t(_Tune::_S_chunk_size),
 			     _Tune::_S_max_threads,
 			     _Tune::_S_freelist_headroom,
-			     getenv("GLIBCXX_FORCE_NEW") ? true : false);
+			     std::getenv("GLIBCXX_FORCE_NEW") ? true : false);
 	static pool_type _S_pool(_S_tune);
 	return _S_pool;
       }
@@ -524,8 +530,11 @@ namespace __gnu_cxx
 		static __gthread_once_t __once = __GTHREAD_ONCE_INIT;
 		__gthread_once(&__once, _S_initialize);
 	      }
-	    else
-	      _S_get_pool()._M_initialize_once(); 
+
+	    // Double check initialization. May be necessary on some
+	    // systems for proper construction when not compiling with
+	    // thread flags.
+	    _S_get_pool()._M_initialize_once(); 
 	    __init = true;
 	  }
       }
@@ -625,7 +634,7 @@ namespace __gnu_cxx
       __mt_alloc(const __mt_alloc&) throw() { }
 
       template<typename _Tp1, typename _Poolp1>
-        __mt_alloc(const __mt_alloc<_Tp1, _Poolp1>& obj) throw() { }
+        __mt_alloc(const __mt_alloc<_Tp1, _Poolp1>&) throw() { }
 
       ~__mt_alloc() throw() { }
 
@@ -723,6 +732,7 @@ namespace __gnu_cxx
     { return false; }
 
 #undef __thread_default
-} // namespace __gnu_cxx
+
+_GLIBCXX_END_NAMESPACE
 
 #endif

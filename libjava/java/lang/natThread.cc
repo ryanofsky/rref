@@ -1,6 +1,6 @@
 // natThread.cc - Native part of Thread class.
 
-/* Copyright (C) 1998, 1999, 2000, 2001, 2002, 2005  Free Software Foundation
+/* Copyright (C) 1998, 1999, 2000, 2001, 2002, 2005, 2006  Free Software Foundation
 
    This file is part of libgcj.
 
@@ -213,8 +213,12 @@ java::lang::Thread::finish_ ()
     }
 #endif
 
-  group = NULL;
-  
+  // If a method cache was created, free it.
+  _Jv_FreeMethodCache();
+
+  // Clear out thread locals.
+  locals = NULL;
+
   // Signal any threads that are waiting to join() us.
   _Jv_MutexLock (&nt->join_mutex);
 

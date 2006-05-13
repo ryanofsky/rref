@@ -37,14 +37,22 @@ set package_map(.) package
 set package_map(gnu/test) ignore
 set package_map(gnu/javax/swing/plaf/gtk) ignore
 
+set package_map(gnu/java/awt/peer/swing) bc
+
 set package_map(gnu/xml) bc
 set package_map(javax/imageio) bc
 set package_map(javax/xml) bc
 set package_map(gnu/java/beans) bc
 set package_map(gnu/java/awt/peer/gtk) bc
 set package_map(gnu/java/awt/peer/qt) bc
+set package_map(gnu/javax/sound/midi) bc
 set package_map(org/xml) bc
 set package_map(org/w3c) bc
+set package_map(org/relaxng) bc
+set package_map(javax/rmi) bc
+set package_map(org/omg) bc
+set package_map(gnu/CORBA) bc
+set package_map(gnu/javax/rmi) bc
 
 # This is handled specially by the Makefile.
 # We still want it byte-compiled so it isn't in the .omit file.
@@ -165,7 +173,7 @@ proc scan_directory {basedir subdir} {
   set files {}
   set here [pwd]
   cd $basedir/$subdir
-  foreach file [lsort [glob *]] {
+  foreach file [lsort [glob -nocomplain *]] {
     if {[string match *.java $file]} {
       lappend files $subdir/$file
     } elseif {[file isdirectory $file]} {
@@ -216,13 +224,14 @@ proc emit_bc_rule {package} {
     set omit "| grep -v $exclusion_map($package)"
   }
   puts  "\t@find classpath/lib/$package -name '*.class'${omit} > $tname"
-  puts "\t\$(LTGCJCOMPILE) -fjni -findirect-dispatch -c -o $loname @$tname"
+  puts "\t\$(LTGCJCOMPILE) -fjni -findirect-dispatch -fno-indirect-classes -c -o $loname @$tname"
   puts "\t@rm -f $tname"
   puts ""
 
-  # We skip this one because it is built into its own library and is
-  # handled specially in Makefile.am.
-  if {$loname != "gnu-java-awt-peer-gtk.lo"} {
+  # We skip these because they are built into their own libraries and
+  # are handled specially in Makefile.am.
+  if {$loname != "gnu-java-awt-peer-gtk.lo"
+      && $loname != "gnu-java-awt-peer-qt.lo"} {
     lappend bc_objects $loname
   }
 }
@@ -330,6 +339,7 @@ read_omit_file classpath/lib/standard.omit
 scan_packages classpath
 scan_packages classpath/external/sax
 scan_packages classpath/external/w3c_dom
+scan_packages classpath/external/relaxngDatatype
 # Now scan our own files; this will correctly override decisions made
 # when scanning classpath.
 scan_packages .

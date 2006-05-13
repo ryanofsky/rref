@@ -10,13 +10,17 @@ proc gcj_jni_compile_c_to_so {file {options {}}} {
   set options_cxx $options
   set options ""
 
-# apple uses a different extension for shared/dynamic libraries
+# Apple uses a different extension for shared/dynamic libraries
 # so we check against powerpc-apple-darwin and set them to
-# dylib, else we assume it's .so
+# dylib.
+# HP-UX uses sl, so we check this too, otherwise we take so.
 
   if { [istarget "*-*-darwin*"] } {
       set so_extension "dylib"
       set so_flag "-dynamiclib"
+  } elseif { [istarget "hppa*-hp-hpux*"] } {
+      set so_extension "sl"
+      set so_flag "-shared"
   } else {
       set so_extension "so"
       set so_flag "-shared"
@@ -76,12 +80,15 @@ proc gcj_jni_test_one {file} {
   global host_triplet
   global INTERPRETER
 
-# apple uses a different extension for shared/dynamic libraries
+# Apple uses a different extension for shared/dynamic libraries
 # so we check against powerpc-apple-darwin and set them to
-# dylib, else we assume it's .so
+# dylib.
+# HP-UX uses sl, so we check this too, otherwise we take so.
 
   if { [istarget "*-*-darwin*"] } {
       set so_extension "dylib"
+  } elseif { [istarget "hppa*-hp-hpux*"] } {
+      set so_extension "sl"
   } else {
       set so_extension "so"
   }
@@ -131,11 +138,13 @@ proc gcj_jni_test_one {file} {
       lappend cxxflaglist "-L$cxxldlibflags"
     }
 
-    # Darwin does not yet have a libgcc_s.dylib library.
-    # So we add it here. If the libgcc_s is installed, the libstdc++
-    # would pick it up.
+    # If you're building the compiler with --prefix set to a place
+    # where it's not yet installed, then the linker won't be able to
+    # find the libgcc used by libffi.dylib.  We could pass the
+    # -dylib_file option, but that's complicated, and it's much easier
+    # to just make the linker find libgcc using -L options.
     if { [istarget "*-*-darwin*"] } {
-	lappend cxxflaglist "-lgcc_s -lstdc++"
+	lappend cxxflaglist "-shared-libgcc -lstdc++"
     } else {
 	lappend cxxflaglist "-lstdc++"
     }
@@ -243,10 +252,13 @@ proc gcj_jni_invocation_test_one {file} {
 
   set cfile [file rootname $file].c
   # Darwin needs -liconv linked, otherwise we get some unresolved.
-  # Also, like in the cxxtest we need to add -lgcc_s since Darwin
-  # has no libgcc_s.dylib installed yet.
+  # If you're building the compiler with --prefix set to a place
+  # where it's not yet installed, then the linker won't be able to
+  # find the libgcc used by libffi.dylib.  We could pass the
+  # -dylib_file option, but that's complicated, and it's much easier
+  # to just make the linker find libgcc using -L options.
   if { [istarget "*-*-darwin*"] } {
-      set cxxflags "-L../.libs -lgcc_s -lgcj -liconv"
+      set cxxflags "-L../.libs -shared-libgcc -lgcj -liconv"
   } else {
       global LIBJAVA
       if [info exists LIBJAVA] {

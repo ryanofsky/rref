@@ -527,7 +527,9 @@ special_function_p (tree fndecl, int flags)
       else if ((tname[0] == 'q' && tname[1] == 's'
 		&& ! strcmp (tname, "qsetjmp"))
 	       || (tname[0] == 'v' && tname[1] == 'f'
-		   && ! strcmp (tname, "vfork")))
+		   && ! strcmp (tname, "vfork"))
+	       || (tname[0] == 'g' && tname[1] == 'e'
+		   && !strcmp (tname, "getcontext")))
 	flags |= ECF_RETURNS_TWICE;
 
       else if (tname[0] == 'l' && tname[1] == 'o'
@@ -657,8 +659,7 @@ precompute_register_parameters (int num_actuals, struct arg_data *args,
 	if (args[i].value == 0)
 	  {
 	    push_temp_slots ();
-	    args[i].value = expand_expr (args[i].tree_value, NULL_RTX,
-					 VOIDmode, 0);
+	    args[i].value = expand_normal (args[i].tree_value);
 	    preserve_temp_slots (args[i].value);
 	    pop_temp_slots ();
 	  }
@@ -841,7 +842,7 @@ store_unaligned_arguments_into_pseudos (struct arg_data *args, int num_actuals)
 	      = (bytes + UNITS_PER_WORD - 1) / UNITS_PER_WORD;
 	  }
 
-	args[i].aligned_regs = xmalloc (sizeof (rtx) * args[i].n_aligned_regs);
+	args[i].aligned_regs = XNEWVEC (rtx, args[i].n_aligned_regs);
 
 	/* Structures smaller than a word are normally aligned to the
 	   least significant byte.  On a BYTES_BIG_ENDIAN machine,
@@ -1248,7 +1249,7 @@ precompute_arguments (int flags, int num_actuals, struct arg_data *args)
       gcc_assert (!TREE_ADDRESSABLE (TREE_TYPE (args[i].tree_value)));
 
       args[i].initial_value = args[i].value
-	= expand_expr (args[i].tree_value, NULL_RTX, VOIDmode, 0);
+	= expand_normal (args[i].tree_value);
 
       mode = TYPE_MODE (TREE_TYPE (args[i].tree_value));
       if (mode != args[i].mode)
@@ -1431,10 +1432,46 @@ rtx_for_function_call (tree fndecl, tree addr)
     /* Generate an rtx (probably a pseudo-register) for the address.  */
     {
       push_temp_slots ();
-      funexp = expand_expr (addr, NULL_RTX, VOIDmode, 0);
+      funexp = expand_normal (addr);
       pop_temp_slots ();	/* FUNEXP can't be BLKmode.  */
     }
   return funexp;
+}
+
+/* Return true if and only if SIZE storage units (usually bytes)
+   starting from address ADDR overlap with already clobbered argument
+   area.  This function is used to determine if we should give up a
+   sibcall.  */
+
+static bool
+mem_overlaps_already_clobbered_arg_p (rtx addr, unsigned HOST_WIDE_INT size)
+{
+  HOST_WIDE_INT i;
+
+  if (addr == current_function_internal_arg_pointer)
+    i = 0;
+  else if (GET_CODE (addr) == PLUS
+	   && (XEXP (addr, 0)
+	       == current_function_internal_arg_pointer)
+	   && GET_CODE (XEXP (addr, 1)) == CONST_INT)
+    i = INTVAL (XEXP (addr, 1));
+  else
+    return false;
+
+#ifdef ARGS_GROW_DOWNWARD
+  i = -i - size;
+#endif
+  if (size > 0)
+    {
+      unsigned HOST_WIDE_INT k;
+
+      for (k = 0; k < size; k++)
+	if (i + k < stored_args_map->n_bits
+	    && TEST_BIT (stored_args_map, i + k))
+	  return true;
+    }
+
+  return false;
 }
 
 /* Do the register loads required for any wholly-register parms or any
@@ -1533,6 +1570,12 @@ load_register_parameters (struct arg_data *args, int num_actuals,
 	  else if (partial == 0 || args[i].pass_on_stack)
 	    {
 	      rtx mem = validize_mem (args[i].value);
+
+	      /* Check for overlap with already clobbered argument area.  */
+	      if (is_sibcall
+		  && mem_overlaps_already_clobbered_arg_p (XEXP (args[i].value, 0),
+							   size))
+		*sibcall_failure = 1;
 
 	      /* Handle a BLKmode that needs shifting.  */
 	      if (nregs == 1 && size < UNITS_PER_WORD
@@ -1647,7 +1690,6 @@ check_sibcall_argument_overlap_1 (rtx x)
 {
   RTX_CODE code;
   int i, j;
-  unsigned int k;
   const char *fmt;
 
   if (x == NULL_RTX)
@@ -1656,28 +1698,8 @@ check_sibcall_argument_overlap_1 (rtx x)
   code = GET_CODE (x);
 
   if (code == MEM)
-    {
-      if (XEXP (x, 0) == current_function_internal_arg_pointer)
-	i = 0;
-      else if (GET_CODE (XEXP (x, 0)) == PLUS
-	       && XEXP (XEXP (x, 0), 0) ==
-		  current_function_internal_arg_pointer
-	       && GET_CODE (XEXP (XEXP (x, 0), 1)) == CONST_INT)
-	i = INTVAL (XEXP (XEXP (x, 0), 1));
-      else
-	return 0;
-
-#ifdef ARGS_GROW_DOWNWARD
-      i = -i - GET_MODE_SIZE (GET_MODE (x));
-#endif
-
-      for (k = 0; k < GET_MODE_SIZE (GET_MODE (x)); k++)
-	if (i + k < stored_args_map->n_bits
-	    && TEST_BIT (stored_args_map, i + k))
-	  return 1;
-
-      return 0;
-    }
+    return mem_overlaps_already_clobbered_arg_p (XEXP (x, 0),
+						 GET_MODE_SIZE (GET_MODE (x)));
 
   /* Scan all subexpressions.  */
   fmt = GET_RTX_FORMAT (code);
@@ -2347,7 +2369,7 @@ expand_call (tree exp, rtx target, int ignore)
 #endif
 		  if (stack_usage_map_buf)
 		    free (stack_usage_map_buf);
-		  stack_usage_map_buf = xmalloc (highest_outgoing_arg_in_use);
+		  stack_usage_map_buf = XNEWVEC (char, highest_outgoing_arg_in_use);
 		  stack_usage_map = stack_usage_map_buf;
 
 		  if (initial_highest_arg_in_use)
@@ -2455,7 +2477,7 @@ expand_call (tree exp, rtx target, int ignore)
 		  /* Make a new map for the new argument list.  */
 		  if (stack_usage_map_buf)
 		    free (stack_usage_map_buf);
-		  stack_usage_map_buf = xmalloc (highest_outgoing_arg_in_use);
+		  stack_usage_map_buf = XNEWVEC (char, highest_outgoing_arg_in_use);
 		  stack_usage_map = stack_usage_map_buf;
 		  memset (stack_usage_map, 0, highest_outgoing_arg_in_use);
 		  highest_outgoing_arg_in_use = 0;
@@ -2522,8 +2544,7 @@ expand_call (tree exp, rtx target, int ignore)
       precompute_register_parameters (num_actuals, args, &reg_parm_seen);
 
       if (TREE_OPERAND (exp, 2))
-	static_chain_value = expand_expr (TREE_OPERAND (exp, 2),
-					  NULL_RTX, VOIDmode, 0);
+	static_chain_value = expand_normal (TREE_OPERAND (exp, 2));
       else
 	static_chain_value = 0;
 
@@ -2834,19 +2855,50 @@ expand_call (tree exp, rtx target, int ignore)
 	       && GET_MODE (target) == TYPE_MODE (TREE_TYPE (exp))
 	       && GET_MODE (target) == GET_MODE (valreg))
 	{
-	  /* TARGET and VALREG cannot be equal at this point because the
-	     latter would not have REG_FUNCTION_VALUE_P true, while the
-	     former would if it were referring to the same register.
+	  bool may_overlap = false;
 
-	     If they refer to the same register, this move will be a no-op,
-	     except when function inlining is being done.  */
-	  emit_move_insn (target, valreg);
+	  /* We have to copy a return value in a CLASS_LIKELY_SPILLED hard
+	     reg to a plain register.  */
+	  if (REG_P (valreg)
+	      && HARD_REGISTER_P (valreg)
+	      && CLASS_LIKELY_SPILLED_P (REGNO_REG_CLASS (REGNO (valreg)))
+	      && !(REG_P (target) && !HARD_REGISTER_P (target)))
+	    valreg = copy_to_reg (valreg);
 
-	  /* If we are setting a MEM, this code must be executed.  Since it is
-	     emitted after the call insn, sibcall optimization cannot be
-	     performed in that case.  */
-	  if (MEM_P (target))
-	    sibcall_failure = 1;
+	  /* If TARGET is a MEM in the argument area, and we have
+	     saved part of the argument area, then we can't store
+	     directly into TARGET as it may get overwritten when we
+	     restore the argument save area below.  Don't work too
+	     hard though and simply force TARGET to a register if it
+	     is a MEM; the optimizer is quite likely to sort it out.  */
+	  if (ACCUMULATE_OUTGOING_ARGS && pass && MEM_P (target))
+	    for (i = 0; i < num_actuals; i++)
+	      if (args[i].save_area)
+		{
+		  may_overlap = true;
+		  break;
+		}
+
+	  if (may_overlap)
+	    target = copy_to_reg (valreg);
+	  else
+	    {
+	      /* TARGET and VALREG cannot be equal at this point
+		 because the latter would not have
+		 REG_FUNCTION_VALUE_P true, while the former would if
+		 it were referring to the same register.
+
+		 If they refer to the same register, this move will be
+		 a no-op, except when function inlining is being
+		 done.  */
+	      emit_move_insn (target, valreg);
+
+	      /* If we are setting a MEM, this code must be executed.
+		 Since it is emitted after the call insn, sibcall
+		 optimization cannot be performed in that case.  */
+	      if (MEM_P (target))
+		sibcall_failure = 1;
+	    }
 	}
       else if (TYPE_MODE (TREE_TYPE (exp)) == BLKmode)
 	{
@@ -3487,7 +3539,7 @@ emit_library_call_value_1 (int retval, rtx orgfun, rtx value,
       highest_outgoing_arg_in_use = MAX (initial_highest_arg_in_use,
 					 needed);
 #endif
-      stack_usage_map_buf = xmalloc (highest_outgoing_arg_in_use);
+      stack_usage_map_buf = XNEWVEC (char, highest_outgoing_arg_in_use);
       stack_usage_map = stack_usage_map_buf;
 
       if (initial_highest_arg_in_use)
@@ -4080,41 +4132,11 @@ store_one_arg (struct arg_data *arg, rtx argblock, int flags,
     }
 
   /* Check for overlap with already clobbered argument area.  */
-  if ((flags & ECF_SIBCALL) && MEM_P (arg->value))
-    {
-      int i = -1;
-      unsigned HOST_WIDE_INT k;
-      rtx x = arg->value;
-
-      if (XEXP (x, 0) == current_function_internal_arg_pointer)
-	i = 0;
-      else if (GET_CODE (XEXP (x, 0)) == PLUS
-	       && XEXP (XEXP (x, 0), 0) ==
-		  current_function_internal_arg_pointer
-	       && GET_CODE (XEXP (XEXP (x, 0), 1)) == CONST_INT)
-	i = INTVAL (XEXP (XEXP (x, 0), 1));
-      else
-	i = -1;
-
-      if (i >= 0)
-	{
-#ifdef ARGS_GROW_DOWNWARD
-	  i = -i - arg->locate.size.constant;
-#endif
-	  if (arg->locate.size.constant > 0)
-	    {
-	      unsigned HOST_WIDE_INT sc = arg->locate.size.constant;
-
-	      for (k = 0; k < sc; k++)
-		if (i + k < stored_args_map->n_bits
-		    && TEST_BIT (stored_args_map, i + k))
-		  {
-		    sibcall_failure = 1;
-		    break;
-		  }
-	    }
-	}
-    }
+  if ((flags & ECF_SIBCALL)
+      && MEM_P (arg->value)
+      && mem_overlaps_already_clobbered_arg_p (XEXP (arg->value, 0),
+					       arg->locate.size.constant))
+    sibcall_failure = 1;
 
   /* Don't allow anything left on stack from computation
      of argument to alloca.  */

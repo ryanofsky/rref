@@ -71,7 +71,7 @@ Boston, MA 02110-1301, USA.  */
    returns float values in the 387, and uses MSVC bit field layout. */
 #undef TARGET_SUBTARGET_DEFAULT
 #define TARGET_SUBTARGET_DEFAULT (MASK_80387 | MASK_IEEE_FP | \
-	MASK_FLOAT_RETURNS | MASK_MS_BITFIELD_LAYOUT)
+	MASK_FLOAT_RETURNS | MASK_ALIGN_DOUBLE | MASK_MS_BITFIELD_LAYOUT)
 
 #undef MATH_LIBRARY
 #define MATH_LIBRARY ""
@@ -142,7 +142,7 @@ Boston, MA 02110-1301, USA.  */
    differently depending on something about the variable or
    function named by the symbol (such as what section it is in).
 
-   On i386 running NetWare, modify the assembler name with an undercore (_)
+   On i386 running NetWare, modify the assembler name with an underscore (_)
    prefix and a suffix consisting of an atsign (@) followed by a string of
    digits that represents the number of bytes of arguments passed to the
    function, if it has the attribute STDCALL. Alternatively, if it has the 

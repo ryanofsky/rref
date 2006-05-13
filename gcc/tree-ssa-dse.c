@@ -83,8 +83,15 @@ struct dse_block_local_data
   bitmap stores;
 };
 
+/* Basic blocks of the potentially dead store and the following
+   store, for memory_address_same.  */
+struct address_walk_data
+{
+  basic_block store1_bb, store2_bb;
+};
+
 static bool gate_dse (void);
-static void tree_ssa_dse (void);
+static unsigned int tree_ssa_dse (void);
 static void dse_initialize_block_local_data (struct dom_walk_data *,
 					     basic_block,
 					     bool);
@@ -145,6 +152,64 @@ dse_initialize_block_local_data (struct dom_walk_data *walk_data,
     }
 }
 
+/* Helper function for memory_address_same via walk_tree.  Returns
+   non-NULL if it finds an SSA_NAME which is part of the address,
+   such that the definition of the SSA_NAME post-dominates the store
+   we want to delete but not the store that we believe makes it
+   redundant.  This indicates that the address may change between
+   the two stores.  */
+
+static tree
+memory_ssa_name_same (tree *expr_p, int *walk_subtrees ATTRIBUTE_UNUSED,
+		      void *data)
+{
+  struct address_walk_data *walk_data = data;
+  tree expr = *expr_p;
+  tree def_stmt;
+  basic_block def_bb;
+
+  if (TREE_CODE (expr) != SSA_NAME)
+    return NULL_TREE;
+
+  /* If we've found a default definition, then there's no problem.  Both
+     stores will post-dominate it.  And def_bb will be NULL.  */
+  if (expr == default_def (SSA_NAME_VAR (expr)))
+    return NULL_TREE;
+
+  def_stmt = SSA_NAME_DEF_STMT (expr);
+  def_bb = bb_for_stmt (def_stmt);
+
+  /* DEF_STMT must dominate both stores.  So if it is in the same
+     basic block as one, it does not post-dominate that store.  */
+  if (walk_data->store1_bb != def_bb
+      && dominated_by_p (CDI_POST_DOMINATORS, walk_data->store1_bb, def_bb))
+    {
+      if (walk_data->store2_bb == def_bb
+	  || !dominated_by_p (CDI_POST_DOMINATORS, walk_data->store2_bb,
+			      def_bb))
+	/* Return non-NULL to stop the walk.  */
+	return def_stmt;
+    }
+
+  return NULL_TREE;
+}
+
+/* Return TRUE if the destination memory address in STORE1 and STORE2
+   might be modified after STORE1, before control reaches STORE2.  */
+
+static bool
+memory_address_same (tree store1, tree store2)
+{
+  struct address_walk_data walk_data;
+
+  walk_data.store1_bb = bb_for_stmt (store1);
+  walk_data.store2_bb = bb_for_stmt (store2);
+
+  return (walk_tree (&TREE_OPERAND (store1, 0), memory_ssa_name_same,
+		     &walk_data, NULL)
+	  == NULL);
+}
+
 /* Attempt to eliminate dead stores in the statement referenced by BSI.
 
    A dead store is a store into a memory location which will later be
@@ -184,7 +249,7 @@ dse_optimize_stmt (struct dom_walk_data *walk_data,
     {
       use_operand_p first_use_p = NULL_USE_OPERAND_P;
       use_operand_p use_p = NULL;
-      tree use, use_stmt, temp;
+      tree use_stmt, temp;
       tree defvar = NULL_TREE, usevar = NULL_TREE;
       bool fail = false;
       use_operand_p var2;
@@ -204,7 +269,7 @@ dse_optimize_stmt (struct dom_walk_data *walk_data,
 
 	  /* If this virtual def does not have precisely one use, then
 	     we will not be able to eliminate STMT.  */
-	  if (num_imm_uses (defvar) != 1)
+	  if (! has_single_use (defvar))
 	    {
 	      fail = true;
 	      break;
@@ -214,7 +279,6 @@ dse_optimize_stmt (struct dom_walk_data *walk_data,
 	  single_imm_use (defvar, &use_p, &temp);
 	  gcc_assert (use_p != NULL_USE_OPERAND_P);
 	  first_use_p = use_p;
-	  use = USE_FROM_PTR (use_p);
 
 	  /* If the immediate use of DEF_VAR is not the same as the
 	     previously find immediate uses, then we will not be able
@@ -244,18 +308,29 @@ dse_optimize_stmt (struct dom_walk_data *walk_data,
 	     && TREE_CODE (use_stmt) == PHI_NODE
 	     && bitmap_bit_p (dse_gd->stores, get_stmt_uid (use_stmt)))
 	{
+	  /* A PHI node can both define and use the same SSA_NAME if
+	     the PHI is at the top of a loop and the PHI_RESULT is
+	     a loop invariant and copies have not been fully propagated.
+
+	     The safe thing to do is exit assuming no optimization is
+	     possible.  */
+	  if (SSA_NAME_DEF_STMT (PHI_RESULT (use_stmt)) == use_stmt)
+	    return;
+
 	  /* Skip past this PHI and loop again in case we had a PHI
 	     chain.  */
-	  if (single_imm_use (PHI_RESULT (use_stmt), &use_p, &use_stmt))
-	    use = USE_FROM_PTR (use_p);
+	  single_imm_use (PHI_RESULT (use_stmt), &use_p, &use_stmt);
 	}
 
       /* If we have precisely one immediate use at this point, then we may
-	 have found redundant store.  */
+	 have found redundant store.  Make sure that the stores are to
+	 the same memory location.  This includes checking that any
+	 SSA-form variables in the address will have the same values.  */
       if (use_p != NULL_USE_OPERAND_P
 	  && bitmap_bit_p (dse_gd->stores, get_stmt_uid (use_stmt))
 	  && operand_equal_p (TREE_OPERAND (stmt, 0),
-			      TREE_OPERAND (use_stmt, 0), 0))
+			      TREE_OPERAND (use_stmt, 0), 0)
+	  && memory_address_same (stmt, use_stmt))
 	{
 	  /* Make sure we propagate the ABNORMAL bit setting.  */
 	  if (SSA_NAME_OCCURS_IN_ABNORMAL_PHI (USE_FROM_PTR (first_use_p)))
@@ -274,7 +349,7 @@ dse_optimize_stmt (struct dom_walk_data *walk_data,
 	      SET_USE (use_p, USE_FROM_PTR (var2));
 	    }
 	  /* Remove the dead store.  */
-	  bsi_remove (&bsi);
+	  bsi_remove (&bsi, true);
 
 	  /* And release any SSA_NAMEs set in this statement back to the
 	     SSA_NAME manager.  */
@@ -321,7 +396,7 @@ dse_finalize_block (struct dom_walk_data *walk_data,
       }
 }
 
-static void
+static unsigned int
 tree_ssa_dse (void)
 {
   struct dom_walk_data walk_data;
@@ -378,6 +453,7 @@ tree_ssa_dse (void)
 
   /* For now, just wipe the post-dominator information.  */
   free_dominance_info (CDI_POST_DOMINATORS);
+  return 0;
 }
 
 static bool

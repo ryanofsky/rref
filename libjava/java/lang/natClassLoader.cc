@@ -1,6 +1,6 @@
 // natClassLoader.cc - Implementation of java.lang.ClassLoader native methods.
 
-/* Copyright (C) 1999, 2000, 2001, 2002, 2003, 2004, 2005  Free Software Foundation
+/* Copyright (C) 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006  Free Software Foundation
 
    This file is part of libgcj.
 
@@ -43,14 +43,13 @@ details.  */
 #include <java/lang/Cloneable.h>
 #include <java/util/HashMap.h>
 #include <gnu/gcj/runtime/BootClassLoader.h>
+#include <gnu/gcj/runtime/SystemClassLoader.h>
 
 // Size of local hash table.
 #define HASH_LEN 1013
 
 // Hash function for Utf8Consts.
 #define HASH_UTF(Utf) ((Utf)->hash16() % HASH_LEN)
-
-static jclass loaded_classes[HASH_LEN];
 
 // This records classes which will be registered with the system class
 // loader when it is initialized.
@@ -60,6 +59,8 @@ static jclass system_class_list;
 // initialized the system class loader; it lets us know that we should
 // no longer pay attention to the system abi flag.
 #define SYSTEM_LOADER_INITIALIZED ((jclass) -1)
+
+static jclass loaded_classes[HASH_LEN];
 
 // This is the root of a linked list of classes
 static jclass stack_head;
@@ -80,7 +81,10 @@ java::lang::ClassLoader::loadClassFromSig(jstring name)
   int len = _Jv_GetStringUTFLength (name);
   char sig[len + 1];
   _Jv_GetStringUTFRegion (name, 0, name->length(), sig);
-  return _Jv_FindClassFromSignature(sig, this);
+  jclass result = _Jv_FindClassFromSignature(sig, this);
+  if (result == NULL)
+    throw new ClassNotFoundException(name);
+  return result;
 }
 
 
@@ -152,6 +156,30 @@ _Jv_UnregisterInitiatingLoader (jclass klass, java::lang::ClassLoader *loader)
   loader->loadedClasses->remove(klass->name->toString());
 }
 
+
+// Class registration.
+//
+// There are two kinds of functions that register classes.  
+//
+// Type 1:
+//
+// These take the address of a class that is in an object file.
+// Because these classes are not allocated on the heap, It is also
+// necessary to register the address of the object for garbage
+// collection.  This is used with the "old" C++ ABI and with
+// -findirect-dispatch -fno-indirect-classes.
+//
+// Type 2:
+//
+// These take an initializer struct, create the class, and return the
+// address of the newly created class to their caller.  These are used
+// with -findirect-dispatch.
+//
+// _Jv_RegisterClasses() and _Jv_RegisterClasses_Counted() are
+// functions of Type 1, and _Jv_NewClassFromInitializer() and
+// _Jv_RegisterNewClasses() are of Type 2.
+
+
 // This function is called many times during startup, before main() is
 // run.  At that point in time we know for certain we are running 
 // single-threaded, so we don't need to lock when adding classes to the 
@@ -160,6 +188,8 @@ _Jv_UnregisterInitiatingLoader (jclass klass, java::lang::ClassLoader *loader)
 void
 _Jv_RegisterClasses (const jclass *classes)
 {
+  _Jv_RegisterLibForGc (classes);
+
   for (; *classes; ++classes)
     {
       jclass klass = *classes;
@@ -174,6 +204,9 @@ void
 _Jv_RegisterClasses_Counted (const jclass * classes, size_t count)
 {
   size_t i;
+
+  _Jv_RegisterLibForGc (classes);
+
   for (i = 0; i < count; i++)
     {
       jclass klass = classes[i];
@@ -183,6 +216,43 @@ _Jv_RegisterClasses_Counted (const jclass * classes, size_t count)
     }
 }
 
+// Create a class on the heap from an initializer struct.
+jclass
+_Jv_NewClassFromInitializer (const jclass class_initializer)
+{
+  jclass new_class = (jclass)_Jv_AllocObj (sizeof *new_class,
+					   &java::lang::Class::class$);  
+  memcpy ((void*)new_class, (void*)class_initializer, sizeof *new_class);
+
+  new_class->engine = &_Jv_soleIndirectCompiledEngine;
+
+  if (_Jv_CheckABIVersion ((unsigned long) new_class->next_or_version))
+    (*_Jv_RegisterClassHook) (new_class);
+  
+  return new_class;
+}
+
+// Called by compiler-generated code at DSO initialization.  CLASSES
+// is an array of pairs: the first item of each pair is a pointer to
+// the initialized data that is a class initializer in a DSO, and the
+// second is a pointer to a class reference.
+// _Jv_NewClassFromInitializer() creates the new class (on the Java
+// heap) and we write the address of the new class into the address
+// pointed to by the second word.
+void
+_Jv_RegisterNewClasses (void **classes)
+{
+  _Jv_InitGC ();
+
+  jclass initializer;
+
+  while ((initializer = (jclass)*classes++))
+    {
+      jclass *class_ptr = (jclass *)*classes++;
+      *class_ptr = _Jv_NewClassFromInitializer (initializer);
+    }      
+}
+  
 void
 _Jv_RegisterClassHookDefault (jclass klass)
 {
@@ -253,16 +323,40 @@ _Jv_RegisterClass (jclass klass)
 // This is used during initialization to register all compiled-in
 // classes that are not part of the core with the system class loader.
 void
-_Jv_CopyClassesToSystemLoader (java::lang::ClassLoader *loader)
+_Jv_CopyClassesToSystemLoader (gnu::gcj::runtime::SystemClassLoader *loader)
 {
   for (jclass klass = system_class_list;
        klass;
        klass = klass->next_or_version)
     {
       klass->loader = loader;
-      loader->loadedClasses->put(klass->name->toString(), klass);
+      loader->addClass(klass);
     }
   system_class_list = SYSTEM_LOADER_INITIALIZED;
+}
+
+// An internal variant of _Jv_FindClass which simply swallows a
+// NoClassDefFoundError or a ClassNotFoundException. This gives the
+// caller a chance to evaluate the situation and behave accordingly.
+jclass
+_Jv_FindClassNoException (_Jv_Utf8Const *name, java::lang::ClassLoader *loader)
+{
+  jclass klass;
+
+  try
+    {
+      klass = _Jv_FindClass(name, loader);
+    }
+  catch ( java::lang::NoClassDefFoundError *ncdfe )
+    {
+      return NULL;
+    }
+  catch ( java::lang::ClassNotFoundException *cnfe )
+    {
+      return NULL;
+    }
+
+  return klass;
 }
 
 jclass
@@ -361,6 +455,12 @@ static _Jv_IDispatchTable *array_idt = NULL;
 static jshort array_depth = 0;
 static jclass *array_ancestors = NULL;
 
+static jclass interfaces[] =
+{
+  &java::lang::Cloneable::class$,
+  &java::io::Serializable::class$
+};
+
 // Create a class representing an array of ELEMENT and store a pointer to it
 // in element->arrayclass. LOADER is the ClassLoader which _initiated_ the 
 // instantiation of this array. ARRAY_VTABLE is the vtable to use for the new 
@@ -415,8 +515,6 @@ _Jv_NewArrayClass (jclass element, java::lang::ClassLoader *loader,
 
   // Note that `vtable_method_count' doesn't include the initial
   // gc_descr slot.
-  JvAssert (java::lang::Object::class$.vtable_method_count
-	    == NUM_OBJECT_METHODS);
   int dm_count = java::lang::Object::class$.vtable_method_count;
 
   // Create a new vtable by copying Object's vtable.
@@ -435,14 +533,9 @@ _Jv_NewArrayClass (jclass element, java::lang::ClassLoader *loader,
     = java::lang::Object::class$.vtable_method_count;
 
   // Stash the pointer to the element type.
-  array_class->methods = (_Jv_Method *) element;
+  array_class->element_type = element;
 
   // Register our interfaces.
-  static jclass interfaces[] =
-    {
-      &java::lang::Cloneable::class$,
-      &java::io::Serializable::class$
-    };
   array_class->interfaces = interfaces;
   array_class->interface_count = sizeof interfaces / sizeof interfaces[0];
 

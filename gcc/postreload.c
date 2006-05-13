@@ -575,6 +575,7 @@ reload_cse_simplify_operands (rtx insn, rtx testreg)
 		      op_alt_regno[i][j] = regno;
 		    }
 		  j++;
+		  class = (int) NO_REGS;
 		  break;
 		}
 	      p += CONSTRAINT_LEN (c, p);
@@ -607,7 +608,7 @@ reload_cse_simplify_operands (rtx insn, rtx testreg)
 	  int this_nregs = alternative_nregs[alternative_order[j]];
 
 	  if (this_reject < best_reject
-	      || (this_reject == best_reject && this_nregs < best_nregs))
+	      || (this_reject == best_reject && this_nregs > best_nregs))
 	    {
 	      best = j;
 	      best_reject = this_reject;
@@ -730,7 +731,7 @@ reload_combine (void)
      destination.  */
   min_labelno = get_first_label_num ();
   n_labels = max_label_num () - min_labelno;
-  label_live = xmalloc (n_labels * sizeof (HARD_REG_SET));
+  label_live = XNEWVEC (HARD_REG_SET, n_labels);
   CLEAR_HARD_REG_SET (ever_live_at_start);
 
   FOR_EACH_BB_REVERSE (bb)
@@ -1267,7 +1268,7 @@ reload_cse_move2add (rtx first)
 		      rtx tem = gen_rtx_PLUS (GET_MODE (reg), reg, new_src);
 		      validate_change (insn, &SET_SRC (pat), tem, 0);
 		    }
-		  else
+		  else if (GET_MODE (reg) != BImode)
 		    {
 		      enum machine_mode narrow_mode;
 		      for (narrow_mode = GET_CLASS_NARROWEST_MODE (MODE_INT);
@@ -1571,7 +1572,7 @@ gate_handle_postreload (void)
 }
 
 
-static void
+static unsigned int
 rest_of_handle_postreload (void)
 {
   /* Do a very simple CSE pass over just the hard registers.  */
@@ -1580,6 +1581,7 @@ rest_of_handle_postreload (void)
      Remove any EH edges associated with them.  */
   if (flag_non_call_exceptions)
     purge_all_dead_edges ();
+  return 0;
 }
 
 struct tree_opt_pass pass_postreload_cse =
