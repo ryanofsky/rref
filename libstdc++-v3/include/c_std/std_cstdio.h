@@ -1,6 +1,6 @@
 // -*- C++ -*- forwarding header.
 
-// Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002, 2003
+// Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005
 // Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
@@ -38,7 +38,8 @@
  *
  *  This is the C++ version of the Standard C Library header @c stdio.h,
  *  and its contents are (mostly) the same as that header, but are all
- *  contained in the namespace @c std.
+ *  contained in the namespace @c std (except for names which are defined
+ *  as macros in C).
  */
 
 #ifndef _GLIBCXX_CSTDIO
@@ -94,8 +95,8 @@
 #undef vprintf
 #undef vsprintf
 
-namespace std
-{
+_GLIBCXX_BEGIN_NAMESPACE(std)
+
   using ::FILE;
   using ::fpos_t;
 
@@ -140,7 +141,8 @@ namespace std
   using ::vfprintf;
   using ::vprintf;
   using ::vsprintf;
-}
+
+_GLIBCXX_END_NAMESPACE
 
 #if _GLIBCXX_USE_C99
 
@@ -150,8 +152,8 @@ namespace std
 #undef vsnprintf
 #undef vsscanf
 
-namespace __gnu_cxx
-{
+_GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
+
 #if _GLIBCXX_USE_C99_CHECK || _GLIBCXX_USE_C99_DYNAMIC
   extern "C" int
   (snprintf)(char * restrict, size_t, const char * restrict, ...);
@@ -171,16 +173,19 @@ namespace __gnu_cxx
   using ::vsnprintf;
   using ::vsscanf;
 #endif
-}
 
-namespace std
-{
-  using __gnu_cxx::snprintf;
-  using __gnu_cxx::vfscanf;
-  using __gnu_cxx::vscanf;
-  using __gnu_cxx::vsnprintf;
-  using __gnu_cxx::vsscanf;
-}
+_GLIBCXX_END_NAMESPACE
+
+_GLIBCXX_BEGIN_NAMESPACE(std)
+
+  using ::__gnu_cxx::snprintf;
+  using ::__gnu_cxx::vfscanf;
+  using ::__gnu_cxx::vscanf;
+  using ::__gnu_cxx::vsnprintf;
+  using ::__gnu_cxx::vsscanf;
+
+_GLIBCXX_END_NAMESPACE
+
 #endif
 
 #endif

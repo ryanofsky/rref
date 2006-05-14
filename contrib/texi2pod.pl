@@ -36,6 +36,7 @@ $shift = "";
 $fnno = 1;
 $inf = "";
 $ibase = "";
+@ipath = ();
 
 while ($_ = shift) {
     if (/^-D(.*)$/) {
@@ -51,6 +52,13 @@ while ($_ = shift) {
 	die "flags may only contain letters, digits, hyphens, dashes and underscores\n"
 	    unless $flag =~ /^[a-zA-Z0-9_-]+$/;
 	$defs{$flag} = $value;
+    } elsif (/^-I(.*)$/) {
+	if ($1 ne "") {
+	    $flag = $1;
+	} else {
+	    $flag = shift;
+	}
+        push (@ipath, $flag);
     } elsif (/^-/) {
 	usage();
     } else {
@@ -227,11 +235,14 @@ while(<$inf>) {
     /^\@include\s+(.+)$/ and do {
 	push @instack, $inf;
 	$inf = gensym();
+	$file = postprocess($1);
 
-	# Try cwd and $ibase.
-	open($inf, "<" . $1) 
-	    or open($inf, "<" . $ibase . "/" . $1)
-		or die "cannot open $1 or $ibase/$1: $!\n";
+	# Try cwd and $ibase, then explicit -I paths.
+	$done = 0;
+	foreach $path (".", $ibase, @ipath) {
+	    open($inf, "<" . $path . "/" . $file) and ($done = 1, last);
+	}
+	die "cannot find $file" if !$done;
 	next;
     };
 
@@ -351,6 +362,10 @@ sub postprocess
 
     # keep references of the form @ref{...}, print them bold
     s/\@(?:ref)\{([^\}]*)\}/B<$1>/g;
+
+    # Change double single quotes to double quotes.
+    s/''/"/g;
+    s/``/"/g;
 
     # Cross references are thrown away, as are @noindent and @refill.
     # (@noindent is impossible in .pod, and @refill is unnecessary.)

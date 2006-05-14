@@ -63,7 +63,7 @@ namespace __gnu_internal
   static void 
   _M_destroy_thread_key(void* __id)
   {
-    // Return this thread id record to front of thread_freelist.
+    // Return this thread id record to the front of thread_freelist.
     __gnu_cxx::lock sentry(__gnu_internal::freelist_mutex);
     size_t _M_id = reinterpret_cast<size_t>(__id);
 
@@ -76,8 +76,8 @@ namespace __gnu_internal
 #endif
 }
 
-namespace __gnu_cxx
-{
+_GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
+
   void
   __pool<false>::_M_destroy() throw()
   {
@@ -781,4 +781,5 @@ namespace __gnu_cxx
   // Instantiations.
   template class __mt_alloc<char>;
   template class __mt_alloc<wchar_t>;
-} // namespace __gnu_cxx
+
+_GLIBCXX_END_NAMESPACE

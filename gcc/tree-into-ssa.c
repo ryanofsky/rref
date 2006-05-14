@@ -47,6 +47,7 @@ Boston, MA 02110-1301, USA.  */
 #include "domwalk.h"
 #include "ggc.h"
 #include "params.h"
+#include "vecprim.h"
 
 /* This file builds the SSA form for a function as described in:
    R. Cytron, J. Ferrante, B. Rosen, M. Wegman, and K. Zadeck. Efficiently
@@ -103,12 +104,6 @@ static htab_t def_blocks;
      associated with the current block.  */
 static VEC(tree,heap) *block_defs_stack;
 
-/* Basic block vectors used in this file ought to be allocated in the
-   heap.  We use pointer vector, because ints can be easily passed by
-   value.  */
-DEF_VEC_I(int);
-DEF_VEC_ALLOC_I(int,heap);
-
 /* Set of existing SSA names being replaced by update_ssa.  */
 static sbitmap old_ssa_names;
 
@@ -125,6 +120,19 @@ static bitmap syms_to_rename;
    were registered in the replacement table.  They will be finally
    released after we finish updating the SSA web.  */
 static bitmap names_to_release;
+
+/* For each block, the phi nodes that need to be rewritten are stored into
+   these vectors.  */
+
+typedef VEC(tree, heap) *tree_vec;
+DEF_VEC_P (tree_vec);
+DEF_VEC_ALLOC_P (tree_vec, heap);
+
+static VEC(tree_vec, heap) *phis_to_rewrite;
+
+/* The bitmap of non-NULL elements of PHIS_TO_REWRITE.  */
+
+static bitmap blocks_with_phis_to_rewrite;
 
 /* Growth factor for NEW_SSA_NAMES and OLD_SSA_NAMES.  These sets need
    to grow as the callers to register_new_name_mapping will typically
@@ -246,7 +254,7 @@ get_ssa_name_ann (tree name)
   if (!SSA_NAME_AUX (name))
     SSA_NAME_AUX (name) = xcalloc (1, sizeof (struct ssa_name_info));
 
-  return SSA_NAME_AUX (name);
+  return (struct ssa_name_info *) SSA_NAME_AUX (name);
 }
 
 
@@ -365,7 +373,7 @@ get_def_blocks_for (tree var)
   slot = htab_find_slot (def_blocks, (void *) &db, INSERT);
   if (*slot == NULL)
     {
-      db_p = xmalloc (sizeof (*db_p));
+      db_p = XNEW (struct def_blocks_d);
       db_p->var = var;
       db_p->def_blocks = BITMAP_ALLOC (NULL);
       db_p->phi_blocks = BITMAP_ALLOC (NULL);
@@ -532,7 +540,7 @@ add_to_repl_tbl (tree new, tree old)
   slot = htab_find_slot (repl_tbl, (void *) &m, INSERT);
   if (*slot == NULL)
     {
-      mp = xmalloc (sizeof (*mp));
+      mp = XNEW (struct repl_map_d);
       mp->name = new;
       mp->set = BITMAP_ALLOC (NULL);
       *slot = (void *) mp;
@@ -619,8 +627,7 @@ add_new_name_mapping (tree new, tree old)
       WALK_DATA->GLOBAL_DATA->KILLS.
 
    2- If S uses a variable VAR and there is no preceding kill of VAR,
-      then it is marked in marked in the LIVEIN_BLOCKS bitmap
-      associated with VAR.
+      then it is marked in the LIVEIN_BLOCKS bitmap associated with VAR.
 
    This information is used to determine which variables are live
    across block boundaries to reduce the number of PHI nodes
@@ -631,7 +638,8 @@ mark_def_sites (struct dom_walk_data *walk_data,
 		basic_block bb,
 		block_stmt_iterator bsi)
 {
-  struct mark_def_sites_global_data *gd = walk_data->global_data;
+  struct mark_def_sites_global_data *gd =
+     (struct mark_def_sites_global_data *) walk_data->global_data;
   bitmap kills = gd->kills;
   tree stmt, def;
   use_operand_p use_p;
@@ -778,6 +786,34 @@ get_default_def_for (tree sym)
 }
 
 
+/* Marks phi node PHI in basic block BB for rewrite.  */
+
+static void
+mark_phi_for_rewrite (basic_block bb, tree phi)
+{
+  tree_vec phis;
+  unsigned i, idx = bb->index;
+
+  if (REWRITE_THIS_STMT (phi))
+    return;
+  REWRITE_THIS_STMT (phi) = 1;
+
+  if (!blocks_with_phis_to_rewrite)
+    return;
+
+  bitmap_set_bit (blocks_with_phis_to_rewrite, idx);
+  VEC_reserve (tree_vec, heap, phis_to_rewrite, last_basic_block + 1);
+  for (i = VEC_length (tree_vec, phis_to_rewrite); i <= idx; i++)
+    VEC_quick_push (tree_vec, phis_to_rewrite, NULL);
+
+  phis = VEC_index (tree_vec, phis_to_rewrite, idx);
+  if (!phis)
+    phis = VEC_alloc (tree, heap, 10);
+
+  VEC_safe_push (tree, heap, phis, phi);
+  VEC_replace (tree_vec, phis_to_rewrite, idx, phis);
+}
+
 /* Insert PHI nodes for variable VAR using the iterated dominance
    frontier given in PHI_INSERTION_POINTS.  If UPDATE_P is true, this
    function assumes that the caller is incrementally updating the SSA
@@ -846,7 +882,7 @@ insert_phi_nodes_for (tree var, bitmap phi_insertion_points, bool update_p)
 
       /* Mark this PHI node as interesting for update_ssa.  */
       REGISTER_DEFS_IN_THIS_STMT (phi) = 1;
-      REWRITE_THIS_STMT (phi) = 1;
+      mark_phi_for_rewrite (bb, phi);
     }
 }
 
@@ -1204,7 +1240,7 @@ def_blocks_eq (const void *p1, const void *p2)
 static void
 def_blocks_free (void *p)
 {
-  struct def_blocks_d *entry = p;
+  struct def_blocks_d *entry = (struct def_blocks_d *) p;
   BITMAP_FREE (entry->def_blocks);
   BITMAP_FREE (entry->phi_blocks);
   BITMAP_FREE (entry->livein_blocks);
@@ -1509,19 +1545,23 @@ rewrite_update_phi_arguments (struct dom_walk_data *walk_data ATTRIBUTE_UNUSED,
 {
   edge e;
   edge_iterator ei;
+  unsigned i;
 
   FOR_EACH_EDGE (e, ei, bb->succs)
     {
       tree phi;
+      tree_vec phis;
 
-      for (phi = phi_nodes (e->dest); phi; phi = PHI_CHAIN (phi))
+      if (!bitmap_bit_p (blocks_with_phis_to_rewrite, e->dest->index))
+	continue;
+     
+      phis = VEC_index (tree_vec, phis_to_rewrite, e->dest->index);
+      for (i = 0; VEC_iterate (tree, phis, i, phi); i++)
 	{
 	  tree arg;
 	  use_operand_p arg_p;
 
-	  /* Skip PHI nodes that are not marked for rewrite.  */
-	  if (!REWRITE_THIS_STMT (phi))
-	    continue;
+  	  gcc_assert (REWRITE_THIS_STMT (phi));
 
 	  arg_p = PHI_ARG_DEF_PTR_FROM_EDGE (phi, e);
 	  arg = USE_FROM_PTR (arg_p);
@@ -1646,7 +1686,8 @@ static void
 mark_def_sites_initialize_block (struct dom_walk_data *walk_data,
 				 basic_block bb ATTRIBUTE_UNUSED)
 {
-  struct mark_def_sites_global_data *gd = walk_data->global_data;
+  struct mark_def_sites_global_data *gd =
+     (struct mark_def_sites_global_data *) walk_data->global_data;
   bitmap kills = gd->kills;
   bitmap_clear (kills);
 }
@@ -1727,10 +1768,10 @@ mark_def_site_blocks (sbitmap interesting_blocks)
 
    4- Rename all the blocks (rewrite_blocks) and statements in the program.
 
-   Steps 3 and 5 are done using the dominator tree walker
+   Steps 3 and 4 are done using the dominator tree walker
    (walk_dominator_tree).  */
 
-static void
+static unsigned int
 rewrite_into_ssa (void)
 {
   bitmap *dfs;
@@ -1774,6 +1815,7 @@ rewrite_into_ssa (void)
 
   timevar_pop (TV_TREE_SSA_OTHER);
   in_ssa_p = true;
+  return 0;
 }
 
 
@@ -1790,7 +1832,9 @@ struct tree_opt_pass pass_build_ssa =
   PROP_ssa,				/* properties_provided */
   0,					/* properties_destroyed */
   0,					/* todo_flags_start */
-  TODO_dump_func | TODO_verify_ssa,	/* todo_flags_finish */
+  TODO_dump_func
+    | TODO_verify_ssa
+    | TODO_remove_unused_locals,	/* todo_flags_finish */
   0					/* letter */
 };
 
@@ -1834,7 +1878,12 @@ static inline void
 mark_use_interesting (tree var, tree stmt, basic_block bb, bitmap blocks,
 		      bool insert_phi_p)
 {
-  REWRITE_THIS_STMT (stmt) = 1;
+  basic_block def_bb = bb_for_stmt (stmt);
+
+  if (TREE_CODE (stmt) == PHI_NODE)
+    mark_phi_for_rewrite (def_bb, stmt);
+  else
+    REWRITE_THIS_STMT (stmt) = 1;
   bitmap_set_bit (blocks, bb->index);
 
   /* If VAR has not been defined in BB, then it is live-on-entry
@@ -2628,6 +2677,10 @@ update_ssa (unsigned update_flags)
 
   timevar_push (TV_TREE_SSA_INCREMENTAL);
 
+  blocks_with_phis_to_rewrite = BITMAP_ALLOC (NULL);
+  if (!phis_to_rewrite)
+    phis_to_rewrite = VEC_alloc (tree_vec, heap, last_basic_block);
+
   /* Ensure that the dominance information is up-to-date.  */
   calculate_dominance_info (CDI_DOMINATORS);
 
@@ -2745,7 +2798,7 @@ update_ssa (unsigned update_flags)
 
       /* If the caller requested PHI nodes to be added, compute
 	 dominance frontiers.  */
-      dfs = xmalloc (last_basic_block * sizeof (bitmap));
+      dfs = XNEWVEC (bitmap, last_basic_block);
       FOR_EACH_BB (bb)
 	dfs[bb->index] = BITMAP_ALLOC (NULL);
       compute_dominance_frontiers (dfs);
@@ -2831,6 +2884,14 @@ update_ssa (unsigned update_flags)
 
   /* Free allocated memory.  */
 done:
+  EXECUTE_IF_SET_IN_BITMAP (blocks_with_phis_to_rewrite, 0, i, bi)
+    {
+      tree_vec phis = VEC_index (tree_vec, phis_to_rewrite, i);
+
+      VEC_free (tree, heap, phis);
+      VEC_replace (tree_vec, phis_to_rewrite, i, NULL);
+    }
+  BITMAP_FREE (blocks_with_phis_to_rewrite);
   BITMAP_FREE (blocks);
   delete_update_ssa ();
 

@@ -34,12 +34,55 @@ Boston, MA 02110-1301, USA.  */
 #include "io.h"
 
 
+/* IO locking rules:
+   UNIT_LOCK is a master lock, protecting UNIT_ROOT tree and UNIT_CACHE.
+   Concurrent use of different units should be supported, so
+   each unit has its own lock, LOCK.
+   Open should be atomic with its reopening of units and list_read.c
+   in several places needs find_unit another unit while holding stdin
+   unit's lock, so it must be possible to acquire UNIT_LOCK while holding
+   some unit's lock.  Therefore to avoid deadlocks, it is forbidden
+   to acquire unit's private locks while holding UNIT_LOCK, except
+   for freshly created units (where no other thread can get at their
+   address yet) or when using just trylock rather than lock operation.
+   In addition to unit's private lock each unit has a WAITERS counter
+   and CLOSED flag.  WAITERS counter must be either only
+   atomically incremented/decremented in all places (if atomic builtins
+   are supported), or protected by UNIT_LOCK in all places (otherwise).
+   CLOSED flag must be always protected by unit's LOCK.
+   After finding a unit in UNIT_CACHE or UNIT_ROOT with UNIT_LOCK held,
+   WAITERS must be incremented to avoid concurrent close from freeing
+   the unit between unlocking UNIT_LOCK and acquiring unit's LOCK.
+   Unit freeing is always done under UNIT_LOCK.  If close_unit sees any
+   WAITERS, it doesn't free the unit but instead sets the CLOSED flag
+   and the thread that decrements WAITERS to zero while CLOSED flag is
+   set is responsible for freeing it (while holding UNIT_LOCK).
+   flush_all_units operation is iterating over the unit tree with
+   increasing UNIT_NUMBER while holding UNIT_LOCK and attempting to
+   flush each unit (and therefore needs the unit's LOCK held as well).
+   To avoid deadlocks, it just trylocks the LOCK and if unsuccessful,
+   remembers the current unit's UNIT_NUMBER, unlocks UNIT_LOCK, acquires
+   unit's LOCK and after flushing reacquires UNIT_LOCK and restarts with
+   the smallest UNIT_NUMBER above the last one flushed.
+
+   If find_unit/find_or_create_unit/find_file/get_unit routines return
+   non-NULL, the returned unit has its private lock locked and when the
+   caller is done with it, it must call either unlock_unit or close_unit
+   on it.  unlock_unit or close_unit must be always called only with the
+   private lock held.  */
+
 /* Subroutines related to units */
 
 
 #define CACHE_SIZE 3
-static gfc_unit internal_unit, *unit_cache[CACHE_SIZE];
-
+static gfc_unit *unit_cache[CACHE_SIZE];
+gfc_offset max_offset;
+gfc_unit *unit_root;
+#ifdef __GTHREAD_MUTEX_INIT
+__gthread_mutex_t unit_lock = __GTHREAD_MUTEX_INIT;
+#else
+__gthread_mutex_t unit_lock;
+#endif
 
 /* This implementation is based on Stefan Nilsson's article in the
  * July 1997 Doctor Dobb's Journal, "Treaps in Java". */
@@ -104,7 +147,7 @@ compare (int a, int b)
 /* insert()-- Recursive insertion function.  Returns the updated treap. */
 
 static gfc_unit *
-insert (gfc_unit * new, gfc_unit * t)
+insert (gfc_unit *new, gfc_unit *t)
 {
   int c;
 
@@ -128,20 +171,32 @@ insert (gfc_unit * new, gfc_unit * t)
     }
 
   if (c == 0)
-    internal_error ("insert(): Duplicate key found!");
+    internal_error (NULL, "insert(): Duplicate key found!");
 
   return t;
 }
 
 
-/* insert_unit()-- Given a new node, insert it into the treap.  It is
- * an error to insert a key that already exists. */
+/* insert_unit()-- Create a new node, insert it into the treap.  */
 
-void
-insert_unit (gfc_unit * new)
+static gfc_unit *
+insert_unit (int n)
 {
-  new->priority = pseudo_random ();
-  g.unit_root = insert (new, g.unit_root);
+  gfc_unit *u = get_mem (sizeof (gfc_unit));
+  memset (u, '\0', sizeof (gfc_unit));
+  u->unit_number = n;
+#ifdef __GTHREAD_MUTEX_INIT
+  {
+    __gthread_mutex_t tmp = __GTHREAD_MUTEX_INIT;
+    u->lock = tmp;
+  }
+#else
+  __GTHREAD_MUTEX_INIT_FUNCTION (&u->lock);
+#endif
+  __gthread_mutex_lock (&u->lock);
+  u->priority = pseudo_random ();
+  unit_root = insert (u, unit_root);
+  return u;
 }
 
 
@@ -201,27 +256,30 @@ delete_treap (gfc_unit * old, gfc_unit * t)
 static void
 delete_unit (gfc_unit * old)
 {
-  g.unit_root = delete_treap (old, g.unit_root);
+  unit_root = delete_treap (old, unit_root);
 }
 
 
-/* find_unit()-- Given an integer, return a pointer to the unit
- * structure.  Returns NULL if the unit does not exist. */
+/* get_external_unit()-- Given an integer, return a pointer to the unit
+ * structure.  Returns NULL if the unit does not exist,
+ * otherwise returns a locked unit. */
 
-gfc_unit *
-find_unit (int n)
+static gfc_unit *
+get_external_unit (int n, int do_create)
 {
   gfc_unit *p;
-  int c;
+  int c, created = 0;
 
+  __gthread_mutex_lock (&unit_lock);
+retry:
   for (c = 0; c < CACHE_SIZE; c++)
     if (unit_cache[c] != NULL && unit_cache[c]->unit_number == n)
       {
 	p = unit_cache[c];
-	return p;
+	goto found;
       }
 
-  p = g.unit_root;
+  p = unit_root;
   while (p != NULL)
     {
       c = compare (n, p->unit_number);
@@ -233,6 +291,12 @@ find_unit (int n)
 	break;
     }
 
+  if (p == NULL && do_create)
+    {
+      p = insert_unit (n);
+      created = 1;
+    }
+
   if (p != NULL)
     {
       for (c = 0; c < CACHE_SIZE - 1; c++)
@@ -241,87 +305,181 @@ find_unit (int n)
       unit_cache[CACHE_SIZE - 1] = p;
     }
 
+  if (created)
+    {
+      /* Newly created units have their lock held already
+	 from insert_unit.  Just unlock UNIT_LOCK and return.  */
+      __gthread_mutex_unlock (&unit_lock);
+      return p;
+    }
+
+found:
+  if (p != NULL)
+    {
+      /* Fast path.  */
+      if (! __gthread_mutex_trylock (&p->lock))
+	{
+	  /* assert (p->closed == 0); */
+	  __gthread_mutex_unlock (&unit_lock);
+	  return p;
+	}
+
+      inc_waiting_locked (p);
+    }
+
+  __gthread_mutex_unlock (&unit_lock);
+
+  if (p != NULL)
+    {
+      __gthread_mutex_lock (&p->lock);
+      if (p->closed)
+	{
+	  __gthread_mutex_lock (&unit_lock);
+	  __gthread_mutex_unlock (&p->lock);
+	  if (predec_waiting_locked (p) == 0)
+	    free_mem (p);
+	  goto retry;
+	}
+
+      dec_waiting_unlocked (p);
+    }
   return p;
 }
 
 
-/* get_array_unit_len()-- return the number of records in the array. */
-
-gfc_offset
-get_array_unit_len (gfc_array_char *desc)
+gfc_unit *
+find_unit (int n)
 {
-  gfc_offset record_count;
-  int i, rank, stride;
-  rank = GFC_DESCRIPTOR_RANK(desc);
-  record_count = stride = 1;
-  for (i=0;i<rank;++i)
-    {
-      /* Check that array is contiguous */
-      
-      if (desc->dim[i].stride != stride)
-	{
-	  generate_error (ERROR_ARRAY_STRIDE, NULL);
-	  return NULL;
-	}
-      stride *= desc->dim[i].ubound;
-      record_count *= desc->dim[i].ubound;
-    }
-  return record_count;
+  return get_external_unit (n, 0);
 }
 
- 
+
+gfc_unit *
+find_or_create_unit (int n)
+{
+  return get_external_unit (n, 1);
+}
+
+
+gfc_unit *
+get_internal_unit (st_parameter_dt *dtp)
+{
+  gfc_unit * iunit;
+
+  /* Allocate memory for a unit structure.  */
+
+  iunit = get_mem (sizeof (gfc_unit));
+  if (iunit == NULL)
+    {
+      generate_error (&dtp->common, ERROR_INTERNAL_UNIT, NULL);
+      return NULL;
+    }
+
+  memset (iunit, '\0', sizeof (gfc_unit));
+
+  iunit->recl = dtp->internal_unit_len;
+  
+  /* For internal units we set the unit number to -1.
+     Otherwise internal units can be mistaken for a pre-connected unit or
+     some other file I/O unit.  */
+  iunit->unit_number = -1;
+
+  /* Set up the looping specification from the array descriptor, if any.  */
+
+  if (is_array_io (dtp))
+    {
+      iunit->rank = GFC_DESCRIPTOR_RANK (dtp->internal_unit_desc);
+      iunit->ls = (array_loop_spec *)
+	get_mem (iunit->rank * sizeof (array_loop_spec));
+      dtp->internal_unit_len *=
+	init_loop_spec (dtp->internal_unit_desc, iunit->ls);
+    }
+
+  /* Set initial values for unit parameters.  */
+
+  iunit->s = open_internal (dtp->internal_unit, dtp->internal_unit_len);
+  iunit->bytes_left = iunit->recl;
+  iunit->last_record=0;
+  iunit->maxrec=0;
+  iunit->current_record=0;
+  iunit->read_bad = 0;
+
+  /* Set flags for the internal unit.  */
+
+  iunit->flags.access = ACCESS_SEQUENTIAL;
+  iunit->flags.action = ACTION_READWRITE;
+  iunit->flags.form = FORM_FORMATTED;
+  iunit->flags.pad = PAD_YES;
+  iunit->flags.status = STATUS_UNSPECIFIED;
+
+  /* Initialize the data transfer parameters.  */
+
+  dtp->u.p.advance_status = ADVANCE_YES;
+  dtp->u.p.blank_status = BLANK_UNSPECIFIED;
+  dtp->u.p.seen_dollar = 0;
+  dtp->u.p.skips = 0;
+  dtp->u.p.pending_spaces = 0;
+  dtp->u.p.max_pos = 0;
+
+  /* This flag tells us the unit is assigned to internal I/O.  */
+  
+  dtp->u.p.unit_is_internal = 1;
+
+  return iunit;
+}
+
+
+/* free_internal_unit()-- Free memory allocated for internal units if any.  */
+void
+free_internal_unit (st_parameter_dt *dtp)
+{
+  if (!is_internal_unit (dtp))
+    return;
+
+  if (dtp->u.p.current_unit->ls != NULL)
+      free_mem (dtp->u.p.current_unit->ls);
+  
+  sclose (dtp->u.p.current_unit->s);
+
+  if (dtp->u.p.current_unit != NULL)
+    free_mem (dtp->u.p.current_unit);
+}
+
+
 /* get_unit()-- Returns the unit structure associated with the integer
  * unit or the internal file. */
 
 gfc_unit *
-get_unit (int read_flag __attribute__ ((unused)))
+get_unit (st_parameter_dt *dtp, int do_create)
 {
-  if (ioparm.internal_unit != NULL)
-    {
-      internal_unit.recl = ioparm.internal_unit_len;
-      if (is_array_io()) ioparm.internal_unit_len *=
-			   get_array_unit_len(ioparm.internal_unit_desc);
-      internal_unit.s =
-	open_internal (ioparm.internal_unit, ioparm.internal_unit_len);
-      internal_unit.bytes_left = internal_unit.recl;
-      internal_unit.last_record=0;
-      internal_unit.maxrec=0;
-      internal_unit.current_record=0;
 
-      if (g.mode==WRITING && !is_array_io())
-        empty_internal_buffer (internal_unit.s);
-
-      /* Set flags for the internal unit */
-
-      internal_unit.flags.access = ACCESS_SEQUENTIAL;
-      internal_unit.flags.action = ACTION_READWRITE;
-      internal_unit.flags.form = FORM_FORMATTED;
-      internal_unit.flags.delim = DELIM_NONE;
-
-      return &internal_unit;
-    }
+  if ((dtp->common.flags & IOPARM_DT_HAS_INTERNAL_UNIT) != 0)
+    return get_internal_unit(dtp);
 
   /* Has to be an external unit */
 
-  return find_unit (ioparm.unit);
+  dtp->u.p.unit_is_internal = 0;
+  dtp->internal_unit_desc = NULL;
+
+  return get_external_unit (dtp->common.unit, do_create);
 }
 
 
 /* is_internal_unit()-- Determine if the current unit is internal or not */
 
 int
-is_internal_unit (void)
+is_internal_unit (st_parameter_dt *dtp)
 {
-  return current_unit == &internal_unit;
+  return dtp->u.p.unit_is_internal;
 }
 
 
 /* is_array_io ()-- Determine if the I/O is to/from an array */
 
 int
-is_array_io (void)
+is_array_io (st_parameter_dt *dtp)
 {
-  return (ioparm.internal_unit_desc != NULL);
+  return dtp->internal_unit_desc != NULL;
 }
 
 
@@ -334,12 +492,13 @@ init_units (void)
   gfc_unit *u;
   unsigned int i;
 
+#ifndef __GTHREAD_MUTEX_INIT
+  __GTHREAD_MUTEX_INIT_FUNCTION (&unit_lock);
+#endif
+
   if (options.stdin_unit >= 0)
     {				/* STDIN */
-      u = get_mem (sizeof (gfc_unit));
-      memset (u, '\0', sizeof (gfc_unit));
-
-      u->unit_number = options.stdin_unit;
+      u = insert_unit (options.stdin_unit);
       u->s = input_stream ();
 
       u->flags.action = ACTION_READ;
@@ -347,21 +506,19 @@ init_units (void)
       u->flags.access = ACCESS_SEQUENTIAL;
       u->flags.form = FORM_FORMATTED;
       u->flags.status = STATUS_OLD;
-      u->flags.blank = BLANK_UNSPECIFIED;
+      u->flags.blank = BLANK_NULL;
+      u->flags.pad = PAD_YES;
       u->flags.position = POSITION_ASIS;
 
       u->recl = options.default_recl;
       u->endfile = NO_ENDFILE;
 
-      insert_unit (u);
+      __gthread_mutex_unlock (&u->lock);
     }
 
   if (options.stdout_unit >= 0)
     {				/* STDOUT */
-      u = get_mem (sizeof (gfc_unit));
-      memset (u, '\0', sizeof (gfc_unit));
-
-      u->unit_number = options.stdout_unit;
+      u = insert_unit (options.stdout_unit);
       u->s = output_stream ();
 
       u->flags.action = ACTION_WRITE;
@@ -369,21 +526,18 @@ init_units (void)
       u->flags.access = ACCESS_SEQUENTIAL;
       u->flags.form = FORM_FORMATTED;
       u->flags.status = STATUS_OLD;
-      u->flags.blank = BLANK_UNSPECIFIED;
+      u->flags.blank = BLANK_NULL;
       u->flags.position = POSITION_ASIS;
 
       u->recl = options.default_recl;
       u->endfile = AT_ENDFILE;
 
-      insert_unit (u);
+      __gthread_mutex_unlock (&u->lock);
     }
 
   if (options.stderr_unit >= 0)
     {				/* STDERR */
-      u = get_mem (sizeof (gfc_unit));
-      memset (u, '\0', sizeof (gfc_unit));
-
-      u->unit_number = options.stderr_unit;
+      u = insert_unit (options.stderr_unit);
       u->s = error_stream ();
 
       u->flags.action = ACTION_WRITE;
@@ -391,13 +545,13 @@ init_units (void)
       u->flags.access = ACCESS_SEQUENTIAL;
       u->flags.form = FORM_FORMATTED;
       u->flags.status = STATUS_OLD;
-      u->flags.blank = BLANK_UNSPECIFIED;
+      u->flags.blank = BLANK_NULL;
       u->flags.position = POSITION_ASIS;
 
       u->recl = options.default_recl;
       u->endfile = AT_ENDFILE;
 
-      insert_unit (u);
+      __gthread_mutex_unlock (&u->lock);
     }
 
   /* Calculate the maximum file offset in a portable manner.
@@ -405,40 +559,78 @@ init_units (void)
    *
    * set a 1 in the LSB and keep a running sum, stopping at MSB-1 bit. */
 
-  g.max_offset = 0;
-  for (i = 0; i < sizeof (g.max_offset) * 8 - 1; i++)
-    g.max_offset = g.max_offset + ((gfc_offset) 1 << i);
-
+  max_offset = 0;
+  for (i = 0; i < sizeof (max_offset) * 8 - 1; i++)
+    max_offset = max_offset + ((gfc_offset) 1 << i);
 }
 
 
-/* close_unit()-- Close a unit.  The stream is closed, and any memory
- * associated with the stream is freed.  Returns nonzero on I/O error. */
-
-int
-close_unit (gfc_unit * u)
+static int
+close_unit_1 (gfc_unit *u, int locked)
 {
   int i, rc;
+
+  rc = (u->s == NULL) ? 0 : sclose (u->s) == FAILURE;
+
+  u->closed = 1;
+  if (!locked)
+    __gthread_mutex_lock (&unit_lock);
 
   for (i = 0; i < CACHE_SIZE; i++)
     if (unit_cache[i] == u)
       unit_cache[i] = NULL;
 
-  rc = (u->s == NULL) ? 0 : sclose (u->s) == FAILURE;
-
   delete_unit (u);
-  free_mem (u);
+
+  if (u->file)
+    free_mem (u->file);
+  u->file = NULL;
+  u->file_len = 0;
+
+  if (!locked)
+    __gthread_mutex_unlock (&u->lock);
+
+  /* If there are any threads waiting in find_unit for this unit,
+     avoid freeing the memory, the last such thread will free it
+     instead.  */
+  if (u->waiting == 0)
+    free_mem (u);
+
+  if (!locked)
+    __gthread_mutex_unlock (&unit_lock);
 
   return rc;
 }
 
+void
+unlock_unit (gfc_unit *u)
+{
+  __gthread_mutex_unlock (&u->lock);
+}
+
+/* close_unit()-- Close a unit.  The stream is closed, and any memory
+ * associated with the stream is freed.  Returns nonzero on I/O error.
+ * Should be called with the u->lock locked. */
+
+int
+close_unit (gfc_unit *u)
+{
+  return close_unit_1 (u, 0);
+}
+
 
 /* close_units()-- Delete units on completion.  We just keep deleting
- * the root of the treap until there is nothing left. */
+ * the root of the treap until there is nothing left.
+ * Not sure what to do with locking here.  Some other thread might be
+ * holding some unit's lock and perhaps hold it indefinitely
+ * (e.g. waiting for input from some pipe) and close_units shouldn't
+ * delay the program too much.  */
 
 void
 close_units (void)
 {
-  while (g.unit_root != NULL)
-    close_unit (g.unit_root);
+  __gthread_mutex_lock (&unit_lock);
+  while (unit_root != NULL)
+    close_unit_1 (unit_root, 1);
+  __gthread_mutex_unlock (&unit_lock);
 }

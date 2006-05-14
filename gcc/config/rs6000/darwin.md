@@ -28,10 +28,10 @@ Boston, MA 02110-1301, USA.  */
   [(set_attr "length" "4")])
 
 (define_insn "movdf_low_si"
-  [(set (match_operand:DF 0 "gpc_reg_operand" "=f,!&r")
+  [(set (match_operand:DF 0 "gpc_reg_operand" "=f,!r")
         (mem:DF (lo_sum:SI (match_operand:SI 1 "gpc_reg_operand" "b,b")
                            (match_operand 2 "" ""))))]
-  "TARGET_MACHO && TARGET_HARD_FLOAT && TARGET_FPRS && ! TARGET_64BIT"
+  "TARGET_MACHO && TARGET_HARD_FLOAT && TARGET_FPRS && !TARGET_64BIT"
   "*
 {
   switch (which_alternative)
@@ -45,9 +45,9 @@ Boston, MA 02110-1301, USA.  */
 	    return \"ld %0,lo16(%2)(%1)\";
 	  else
 	    {
-	      output_asm_insn (\"{l|lwz} %0,lo16(%2)(%1)\", operands);
-	      output_asm_insn (\"{cal|la} %L0,lo16(%2)(%1)\", operands);
-	      return (\"{l|lwz} %L0,4(%L0)\");
+	      output_asm_insn (\"{cal|la} %0,lo16(%2)(%1)\", operands);
+	      output_asm_insn (\"{l|lwz} %L0,4(%0)\", operands);
+	      return (\"{l|lwz} %0,0(%0)\");
 	    }
 	}
       default:
@@ -254,8 +254,8 @@ Boston, MA 02110-1301, USA.  */
 
 (define_insn "load_macho_picbase_si"
   [(set (match_operand:SI 0 "register_operand" "=l")
-	(unspec:SI [(match_operand:SI 1 "immediate_operand" "s")]
-		   UNSPEC_LD_MPIC))]
+	(unspec:SI [(match_operand:SI 1 "immediate_operand" "s")
+		    (pc)] UNSPEC_LD_MPIC))]
   "(DEFAULT_ABI == ABI_DARWIN) && flag_pic"
   "bcl 20,31,%1\\n%1:"
   [(set_attr "type" "branch")
@@ -263,7 +263,8 @@ Boston, MA 02110-1301, USA.  */
 
 (define_insn "load_macho_picbase_di"
   [(set (match_operand:DI 0 "register_operand" "=l")
-	(unspec:DI [(match_operand:DI 1 "immediate_operand" "s")] UNSPEC_LD_MPIC))]
+	(unspec:DI [(match_operand:DI 1 "immediate_operand" "s")
+		    (pc)] UNSPEC_LD_MPIC))]
   "(DEFAULT_ABI == ABI_DARWIN) && flag_pic && TARGET_64BIT"
   "bcl 20,31,%1\\n%1:"
   [(set_attr "type" "branch")

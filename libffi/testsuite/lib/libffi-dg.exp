@@ -120,7 +120,7 @@ proc libffi-init { args } {
     if { [is_remote host] == 0 && [which $compiler] != 0 } {
 	foreach i "[exec $compiler --print-multi-lib]" {
 	    set mldir ""
-	    regexp -- "\[a-z0-9=/\.-\]*;" $i mldir
+	    regexp -- "\[a-z0-9=_/\.-\]*;" $i mldir
 	    set mldir [string trimright $mldir "\;@"]
 	    if { "$mldir" == "." } {
 		continue
@@ -187,8 +187,13 @@ proc libffi_target_compile { source dest type options } {
     lappend options "additional_flags=-I${libffi_include} -I${srcdir}/../include  -I${libffi_include}/.."
     lappend options "additional_flags=${libffi_link_flags}"
 
-    if { [string match "powerpc-*-darwin*" $target_triplet] } {
-	lappend options "libs= -lgcc_s"
+    # If you're building the compiler with --prefix set to a place
+    # where it's not yet installed, then the linker won't be able to
+    # find the libgcc used by libffi.dylib.  We could pass the
+    # -dylib_file option, but that's complicated, and it's much easier
+    # to just make the linker find libgcc using -L options.
+    if { [string match "*-*-darwin*" $target_triplet] } {
+	lappend options "libs= -shared-libgcc"
     }
 
     lappend options "libs= -lffi"

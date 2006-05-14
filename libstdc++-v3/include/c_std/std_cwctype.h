@@ -1,6 +1,6 @@
 // -*- C++ -*- forwarding header.
 
-// Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2005
+// Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005
 // Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
@@ -38,7 +38,8 @@
  *
  *  This is the C++ version of the Standard C Library header @c wctype.h,
  *  and its contents are (mostly) the same as that header, but are all
- *  contained in the namespace @c std.
+ *  contained in the namespace @c std (except for names which are defined
+ *  as macros in C).
  */
 
 #ifndef _GLIBCXX_CWCTYPE
@@ -75,8 +76,9 @@
 #undef wctype
 
 #if _GLIBCXX_USE_WCHAR_T
-namespace std
-{
+
+_GLIBCXX_BEGIN_NAMESPACE(std)
+
   using ::wint_t;	  // cwchar
 
   using ::wctype_t;
@@ -102,7 +104,9 @@ namespace std
   using ::towupper;
   using ::wctrans;
   using ::wctype;
-}
+
+_GLIBCXX_END_NAMESPACE
+
 #endif //_GLIBCXX_USE_WCHAR_T
 
 #endif

@@ -69,8 +69,11 @@
 #endif
 
 
-namespace __gnu_cxx
-{
+_GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
+
+  using std::size_t;
+  using std::ptrdiff_t;
+
 #if defined __GTHREADS
   namespace
   {
@@ -238,8 +241,8 @@ namespace __gnu_cxx
 	typedef _Tp* pointer;
 	typedef _Tp& reference;
 	typedef const _Tp& const_reference;
-	typedef std::size_t size_type;
-	typedef std::ptrdiff_t difference_type;
+	typedef size_t size_type;
+	typedef ptrdiff_t difference_type;
 	typedef pointer iterator;
 
       private:
@@ -396,7 +399,7 @@ namespace __gnu_cxx
       struct __mv_iter_traits<_Tp*>
       {
 	typedef _Tp value_type;
-	typedef std::ptrdiff_t difference_type;
+	typedef ptrdiff_t difference_type;
       };
 
     enum 
@@ -865,8 +868,8 @@ namespace __gnu_cxx
     class bitmap_allocator : private free_list
     {
     public:
-      typedef std::size_t    size_type;
-      typedef std::ptrdiff_t difference_type;
+      typedef size_t    size_type;
+      typedef ptrdiff_t difference_type;
       typedef _Tp*        pointer;
       typedef const _Tp*  const_pointer;
       typedef _Tp&        reference;
@@ -1286,8 +1289,7 @@ namespace __gnu_cxx
     bitmap_allocator<_Tp>::_S_mut;
 #endif
 
-
-}
+_GLIBCXX_END_NAMESPACE
 
 #endif 
 

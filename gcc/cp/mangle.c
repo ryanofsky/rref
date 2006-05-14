@@ -1,7 +1,7 @@
 /* Name mangling for the 3.0 C++ ABI.
    Copyright (C) 2000, 2001, 2002, 2003, 2004, 2005
    Free Software Foundation, Inc.
-   Written by Alex Samuel <sameul@codesourcery.com>
+   Written by Alex Samuel <samuel@codesourcery.com>
 
    This file is part of GCC.
 
@@ -276,7 +276,7 @@ save_partially_mangled_name (void)
     {
       gcc_assert (!partially_mangled_name);
       partially_mangled_name_len = obstack_object_size (mangle_obstack);
-      partially_mangled_name = xmalloc (partially_mangled_name_len);
+      partially_mangled_name = XNEWVEC (char, partially_mangled_name_len);
       memcpy (partially_mangled_name, obstack_base (mangle_obstack),
 	      partially_mangled_name_len);
       obstack_free (mangle_obstack, obstack_finish (mangle_obstack));
@@ -1868,16 +1868,38 @@ write_function_type (const tree type)
    is mangled before the parameter types.  If non-NULL, DECL is
    FUNCTION_DECL for the function whose type is being emitted.
 
-     <bare-function-type> ::= </signature/ type>+  */
+   If DECL is a member of a Java type, then a literal 'J'
+   is output and the return type is mangled as if INCLUDE_RETURN_TYPE
+   were nonzero.
+
+     <bare-function-type> ::= [J]</signature/ type>+  */
 
 static void
 write_bare_function_type (const tree type, const int include_return_type_p,
 			  const tree decl)
 {
+  int java_method_p;
+
   MANGLE_TRACE_TREE ("bare-function-type", type);
 
+  /* Detect Java methods and emit special encoding.  */
+  if (decl != NULL
+      && DECL_FUNCTION_MEMBER_P (decl)
+      && TYPE_FOR_JAVA (DECL_CONTEXT (decl))
+      && !DECL_CONSTRUCTOR_P (decl)
+      && !DECL_DESTRUCTOR_P (decl)
+      && !DECL_CONV_FN_P (decl))
+    {
+      java_method_p = 1;
+      write_char ('J');
+    }
+  else
+    {
+      java_method_p = 0;
+    }
+
   /* Mangle the return type, if requested.  */
-  if (include_return_type_p)
+  if (include_return_type_p || java_method_p)
     write_type (TREE_TYPE (type));
 
   /* Now mangle the types of the arguments.  */
@@ -2018,9 +2040,10 @@ write_expression (tree expr)
   if (code == PTRMEM_CST)
     {
       expr = build_nt (ADDR_EXPR,
-		       build_nt (SCOPE_REF,
-				 PTRMEM_CST_CLASS (expr),
-				 PTRMEM_CST_MEMBER (expr)));
+		       build_qualified_name (/*type=*/NULL_TREE,
+					     PTRMEM_CST_CLASS (expr),
+					     PTRMEM_CST_MEMBER (expr),
+					     /*template_p=*/false));
       code = TREE_CODE (expr);
     }
 
@@ -2196,7 +2219,7 @@ write_expression (tree expr)
 	  for (i = 0; i < TREE_CODE_LENGTH (code); ++i)
 	    {
 	      tree operand = TREE_OPERAND (expr, i);
-	      /* As a GNU expression, the middle operand of a
+	      /* As a GNU extension, the middle operand of a
 		 conditional may be omitted.  Since expression
 		 manglings are supposed to represent the input token
 		 stream, there's no good way to mangle such an
@@ -2513,7 +2536,7 @@ static inline const char *
 finish_mangling (const bool warn)
 {
   if (warn_abi && warn && G.need_abi_warning)
-    warning (0, "the mangled name of %qD will change in a future "
+    warning (OPT_Wabi, "the mangled name of %qD will change in a future "
 	     "version of GCC",
 	     G.entity);
 

@@ -292,6 +292,29 @@ pp_cxx_qualified_id (cxx_pretty_printer *pp, tree t)
     }
 }
 
+
+static void
+pp_cxx_constant (cxx_pretty_printer *pp, tree t)
+{
+  switch (TREE_CODE (t))
+    {
+    case STRING_CST:
+      {
+        const bool in_parens = PAREN_STRING_LITERAL_P (t);
+        if (in_parens)
+          pp_cxx_left_paren (pp);
+        pp_c_constant (pp_c_base (pp), t);
+        if (in_parens)
+          pp_cxx_right_paren (pp);
+      }
+      break;
+
+    default:
+      pp_c_constant (pp_c_base (pp), t);
+      break;
+    }
+}
+
 /* id-expression:
       unqualified-id
       qualified-id   */
@@ -321,10 +344,10 @@ pp_cxx_primary_expression (cxx_pretty_printer *pp, tree t)
 {
   switch (TREE_CODE (t))
     {
-    case STRING_CST:
     case INTEGER_CST:
     case REAL_CST:
-      pp_c_constant (pp_c_base (pp), t);
+    case STRING_CST:
+      pp_cxx_constant (pp, t);
       break;
 
     case BASELINK:
@@ -848,7 +871,7 @@ pp_cxx_expression (cxx_pretty_printer *pp, tree t)
     case STRING_CST:
     case INTEGER_CST:
     case REAL_CST:
-      pp_c_constant (pp_c_base (pp), t);
+      pp_cxx_constant (pp, t);
       break;
 
     case RESULT_DECL:
@@ -1514,6 +1537,8 @@ pp_cxx_statement (cxx_pretty_printer *pp, tree t)
     case USING_STMT:
       pp_cxx_identifier (pp, "using");
       pp_cxx_identifier (pp, "namespace");
+      if (DECL_CONTEXT (t))
+	pp_cxx_nested_name_specifier (pp, DECL_CONTEXT (t));
       pp_cxx_qualified_id (pp, USING_STMT_NAMESPACE (t));
       break;
 
@@ -1701,6 +1726,8 @@ static void
 pp_cxx_original_namespace_definition (cxx_pretty_printer *pp, tree t)
 {
   pp_cxx_identifier (pp, "namespace");
+  if (DECL_CONTEXT (t))
+    pp_cxx_nested_name_specifier (pp, DECL_CONTEXT (t));
   if (DECL_NAME (t))
     pp_cxx_unqualified_id (pp, t);
   pp_cxx_whitespace (pp);
@@ -1723,10 +1750,15 @@ static void
 pp_cxx_namespace_alias_definition (cxx_pretty_printer *pp, tree t)
 {
   pp_cxx_identifier (pp, "namespace");
+  if (DECL_CONTEXT (t))
+    pp_cxx_nested_name_specifier (pp, DECL_CONTEXT (t));
   pp_cxx_unqualified_id (pp, t);
   pp_cxx_whitespace (pp);
   pp_equal (pp);
   pp_cxx_whitespace (pp);
+  if (DECL_CONTEXT (DECL_NAMESPACE_ALIAS (t)))
+    pp_cxx_nested_name_specifier (pp, 
+				  DECL_CONTEXT (DECL_NAMESPACE_ALIAS (t)));
   pp_cxx_qualified_id (pp, DECL_NAMESPACE_ALIAS (t));
   pp_cxx_semicolon (pp);
 }
@@ -1952,6 +1984,7 @@ pp_cxx_pretty_printer_init (cxx_pretty_printer *pp)
 
   /* pp->c_base.statement = (pp_fun) pp_cxx_statement;  */
 
+  pp->c_base.constant = (pp_fun) pp_cxx_constant;
   pp->c_base.id_expression = (pp_fun) pp_cxx_id_expression;
   pp->c_base.primary_expression = (pp_fun) pp_cxx_primary_expression;
   pp->c_base.postfix_expression = (pp_fun) pp_cxx_postfix_expression;

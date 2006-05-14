@@ -1,6 +1,6 @@
 // -*- C++ -*- forwarding header.
 
-// Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002
+// Copyright (C) 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005
 // Free Software Foundation, Inc.
 //
 // This file is part of the GNU ISO C++ Library.  This library is free
@@ -38,7 +38,8 @@
  *
  *  This is the C++ version of the Standard C Library header @c string.h,
  *  and its contents are (mostly) the same as that header, but are all
- *  contained in the namespace @c std.
+ *  contained in the namespace @c std (except for names which are defined
+ *  as macros in C).
  */
 
 #ifndef _GLIBCXX_CSTRING
@@ -46,8 +47,8 @@
 
 #pragma GCC system_header
 
+#include <bits/c++config.h>
 #include <cstddef>
-
 #include <string.h>
 
 // Get rid of those macros defined in <string.h> in lieu of real functions.
@@ -74,8 +75,8 @@
 #undef strerror
 #undef strlen
 
-namespace std
-{
+_GLIBCXX_BEGIN_NAMESPACE(std)
+
   using ::memcpy;
   using ::memmove;
   using ::strcpy;
@@ -123,6 +124,7 @@ namespace std
   inline char*
   strstr(char* __s1, const char* __s2)
   { return __builtin_strstr(const_cast<const char*>(__s1), __s2); }
-}
+
+_GLIBCXX_END_NAMESPACE
 
 #endif

@@ -115,24 +115,26 @@ cgraph_estimate_size_after_inlining (int times, struct cgraph_node *to,
 void
 cgraph_clone_inlined_nodes (struct cgraph_edge *e, bool duplicate, bool update_original)
 {
-  struct cgraph_node *n;
-
-  /* We may eliminate the need for out-of-line copy to be output.  In that
-     case just go ahead and re-use it.  */
-  if (!e->callee->callers->next_caller
-      && (!e->callee->needed || DECL_EXTERNAL (e->callee->decl))
-      && duplicate
-      && flag_unit_at_a_time)
+  if (duplicate)
     {
-      gcc_assert (!e->callee->global.inlined_to);
-      if (!DECL_EXTERNAL (e->callee->decl))
-        overall_insns -= e->callee->global.insns, nfunctions_inlined++;
-      duplicate = 0;
-    }
-   else if (duplicate)
-    {
-      n = cgraph_clone_node (e->callee, e->count, e->loop_nest, update_original);
-      cgraph_redirect_edge_callee (e, n);
+      /* We may eliminate the need for out-of-line copy to be output.
+	 In that case just go ahead and re-use it.  */
+      if (!e->callee->callers->next_caller
+	  && !e->callee->needed
+	  && flag_unit_at_a_time)
+	{
+	  gcc_assert (!e->callee->global.inlined_to);
+	  if (DECL_SAVED_TREE (e->callee->decl))
+	    overall_insns -= e->callee->global.insns, nfunctions_inlined++;
+	  duplicate = false;
+	}
+      else
+	{
+	  struct cgraph_node *n;
+	  n = cgraph_clone_node (e->callee, e->count, e->loop_nest, 
+				 update_original);
+	  cgraph_redirect_edge_callee (e, n);
+	}
     }
 
   if (e->caller->global.inlined_to)
@@ -155,6 +157,9 @@ cgraph_mark_inline_edge (struct cgraph_edge *e, bool update_original)
 {
   int old_insns = 0, new_insns = 0;
   struct cgraph_node *to = NULL, *what;
+
+  if (e->callee->inline_decl)
+    cgraph_redirect_edge_callee (e, cgraph_node (e->callee->inline_decl));
 
   gcc_assert (e->inline_failed);
   e->inline_failed = NULL;
@@ -249,12 +254,12 @@ cgraph_check_inline_limits (struct cgraph_node *to, struct cgraph_node *what,
   int newsize;
   int limit;
 
-  if (to->global.inlined_to)
-    to = to->global.inlined_to;
-
   for (e = to->callees; e; e = e->next_callee)
     if (e->callee == what)
       times++;
+
+  if (to->global.inlined_to)
+    to = to->global.inlined_to;
 
   /* When inlining large function body called once into small function,
      take the inlined function as base for limiting the growth.  */
@@ -265,8 +270,11 @@ cgraph_check_inline_limits (struct cgraph_node *to, struct cgraph_node *what,
 
   limit += limit * PARAM_VALUE (PARAM_LARGE_FUNCTION_GROWTH) / 100;
 
+  /* Check the size after inlining against the function limits.  But allow
+     the function to shrink if it went over the limits by forced inlining.  */
   newsize = cgraph_estimate_size_after_inlining (times, to, what);
-  if (newsize > PARAM_VALUE (PARAM_LARGE_FUNCTION_INSNS)
+  if (newsize >= to->global.insns
+      && newsize > PARAM_VALUE (PARAM_LARGE_FUNCTION_INSNS)
       && newsize > limit)
     {
       if (reason)
@@ -281,21 +289,25 @@ cgraph_check_inline_limits (struct cgraph_node *to, struct cgraph_node *what,
 bool
 cgraph_default_inline_p (struct cgraph_node *n, const char **reason)
 {
-  if (!DECL_INLINE (n->decl))
+  tree decl = n->decl;
+
+  if (n->inline_decl)
+    decl = n->inline_decl;
+  if (!DECL_INLINE (decl))
     {
       if (reason)
 	*reason = N_("function not inlinable");
       return false;
     }
 
-  if (!DECL_SAVED_TREE (n->decl))
+  if (!DECL_STRUCT_FUNCTION (decl)->cfg)
     {
       if (reason)
 	*reason = N_("function body not available");
       return false;
     }
 
-  if (DECL_DECLARED_INLINE_P (n->decl))
+  if (DECL_DECLARED_INLINE_P (decl))
     {
       if (n->global.insns >= MAX_INLINE_INSNS_SINGLE)
 	{
@@ -650,7 +662,7 @@ cgraph_decide_recursive_inlining (struct cgraph_node *node)
      function.  At this place we should probably walk the function and
      inline clones and compensate the counts accordingly.  This probably
      doesn't matter much in practice.  */
-  return true;
+  return n > 0;
 }
 
 /* Set inline_failed for all callers of given function to REASON.  */
@@ -722,11 +734,13 @@ cgraph_decide_inlining_of_small_functions (void)
       if (dump_file)
 	{
 	  fprintf (dump_file, 
-		   "\nConsidering %s with %i insns to be inlined into %s\n"
+		   "\nConsidering %s with %i insns\n",
+		   cgraph_node_name (edge->callee),
+		   edge->callee->global.insns);
+	  fprintf (dump_file, 
+		   " to be inlined into %s\n"
 		   " Estimated growth after inlined into all callees is %+i insns.\n"
 		   " Estimated badness is %i.\n",
-		   cgraph_node_name (edge->callee),
-		   edge->callee->global.insns,
 		   cgraph_node_name (edge->caller),
 		   cgraph_estimate_growth (edge->callee),
 		   cgraph_edge_badness (edge));
@@ -827,14 +841,14 @@ cgraph_decide_inlining_of_small_functions (void)
       bitmap_clear (updated_nodes);
 
       if (dump_file)
-	fprintf (dump_file, 
-		 " Inlined into %s which now has %i insns.\n",
-		 cgraph_node_name (edge->caller),
-		 edge->caller->global.insns);
-      if (dump_file)
-	fprintf (dump_file, 
-		 " Inlined for a net change of %+i insns.\n",
-		 overall_insns - old_insns);
+	{
+	  fprintf (dump_file, 
+		   " Inlined into %s which now has %i insns,"
+		   "net change of %+i insns.\n",
+		   cgraph_node_name (edge->caller),
+		   edge->caller->global.insns,
+		   overall_insns - old_insns);
+	}
     }
   while ((edge = fibheap_extract_min (heap)) != NULL)
     {
@@ -852,13 +866,13 @@ cgraph_decide_inlining_of_small_functions (void)
 /* Decide on the inlining.  We do so in the topological order to avoid
    expenses on updating data structures.  */
 
-static void
+static unsigned int
 cgraph_decide_inlining (void)
 {
   struct cgraph_node *node;
   int nnodes;
   struct cgraph_node **order =
-    xcalloc (cgraph_n_nodes, sizeof (struct cgraph_node *));
+    XCNEWVEC (struct cgraph_node *, cgraph_n_nodes);
   int old_insns = 0;
   int i;
 
@@ -875,7 +889,11 @@ cgraph_decide_inlining (void)
   overall_insns = initial_insns;
   gcc_assert (!max_count || (profile_info && flag_branch_probabilities));
 
-  max_insns = ((HOST_WIDEST_INT) overall_insns
+  max_insns = overall_insns;
+  if (max_insns < PARAM_VALUE (PARAM_LARGE_UNIT_INSNS))
+    max_insns = PARAM_VALUE (PARAM_LARGE_UNIT_INSNS);
+
+  max_insns = ((HOST_WIDEST_INT) max_insns
 	       * (100 + PARAM_VALUE (PARAM_INLINE_UNIT_GROWTH)) / 100);
 
   nnodes = cgraph_postorder (order);
@@ -976,12 +994,15 @@ cgraph_decide_inlining (void)
 	      if (ok)
 		{
 		  if (dump_file)
-		    fprintf (dump_file,
-			     "\nConsidering %s %i insns.\n"
-			     " Called once from %s %i insns.\n",
-			     cgraph_node_name (node), node->global.insns,
-			     cgraph_node_name (node->callers->caller),
-			     node->callers->caller->global.insns);
+		    {
+		      fprintf (dump_file,
+			       "\nConsidering %s %i insns.\n",
+			       cgraph_node_name (node), node->global.insns);
+		      fprintf (dump_file,
+			       " Called once from %s %i insns.\n",
+			       cgraph_node_name (node->callers->caller),
+			       node->callers->caller->global.insns);
+		    }
 
 		  old_insns = overall_insns;
 
@@ -1016,6 +1037,7 @@ cgraph_decide_inlining (void)
 	     overall_insns);
   free (order);
   timevar_pop (TV_INLINE_HEURISTICS);
+  return 0;
 }
 
 /* Decide on the inlining.  We do so in the topological order to avoid
@@ -1035,11 +1057,14 @@ cgraph_decide_inlining_incrementally (struct cgraph_node *node, bool early)
         && !cgraph_recursive_inlining_p (node, e->callee, &e->inline_failed)
 	/* ??? It is possible that renaming variable removed the function body
 	   in duplicate_decls. See gcc.c-torture/compile/20011119-2.c  */
-	&& DECL_SAVED_TREE (e->callee->decl))
+	&& (DECL_SAVED_TREE (e->callee->decl) || e->callee->inline_decl))
       {
         if (dump_file && early)
-          fprintf (dump_file, "  Early inlining %s into %s\n",
-		   cgraph_node_name (e->callee), cgraph_node_name (node));
+	  {
+	    fprintf (dump_file, "  Early inlining %s",
+		     cgraph_node_name (e->callee));
+	    fprintf (dump_file, " into %s\n", cgraph_node_name (node));
+	  }
 	cgraph_mark_inline (e);
 	inlined = true;
       }
@@ -1052,16 +1077,19 @@ cgraph_decide_inlining_incrementally (struct cgraph_node *node, bool early)
 	  && !e->callee->local.disregard_inline_limits
 	  && !cgraph_recursive_inlining_p (node, e->callee, &e->inline_failed)
 	  && (!early
-	      || (cgraph_estimate_size_after_inlining (1, e->caller, node)
+	      || (cgraph_estimate_size_after_inlining (1, e->caller, e->callee)
 	          <= e->caller->global.insns))
 	  && cgraph_check_inline_limits (node, e->callee, &e->inline_failed)
-	  && DECL_SAVED_TREE (e->callee->decl))
+	  && (DECL_SAVED_TREE (e->callee->decl) || e->callee->inline_decl))
 	{
 	  if (cgraph_default_inline_p (e->callee, &failed_reason))
 	    {
 	      if (dump_file && early)
-                fprintf (dump_file, "  Early inlining %s into %s\n",
-			 cgraph_node_name (e->callee), cgraph_node_name (node));
+		{
+		  fprintf (dump_file, "  Early inlining %s",
+			   cgraph_node_name (e->callee));
+		  fprintf (dump_file, " into %s\n", cgraph_node_name (node));
+		}
 	      cgraph_mark_inline (e);
 	      inlined = true;
 	    }
@@ -1108,17 +1136,17 @@ struct tree_opt_pass pass_ipa_inline =
 /* Do inlining of small functions.  Doing so early helps profiling and other
    passes to be somewhat more effective and avoids some code duplication in
    later real inlining pass for testcases with very many function calls.  */
-static void
+static unsigned int
 cgraph_early_inlining (void)
 {
   struct cgraph_node *node;
   int nnodes;
   struct cgraph_node **order =
-    xcalloc (cgraph_n_nodes, sizeof (struct cgraph_node *));
+    XCNEWVEC (struct cgraph_node *, cgraph_n_nodes);
   int i;
 
   if (sorrycount || errorcount)
-    return;
+    return 0;
 #ifdef ENABLE_CHECKING
   for (node = cgraph_nodes; node; node = node->next)
     gcc_assert (!node->aux);
@@ -1131,7 +1159,10 @@ cgraph_early_inlining (void)
       if (node->analyzed && node->local.inlinable
 	  && (node->needed || node->reachable)
 	  && node->callers)
-	cgraph_decide_inlining_incrementally (node, true);
+	{
+	  if (cgraph_decide_inlining_incrementally (node, true))
+	    ggc_collect ();
+	}
     }
   cgraph_remove_unreachable_nodes (true, dump_file);
 #ifdef ENABLE_CHECKING
@@ -1139,6 +1170,7 @@ cgraph_early_inlining (void)
     gcc_assert (!node->global.inlined_to);
 #endif
   free (order);
+  return 0;
 }
 
 /* When inlining shall be performed.  */

@@ -259,7 +259,7 @@ dump_type (tree t, int flags)
   switch (TREE_CODE (t))
     {
     case UNKNOWN_TYPE:
-      pp_identifier (cxx_pp, "<unknown type>");
+      pp_identifier (cxx_pp, "<unresolved overloaded function type>");
       break;
 
     case TREE_LIST:
@@ -437,9 +437,7 @@ dump_aggr_type (tree t, int flags)
       typdef = !DECL_ARTIFICIAL (name);
       tmplate = !typdef && TREE_CODE (t) != ENUMERAL_TYPE
 		&& TYPE_LANG_SPECIFIC (t) && CLASSTYPE_TEMPLATE_INFO (t)
-		&& (CLASSTYPE_TEMPLATE_SPECIALIZATION (t)
-		    || TREE_CODE (CLASSTYPE_TI_TEMPLATE (t)) != TEMPLATE_DECL
-		    || DECL_TEMPLATE_SPECIALIZATION (CLASSTYPE_TI_TEMPLATE (t))
+		&& (TREE_CODE (CLASSTYPE_TI_TEMPLATE (t)) != TEMPLATE_DECL
 		    || PRIMARY_TEMPLATE_P (CLASSTYPE_TI_TEMPLATE (t)));
       dump_scope (CP_DECL_CONTEXT (name), flags | TFF_SCOPE);
       if (tmplate)
@@ -1188,9 +1186,7 @@ dump_function_name (tree t, int flags)
 
   if (DECL_TEMPLATE_INFO (t)
       && !DECL_FRIEND_PSEUDO_TEMPLATE_INSTANTIATION (t)
-      && (DECL_TEMPLATE_SPECIALIZATION (t)
-	  || TREE_CODE (DECL_TI_TEMPLATE (t)) != TEMPLATE_DECL
-	  || DECL_TEMPLATE_SPECIALIZATION (DECL_TI_TEMPLATE (t))
+      && (TREE_CODE (DECL_TI_TEMPLATE (t)) != TEMPLATE_DECL
 	  || PRIMARY_TEMPLATE_P (DECL_TI_TEMPLATE (t))))
     dump_template_parms (DECL_TEMPLATE_INFO (t), !DECL_USE_TEMPLATE (t), flags);
 }
@@ -1288,6 +1284,23 @@ dump_expr_init_vec (VEC(constructor_elt,gc) *v, int flags)
 }
 
 
+/* We've gotten an indirect REFERENCE (an OBJ_TYPE_REF) to a virtual
+   function.  Resolve it to a close relative -- in the sense of static
+   type -- variant being overridden.  That is close to what was written in
+   the source code.  Subroutine of dump_expr.  */
+
+static tree
+resolve_virtual_fun_from_obj_type_ref (tree ref)
+{
+  tree obj_type = TREE_TYPE (OBJ_TYPE_REF_OBJECT (ref));
+  int index = tree_low_cst (OBJ_TYPE_REF_TOKEN (ref), 1);
+  tree fun = BINFO_VIRTUALS (TYPE_BINFO (TREE_TYPE (obj_type)));
+    while (index--)
+      fun = TREE_CHAIN (fun);
+
+  return BV_FN (fun);
+}
+
 /* Print out an expression E under control of FLAGS.  */
 
 static void
@@ -1305,22 +1318,16 @@ dump_expr (tree t, int flags)
     case FUNCTION_DECL:
     case TEMPLATE_DECL:
     case NAMESPACE_DECL:
+    case LABEL_DECL:
     case OVERLOAD:
     case IDENTIFIER_NODE:
       dump_decl (t, (flags & ~TFF_DECL_SPECIFIERS) | TFF_NO_FUNCTION_ARGUMENTS);
       break;
 
-    case STRING_CST:
-      if (PAREN_STRING_LITERAL_P (t))
-	pp_cxx_left_paren (cxx_pp);
-      pp_c_constant (pp_c_base (cxx_pp), t);
-      if (PAREN_STRING_LITERAL_P (t))
-	pp_cxx_right_paren (cxx_pp);
-      break;
-
     case INTEGER_CST:
     case REAL_CST:
-       pp_c_constant (pp_c_base (cxx_pp), t);
+    case STRING_CST:
+      pp_constant (cxx_pp, t);
       break;
 
     case THROW_EXPR:
@@ -1394,6 +1401,10 @@ dump_expr (tree t, int flags)
 
 	if (TREE_CODE (fn) == ADDR_EXPR)
 	  fn = TREE_OPERAND (fn, 0);
+
+        /* Nobody is interested in seeing the guts of vcalls.  */
+        if (TREE_CODE (fn) == OBJ_TYPE_REF)
+          fn = resolve_virtual_fun_from_obj_type_ref (fn);
 
 	if (TREE_TYPE (fn) != NULL_TREE && NEXT_CODE (fn) == METHOD_TYPE)
 	  {
@@ -1547,6 +1558,8 @@ dump_expr (tree t, int flags)
 	  || (TREE_TYPE (t)
 	      && TREE_CODE (TREE_TYPE (t)) == REFERENCE_TYPE))
 	dump_expr (TREE_OPERAND (t, 0), flags | TFF_EXPR_IN_PARENS);
+      else if (TREE_CODE (TREE_OPERAND (t, 0)) == LABEL_DECL)
+	dump_unary_op ("&&", t, flags);
       else
 	dump_unary_op ("&", t, flags);
       break;
@@ -2015,7 +2028,8 @@ fndecl_to_string (tree fndecl, int verbose)
 {
   int flags;
 
-  flags = TFF_EXCEPTION_SPECIFICATION | TFF_DECL_SPECIFIERS;
+  flags = TFF_EXCEPTION_SPECIFICATION | TFF_DECL_SPECIFIERS
+    | TFF_TEMPLATE_HEADER;
   if (verbose)
     flags |= TFF_FUNCTION_DEFAULT_ARGUMENTS;
   reinit_cxx_pp ();
@@ -2047,7 +2061,7 @@ language_to_string (enum languages c)
     default:
       gcc_unreachable ();
     }
-  return 0;
+  return NULL;
 }
 
 /* Return the proper printed version of a parameter to a C++ function.  */
@@ -2333,4 +2347,37 @@ cp_printer (pretty_printer *pp, text_info *text, const char *spec,
 #undef next_tcode
 #undef next_lang
 #undef next_int
+}
+
+/* Callback from cpp_error for PFILE to print diagnostics arising from
+   interpreting strings.  The diagnostic is of type LEVEL; MSG is the
+   translated message and AP the arguments.  */
+
+void
+cp_cpp_error (cpp_reader *pfile ATTRIBUTE_UNUSED, int level,
+	      const char *msg, va_list *ap)
+{
+  diagnostic_info diagnostic;
+  diagnostic_t dlevel;
+  switch (level)
+    {
+    case CPP_DL_WARNING:
+    case CPP_DL_WARNING_SYSHDR:
+      dlevel = DK_WARNING;
+      break;
+    case CPP_DL_PEDWARN:
+      dlevel = pedantic_error_kind ();
+      break;
+    case CPP_DL_ERROR:
+      dlevel = DK_ERROR;
+      break;
+    case CPP_DL_ICE:
+      dlevel = DK_ICE;
+      break;
+    default:
+      gcc_unreachable ();
+    }
+  diagnostic_set_info_translated (&diagnostic, msg, ap,
+				  input_location, dlevel);
+  report_diagnostic (&diagnostic);
 }
