@@ -504,10 +504,12 @@ dump_type_prefix (tree t, int flags)
         if (TREE_CODE (t) == POINTER_TYPE)
           pp_character(cxx_pp, '*');
         else if (TREE_CODE (t) == REFERENCE_TYPE)
+        {
           if (TYPE_REF_IS_RVALUE (t))
             pp_string (cxx_pp, "&&");
           else
             pp_character (cxx_pp, '&');
+        }
 	pp_base (cxx_pp)->padding = pp_before;
 	pp_cxx_cv_qualifier_seq (cxx_pp, t);
       }
