@@ -1327,6 +1327,9 @@ vect_print_dump_info (enum verbosity_levels vl)
   if (vl > vect_verbosity_level)
     return false;
 
+  if (!current_function_decl || !vect_dump)
+    return false;
+
   if (vect_loop_location == UNKNOWN_LOC)
     fprintf (vect_dump, "\n%s:%d: note: ",
 		 DECL_SOURCE_FILE (current_function_decl),
@@ -1334,7 +1337,6 @@ vect_print_dump_info (enum verbosity_levels vl)
   else
     fprintf (vect_dump, "\n%s:%d: note: ", 
 	     LOC_FILE (vect_loop_location), LOC_LINE (vect_loop_location));
-
 
   return true;
 }
@@ -1399,7 +1401,7 @@ new_loop_vec_info (struct loop *loop)
 
       for (phi = phi_nodes (bb); phi; phi = PHI_CHAIN (phi))
         {
-          tree_ann_t ann = get_tree_ann (phi);
+          stmt_ann_t ann = get_stmt_ann (phi);
           set_stmt_info (ann, new_stmt_vec_info (phi, res));
         }
 
@@ -1409,7 +1411,7 @@ new_loop_vec_info (struct loop *loop)
 	  stmt_ann_t ann;
 
 	  ann = stmt_ann (stmt);
-	  set_stmt_info ((tree_ann_t)ann, new_stmt_vec_info (stmt, res));
+	  set_stmt_info (ann, new_stmt_vec_info (stmt, res));
 	}
     }
 
@@ -1460,14 +1462,14 @@ destroy_loop_vec_info (loop_vec_info loop_vinfo)
 
       for (phi = phi_nodes (bb); phi; phi = PHI_CHAIN (phi))
         {
-          tree_ann_t ann = get_tree_ann (phi);
+          stmt_ann_t ann = stmt_ann (phi);
 
           stmt_info = vinfo_for_stmt (phi);
           free (stmt_info);
           set_stmt_info (ann, NULL);
         }
 
-      for (si = bsi_start (bb); !bsi_end_p (si); bsi_next (&si))
+      for (si = bsi_start (bb); !bsi_end_p (si); )
 	{
 	  tree stmt = bsi_stmt (si);
 	  stmt_ann_t ann = stmt_ann (stmt);
@@ -1475,10 +1477,28 @@ destroy_loop_vec_info (loop_vec_info loop_vinfo)
 
 	  if (stmt_info)
 	    {
+	      /* Check if this is a "pattern stmt" (introduced by the 
+		 vectorizer during the pattern recognition pass).  */
+	      bool remove_stmt_p = false;
+	      tree orig_stmt = STMT_VINFO_RELATED_STMT (stmt_info);
+	      if (orig_stmt)
+		{
+		  stmt_vec_info orig_stmt_info = vinfo_for_stmt (orig_stmt);
+		  if (orig_stmt_info
+		      && STMT_VINFO_IN_PATTERN_P (orig_stmt_info))
+		    remove_stmt_p = true; 
+		}
+			
+	      /* Free stmt_vec_info.  */
 	      VEC_free (dr_p, heap, STMT_VINFO_SAME_ALIGN_REFS (stmt_info));
 	      free (stmt_info);
-	      set_stmt_info ((tree_ann_t)ann, NULL);
+	      set_stmt_info (ann, NULL);
+
+	      /* Remove dead "pattern stmts".  */
+	      if (remove_stmt_p)
+	        bsi_remove (&si, true);
 	    }
+	  bsi_next (&si);
 	}
     }
 
