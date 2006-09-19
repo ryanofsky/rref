@@ -516,13 +516,13 @@ vect_pattern_recog_1 (
   code = TREE_CODE (pattern_expr);
   pattern_type = TREE_TYPE (pattern_expr);
   var = create_tmp_var (pattern_type, "patt");
-  add_referenced_tmp_var (var);
+  add_referenced_var (var);
   var_name = make_ssa_name (var, NULL_TREE);
   pattern_expr = build2 (MODIFY_EXPR, void_type_node, var_name, pattern_expr);
   SSA_NAME_DEF_STMT (var_name) = pattern_expr;
   bsi_insert_before (&si, pattern_expr, BSI_SAME_STMT);
   ann = stmt_ann (pattern_expr);
-  set_stmt_info ((tree_ann_t)ann, new_stmt_vec_info (pattern_expr, loop_vinfo));
+  set_stmt_info (ann, new_stmt_vec_info (pattern_expr, loop_vinfo));
   pattern_stmt_info = vinfo_for_stmt (pattern_expr);
   
   STMT_VINFO_RELATED_STMT (pattern_stmt_info) = stmt;
