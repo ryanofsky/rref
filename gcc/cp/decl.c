@@ -7340,8 +7340,8 @@ grokdeclarator (const cp_declarator *declarator,
   type_quals |= cp_type_quals (type);
   type = cp_build_qualified_type_real
     (type, type_quals, ((typedef_decl && !DECL_ARTIFICIAL (typedef_decl)
-                         ? tf_ignore_bad_quals : 0) | tf_warning_or_error),
-                        declarator && declarator->kind == cdk_reference);
+			 ? tf_ignore_bad_quals : 0) | tf_warning_or_error),
+     declarator && declarator->kind == cdk_reference);
   /* We might have ignored or rejected some of the qualifiers.  */
   type_quals = cp_type_quals (type);
 
@@ -7671,6 +7671,7 @@ grokdeclarator (const cp_declarator *declarator,
 	case cdk_ptrmem:
 	  /* Filter out pointers-to-references.
 	     We can get these if a TYPE_DECL is used.  */
+
 	  if (TREE_CODE (type) == REFERENCE_TYPE)
 	    {
 	      if (declarator->kind != cdk_reference)
@@ -7704,27 +7705,26 @@ grokdeclarator (const cp_declarator *declarator,
 	  if (declarator->kind == cdk_reference)
 	    {
 	      if (!VOID_TYPE_P (type))
-                type = build_rval_reference_type
-                       ((TREE_CODE (type) == REFERENCE_TYPE
-                         ? TREE_TYPE (type) : type),
-                        (declarator->u.pointer.rvalue_ref
-                         && (TREE_CODE(type) != REFERENCE_TYPE
-                             || TYPE_REF_IS_RVALUE (type))));
+		type = build_rval_reference_type
+		       ((TREE_CODE (type) == REFERENCE_TYPE
+			 ? TREE_TYPE (type) : type),
+			(declarator->u.pointer.rvalue_ref
+			 && (TREE_CODE(type) != REFERENCE_TYPE
+			     || TYPE_REF_IS_RVALUE (type))));
 
-              /* Disallow direct reference to reference declarations,
-                 Reference to reference declarations are only allowed
-                 indirectly through typedefs or template type arguments.
-                 Example:
+	      /* Disallow direct reference to reference declarations,
+		 Reference to reference declarations are only allowed
+		 indirectly through typedefs or template type arguments.
+		 Example:
 
-                   void foo(int & &);      // invalid ref-to-ref decl
+		   void foo(int & &);      // invalid ref-to-ref decl
 
-                   typedef int & int_ref;
-                   void foo(int_ref &);    // valid ref-to-ref decl
-              */
-              if (declarator->declarator &&
-                  declarator->declarator->kind == cdk_reference)
-                error ("cannot declare reference to %q#T, which is not "
-                       "a typedef or a template type argument", type);
+		   typedef int & int_ref;
+		   void foo(int_ref &);    // valid ref-to-ref decl
+	      */
+	      if (inner_declarator && inner_declarator->kind == cdk_reference)
+		error ("cannot declare reference to %q#T, which is not "
+		       "a typedef or a template type argument", type);
 	    }
 	  else if (TREE_CODE (type) == METHOD_TYPE)
 	    type = build_ptrmemfunc_type (build_pointer_type (type));
@@ -7744,14 +7744,13 @@ grokdeclarator (const cp_declarator *declarator,
 
 	  /* Process a list of type modifier keywords (such as
 	     const or volatile) that were given inside the `*' or `&'.  */
+
 	  if (declarator->u.pointer.qualifiers)
 	    {
-              type = cp_build_qualified_type_real
-                (type, declarator->u.pointer.qualifiers,
-                 tf_error | tf_warning,
-                 (declarator->kind == cdk_reference
-                  && declarator->declarator
-                  && declarator->declarator->kind == cdk_reference));
+	      type = cp_build_qualified_type_real
+		(type, declarator->u.pointer.qualifiers,
+		 tf_warning_or_error,
+		 inner_declarator && inner_declarator->kind == cdk_reference);
 	      type_quals = cp_type_quals (type);
 	    }
 	  ctype = NULL_TREE;
@@ -8947,7 +8946,7 @@ copy_fn_p (tree d)
       result = -1;
     }
   else if (TREE_CODE (arg_type) == REFERENCE_TYPE
-           && !TYPE_REF_IS_RVALUE(arg_type)
+	   && !TYPE_REF_IS_RVALUE(arg_type)
 	   && TYPE_MAIN_VARIANT (TREE_TYPE (arg_type)) == DECL_CONTEXT (d))
     {
       if (CP_TYPE_CONST_P (TREE_TYPE (arg_type)))

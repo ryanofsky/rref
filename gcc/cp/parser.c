@@ -5274,7 +5274,7 @@ cp_parser_new_declarator_opt (cp_parser* parser)
       declarator = cp_parser_new_declarator_opt (parser);
 
       return cp_parser_make_indirect_declarator
-               (code, type, cv_quals, declarator);
+	(code, type, cv_quals, declarator);
     }
 
   /* If the next token is a `[', there is a direct-new-declarator.  */
@@ -7883,8 +7883,8 @@ cp_parser_conversion_declarator_opt (cp_parser* parser)
       declarator = cp_parser_conversion_declarator_opt (parser);
 
       return cp_parser_make_indirect_declarator
-               (code, class_type, cv_quals, declarator);
-    }
+	(code, class_type, cv_quals, declarator);
+   }
 
   return NULL;
 }
@@ -11280,7 +11280,7 @@ cp_parser_declarator (cp_parser* parser,
 	declarator = NULL;
 
       declarator = cp_parser_make_indirect_declarator
-                     (code, class_type, cv_quals, declarator);
+	(code, class_type, cv_quals, declarator);
     }
   /* Everything else is a direct-declarator.  */
   else

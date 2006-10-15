@@ -4979,6 +4979,7 @@ build_pointer_type (tree to_type)
   return build_pointer_type_for_mode (to_type, ptr_mode, false);
 }
 
+/* Same as build_pointer_type_for_mode, but for REFERENCE_TYPE.  */
 
 tree
 build_rval_reference_type_for_mode (tree to_type, enum machine_mode mode,
@@ -5019,8 +5020,6 @@ build_rval_reference_type_for_mode (tree to_type, enum machine_mode mode,
   return t;
 }
 
-/* Same as build_pointer_type_for_mode, but for REFERENCE_TYPE.  */
-
 tree
 build_reference_type_for_mode (tree to_type, enum machine_mode mode,
                                     bool can_alias_all)
@@ -5046,7 +5045,6 @@ build_reference_type (tree to_type)
 {
   return build_reference_type_for_mode (to_type, ptr_mode, false);
 }
-
 
 /* Build a type that is compatible with t but has no cv quals anywhere
    in its type, thus
