@@ -66,7 +66,6 @@ lvalue_p_1 (tree ref,
 
   /* Expressions of reference type are sometimes wrapped in
      INDIRECT_REFs */
-  /* XXX: REFERENCE_REF_P may be a better way to check */
   if (TREE_CODE (ref) == INDIRECT_REF
       && TREE_CODE (TREE_TYPE (TREE_OPERAND (ref, 0)))
          == REFERENCE_TYPE)
