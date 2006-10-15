@@ -1,3 +1,4 @@
+// { dg-options "" }
 struct S{};
 void f(S&&);
 

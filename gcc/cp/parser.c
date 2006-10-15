@@ -11752,7 +11752,11 @@ cp_parser_ptr_operator (cp_parser* parser,
   else if (token->type == CPP_AND)
     code = ADDR_EXPR;
   else if (token->type == CPP_AND_AND)
+  {
     code = NON_LVALUE_EXPR;
+    if (pedantic)
+      pedwarn ("ISO C++ does not support rvalue reference declarations");
+  }
 
   if (code != ERROR_MARK)
     {

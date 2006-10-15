@@ -1,3 +1,4 @@
+// { dg-options "" }
 template<typename T, typename U> struct same_type;
 template<typename T> struct same_type<T, T> {};
 

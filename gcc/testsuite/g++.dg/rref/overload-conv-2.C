@@ -1,3 +1,4 @@
+// { dg-options "" }
 // { dg-do link }
 
 struct T {};
