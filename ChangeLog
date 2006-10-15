@@ -1,3 +1,57 @@
+2006-10-15  Russell Yanofsky <russ@yanofsky.org>
+
+	Add support for rvalue references to G++
+	* gcc/cp/call.c (conversion): new "valuedness_matches_p" member
+	(convert_class_to_reference): require reference type as first 
+	parameter instead of base type
+	(reference_binding): add logic to handle rvalue references
+	(implicit_conversion): update inaccurate comment
+	(convert_like_real): disable creation of temporaries that are
+	impossible to initialize for types that have move constructors
+	(maybe_handle_implicit_object): set "valuedness_matches_p"
+	(maybe_handle_ref_bind): return conversion instead of type node
+	(compare_ics): add logic to use "valuedness_matches_p" values to
+	determine preferred conversion sequences
+	* gcc/cp/cp-tree.h (declarator): new "rvalue_ref" flag
+	(cp_build_qualified_type_real): new "fold_ref" boolean parameter
+	* gcc/cp/decl.c (grokdeclarator): implement reference collapsing
+	(copy_fn_p): don't consider constructors taking rvalue references
+	to be copy constructors
+	* gcc/cp/error.c (dump_type_prefix): format rvalue reference types
+	correctly in error messages
+	* gcc/cp/mangle.c (write_type): mangle rvalue references differently
+	than regular references
+	* gcc/cp/parser.c (make_reference_declarator): new boolean parameter
+	(cp_parser_make_indirect_declarator): new function
+	(cp_parser_new_declarator_opt): call cp_parser_make_indirect_declarator
+	(cp_parser_conversion_declarator_opt): same
+	(cp_parser_declarator): same
+	(cp_parser_ptr_operator): parse "&&" tokens into rvalue reference
+	declarators
+	* gcc/cp/pt.c (tsubst_aggr_type): update call to 
+	cp_build_qualified_type_real
+	(tsubst_function_type): same
+	(tsubst_1): rename of tsubst function adding "fold_ref" parameter
+	and implementing reference collapsing logic
+	(type_unification_real): implement special template parameter
+	deduction rule for rvalue references
+	(try_one_overload): update call to unify
+	(try_class_unification): same
+	(unify): new "deduce_ref" parameter and more logic to implement the
+	special rvalue reference template parameter deduction rule
+	(more_specialized_fn): update calls to unify
+	(get_class_bindings): same
+	* gcc/cp/tree.c (lvalue_p_1): handle rvalue reference types
+	(cp_build_qualified_type_real): new "fold_ref" boolean parameter
+	* gcc/cp/typeck.c (comptypes): don't consider rvalue and lvalue
+	reference types to be equivalent
+	* gcc/tree.h
+	(TYPE_REF_IS_RVALUE): new macro for REFERENCE_TYPE nodes
+	(build_rval_reference_type_for_mode): new function
+	(build_rval_reference_type): new function
+	* gcc/tree.c (build_rval_reference_type_for_mode): new function
+	(build_rval_reference_type): new function
+
 2006-09-10  Joseph S. Myers  <joseph@codesourcery.com>
 
 	* MAINTAINERS: Add self as soft-fp maintainer.
