@@ -1621,17 +1621,9 @@ write_type (tree type)
 	  break;
 
 	case REFERENCE_TYPE:
-	  /* XXX: Writing 'B' for rrvalue references is an interim 
-	     solution, chosen because a grep for "'B'" in this file
-	     came up empty. Need to come back to this, read the ABI
-	     spec, see if there's a better letter available, see
-	     if this is this is a legitimate way of mangling, and
-	     see if there aren't other parts of the code that need
-	     to be modified. */ 
 	  if TYPE_REF_IS_RVALUE(type)
-	    write_char('B');
-	  else
-	    write_char ('R');
+	    write_string("U6rvalue");
+	  write_char ('R');
 	  write_type (TREE_TYPE (type));
 	  break;
 
