@@ -51,7 +51,6 @@ Boston, MA 02110-1301, USA.  */
 /* Flags to pass to remove_ssa_form.  */
 
 #define SSANORM_PERFORM_TER		0x1
-#define SSANORM_COMBINE_TEMPS		0x2
 #define SSANORM_COALESCE_PARTITIONS	0x4
 
 /* Used to hold all the components required to do SSA PHI elimination.
@@ -189,7 +188,7 @@ insert_copy_on_edge (edge e, tree dest, tree src)
 {
   tree copy;
 
-  copy = build2 (MODIFY_EXPR, TREE_TYPE (dest), dest, src);
+  copy = build2 (GIMPLE_MODIFY_STMT, TREE_TYPE (dest), dest, src);
   set_is_used (dest);
 
   if (TREE_CODE (src) == ADDR_EXPR)
@@ -823,8 +822,7 @@ coalesce_ssa_name (var_map map, int flags)
   if (num_var_partitions (map) <= 1)
     return NULL;
 
-  liveinfo = calculate_live_on_entry (map);
-  calculate_live_on_exit (liveinfo);
+  liveinfo = calculate_live_ranges (map);
   rv = root_var_init (map);
 
   /* Remove single element variable from the list.  */
@@ -870,15 +868,12 @@ coalesce_ssa_name (var_map map, int flags)
   for (x = 0 ; x < num; x++)
     {
       tree var = partition_to_var (map, x);
-      if (default_def (SSA_NAME_VAR (var)) == var)
+      if (gimple_default_def (cfun, SSA_NAME_VAR (var)) == var)
 	SET_BIT (live, x);
     }
 
-  if ((flags & SSANORM_COMBINE_TEMPS) == 0)
-    {
-      delete_tree_live_info (liveinfo);
-      liveinfo = NULL;
-    }
+  delete_tree_live_info (liveinfo);
+  liveinfo = NULL;
 
   /* Assign root variable as partition representative for each live on entry
      partition.  */
@@ -1031,10 +1026,10 @@ replace_use_variable (var_map map, use_operand_p p, tree *expr)
       int version = SSA_NAME_VERSION (var);
       if (expr[version])
         {
-	  tree new_expr = TREE_OPERAND (expr[version], 1);
+	  tree new_expr = GIMPLE_STMT_OPERAND (expr[version], 1);
 	  SET_USE (p, new_expr);
 	  /* Clear the stmt's RHS, or GC might bite us.  */
-	  TREE_OPERAND (expr[version], 1) = NULL_TREE;
+	  GIMPLE_STMT_OPERAND (expr[version], 1) = NULL_TREE;
 	  return true;
 	}
     }
@@ -1123,121 +1118,6 @@ eliminate_virtual_phis (void)
 	    }
 	}
     }
-}
-
-
-/* This routine will coalesce variables in MAP of the same type which do not 
-   interfere with each other. LIVEINFO is the live range info for variables
-   of interest.  This will both reduce the memory footprint of the stack, and 
-   allow us to coalesce together local copies of globals and scalarized 
-   component refs.  */
-
-static void
-coalesce_vars (var_map map, tree_live_info_p liveinfo)
-{
-  basic_block bb;
-  type_var_p tv;
-  tree var;
-  unsigned x, p, p2;
-  coalesce_list_p cl;
-  conflict_graph graph;
-
-  cl = create_coalesce_list (map);
-
-  /* Merge all the live on entry vectors for coalesced partitions.  */
-  for (x = 0; x < num_var_partitions (map); x++)
-    {
-      var = partition_to_var (map, x);
-      p = var_to_partition (map, var);
-      if (p != x)
-        live_merge_and_clear (liveinfo, p, x);
-    }
-
-  /* When PHI nodes are turned into copies, the result of each PHI node
-     becomes live on entry to the block. Mark these now.  */
-  FOR_EACH_BB (bb)
-    {
-      tree phi, arg;
-      unsigned p;
-      
-      for (phi = phi_nodes (bb); phi; phi = PHI_CHAIN (phi))
-	{
-	  p = var_to_partition (map, PHI_RESULT (phi));
-
-	  /* Skip virtual PHI nodes.  */
-	  if (p == (unsigned)NO_PARTITION)
-	    continue;
-
-	  make_live_on_entry (liveinfo, bb, p);
-
-	  /* Each argument is a potential copy operation. Add any arguments 
-	     which are not coalesced to the result to the coalesce list.  */
-	  for (x = 0; x < (unsigned)PHI_NUM_ARGS (phi); x++)
-	    {
-	      arg = PHI_ARG_DEF (phi, x);
-	      if (!phi_ssa_name_p (arg))
-	        continue;
-	      p2 = var_to_partition (map, arg);
-	      if (p2 == (unsigned)NO_PARTITION)
-		continue;
-	      if (p != p2)
-		{
-		  edge e = PHI_ARG_EDGE (phi, x);
-
-		  add_coalesce (cl, p, p2, 
-				coalesce_cost (EDGE_FREQUENCY (e),
-					       maybe_hot_bb_p (bb),
-					       EDGE_CRITICAL_P (e)));
-		}
-	    }
-	}
-   }
-
-  
-  /* Re-calculate live on exit info.  */
-  calculate_live_on_exit (liveinfo);
-
-  if (dump_file && (dump_flags & TDF_DETAILS))
-    {
-      fprintf (dump_file, "Live range info for variable memory coalescing.\n");
-      dump_live_info (dump_file, liveinfo, LIVEDUMP_ALL);
-
-      fprintf (dump_file, "Coalesce list from phi nodes:\n");
-      dump_coalesce_list (dump_file, cl);
-    }
-
-
-  tv = type_var_init (map);
-  if (dump_file)
-    type_var_dump (dump_file, tv);
-  type_var_compact (tv);
-  if (dump_file)
-    type_var_dump (dump_file, tv);
-
-  graph = build_tree_conflict_graph (liveinfo, tv, cl);
-
-  type_var_decompact (tv);
-  if (dump_file && (dump_flags & TDF_DETAILS))
-    {
-      fprintf (dump_file, "type var list now looks like:n");
-      type_var_dump (dump_file, tv);
-
-      fprintf (dump_file, "Coalesce list after conflict graph build:\n");
-      dump_coalesce_list (dump_file, cl);
-    }
-
-  sort_coalesce_list (cl);
-  if (dump_file && (dump_flags & TDF_DETAILS))
-    {
-      fprintf (dump_file, "Coalesce list after sorting:\n");
-      dump_coalesce_list (dump_file, cl);
-    }
-
-  coalesce_tpa_members (tv, graph, map, cl, 
-			((dump_flags & TDF_DETAILS) ? dump_file : NULL));
-
-  type_var_delete (tv);
-  delete_coalesce_list (cl);
 }
 
 
@@ -1553,12 +1433,11 @@ check_replaceable (temp_expr_table_p tab, tree stmt)
 {
   tree var, def, basevar;
   int version;
-  var_map map = tab->map;
   ssa_op_iter iter;
   tree call_expr;
   bitmap def_vars, use_vars;
 
-  if (TREE_CODE (stmt) != MODIFY_EXPR)
+  if (TREE_CODE (stmt) != GIMPLE_MODIFY_STMT)
     return false;
   
   /* Punt if there is more than 1 def, or more than 1 use.  */
@@ -1566,7 +1445,7 @@ check_replaceable (temp_expr_table_p tab, tree stmt)
   if (!def)
     return false;
 
-  if (version_ref_count (map, def) != 1)
+  if (num_imm_uses (def) != 1)
     return false;
 
   /* There must be no V_MAY_DEFS or V_MUST_DEFS.  */
@@ -1574,7 +1453,8 @@ check_replaceable (temp_expr_table_p tab, tree stmt)
     return false;
 
   /* Float expressions must go through memory if float-store is on.  */
-  if (flag_float_store && FLOAT_TYPE_P (TREE_TYPE (TREE_OPERAND (stmt, 1))))
+  if (flag_float_store && FLOAT_TYPE_P (TREE_TYPE
+					(GENERIC_TREE_OPERAND (stmt, 1))))
     return false;
 
   /* Calls to functions with side-effects cannot be replaced.  */
@@ -1914,8 +1794,8 @@ rewrite_trees (var_map map, tree *values)
 	  ann = stmt_ann (stmt);
 	  changed = false;
 
-	  if (TREE_CODE (stmt) == MODIFY_EXPR 
-	      && (TREE_CODE (TREE_OPERAND (stmt, 1)) == SSA_NAME))
+	  if (TREE_CODE (stmt) == GIMPLE_MODIFY_STMT 
+	      && (TREE_CODE (GIMPLE_STMT_OPERAND (stmt, 1)) == SSA_NAME))
 	    is_copy = true;
 
 	  copy_use_p = NULL_USE_OPERAND_P;
@@ -1976,9 +1856,6 @@ rewrite_trees (var_map map, tree *values)
   delete_elim_graph (g);
 }
 
-
-DEF_VEC_ALLOC_P(edge,heap);
-
 /* These are the local work structures used to determine the best place to 
    insert the copies that were placed on edges by the SSA->normal pass..  */
 static VEC(edge,heap) *edge_leader;
@@ -2001,17 +1878,17 @@ static inline bool
 identical_copies_p (tree s1, tree s2)
 {
 #ifdef ENABLE_CHECKING
-  gcc_assert (TREE_CODE (s1) == MODIFY_EXPR);
-  gcc_assert (TREE_CODE (s2) == MODIFY_EXPR);
-  gcc_assert (DECL_P (TREE_OPERAND (s1, 0)));
-  gcc_assert (DECL_P (TREE_OPERAND (s2, 0)));
+  gcc_assert (TREE_CODE (s1) == GIMPLE_MODIFY_STMT);
+  gcc_assert (TREE_CODE (s2) == GIMPLE_MODIFY_STMT);
+  gcc_assert (DECL_P (GIMPLE_STMT_OPERAND (s1, 0)));
+  gcc_assert (DECL_P (GIMPLE_STMT_OPERAND (s2, 0)));
 #endif
 
-  if (TREE_OPERAND (s1, 0) != TREE_OPERAND (s2, 0))
+  if (GIMPLE_STMT_OPERAND (s1, 0) != GIMPLE_STMT_OPERAND (s2, 0))
     return false;
 
-  s1 = TREE_OPERAND (s1, 1);
-  s2 = TREE_OPERAND (s2, 1);
+  s1 = GIMPLE_STMT_OPERAND (s1, 1);
+  s2 = GIMPLE_STMT_OPERAND (s2, 1);
 
   if (s1 != s2)
     return false;
@@ -2341,10 +2218,7 @@ remove_ssa_form (var_map map, int flags)
 
   /* If we are not combining temps, don't calculate live ranges for variables
      with only one SSA version.  */
-  if ((flags & SSANORM_COMBINE_TEMPS) == 0)
-    compact_var_map (map, VARMAP_NO_SINGLE_DEFS);
-  else
-    compact_var_map (map, VARMAP_NORMAL);
+  compact_var_map (map, VARMAP_NO_SINGLE_DEFS);
 
   if (dump_file && (dump_flags & TDF_DETAILS))
     dump_var_map (dump_file, map);
@@ -2352,8 +2226,7 @@ remove_ssa_form (var_map map, int flags)
   liveinfo = coalesce_ssa_name (map, flags);
 
   /* Make sure even single occurrence variables are in the list now.  */
-  if ((flags & SSANORM_COMBINE_TEMPS) == 0)
-    compact_var_map (map, VARMAP_NORMAL);
+  compact_var_map (map, VARMAP_NORMAL);
 
   if (dump_file && (dump_flags & TDF_DETAILS))
     {
@@ -2377,16 +2250,6 @@ remove_ssa_form (var_map map, int flags)
       dump_var_map (dump_file, map);
     }
 
-  if ((flags & SSANORM_COMBINE_TEMPS) && liveinfo)
-    {
-      coalesce_vars (map, liveinfo);
-      if (dump_file && (dump_flags & TDF_DETAILS))
-	{
-	  fprintf (dump_file, "After variable memory coalescing:\n");
-	  dump_var_map (dump_file, map);
-	}
-    }
-  
   if (liveinfo)
     delete_tree_live_info (liveinfo);
 
@@ -2452,8 +2315,7 @@ insert_backedge_copies (void)
 		 need a copy statement.  */
 	      if ((e->flags & EDGE_DFS_BACK)
 		  && (TREE_CODE (arg) != SSA_NAME
-		      || (!flag_tree_combine_temps
-			  && SSA_NAME_VAR (arg) != result_var)))
+		      || SSA_NAME_VAR (arg) != result_var))
 		{
 		  tree stmt, name, last = NULL;
 		  block_stmt_iterator bsi;
@@ -2482,10 +2344,10 @@ insert_backedge_copies (void)
 
 		  /* Create a new instance of the underlying
 		     variable of the PHI result.  */
-		  stmt = build2 (MODIFY_EXPR, TREE_TYPE (result_var),
+		  stmt = build2 (GIMPLE_MODIFY_STMT, TREE_TYPE (result_var),
 				 NULL_TREE, PHI_ARG_DEF (phi, i));
 		  name = make_ssa_name (result_var, stmt);
-		  TREE_OPERAND (stmt, 0) = name;
+		  GIMPLE_STMT_OPERAND (stmt, 0) = name;
 
 		  /* Insert the new statement into the block and update
 		     the PHI node.  */
@@ -2508,7 +2370,6 @@ static unsigned int
 rewrite_out_of_ssa (void)
 {
   var_map map;
-  int var_flags = 0;
   int ssa_flags = 0;
 
   /* If elimination of a PHI requires inserting a copy on a backedge,
@@ -2527,14 +2388,8 @@ rewrite_out_of_ssa (void)
   if (dump_file && (dump_flags & TDF_DETAILS))
     dump_tree_cfg (dump_file, dump_flags & ~TDF_DETAILS);
 
-  /* We cannot allow unssa to un-gimplify trees before we instrument them.  */
-  if (flag_tree_ter && !flag_mudflap)
-    var_flags = SSA_VAR_MAP_REF_COUNT;
+  map = create_ssa_var_map ();
 
-  map = create_ssa_var_map (var_flags);
-
-  if (flag_tree_combine_temps)
-    ssa_flags |= SSANORM_COMBINE_TEMPS;
   if (flag_tree_ter && !flag_mudflap)
     ssa_flags |= SSANORM_PERFORM_TER;
 
@@ -2546,7 +2401,7 @@ rewrite_out_of_ssa (void)
   /* Flush out flow graph and SSA data.  */
   delete_var_map (map);
 
-  in_ssa_p = false;
+  cfun->gimple_df->in_ssa_p = false;
   return 0;
 }
 

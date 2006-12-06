@@ -815,7 +815,30 @@ ia64_legitimate_constant_p (rtx x)
 
     case CONST:
     case SYMBOL_REF:
-      return tls_symbolic_operand_type (x) == 0;
+      /* ??? Short term workaround for PR 28490.  We must make the code here
+	 match the code in ia64_expand_move and move_operand, even though they
+	 are both technically wrong.  */
+      if (tls_symbolic_operand_type (x) == 0)
+	{
+	  HOST_WIDE_INT addend = 0;
+	  rtx op = x;
+
+	  if (GET_CODE (op) == CONST
+	      && GET_CODE (XEXP (op, 0)) == PLUS
+	      && GET_CODE (XEXP (XEXP (op, 0), 1)) == CONST_INT)
+	    {
+	      addend = INTVAL (XEXP (XEXP (op, 0), 1));
+	      op = XEXP (XEXP (op, 0), 0);
+	    }
+
+          if (any_offset_symbol_operand (op, GET_MODE (op))
+              || function_operand (op, GET_MODE (op)))
+            return true;
+	  if (aligned_offset_symbol_operand (op, GET_MODE (op)))
+	    return (addend & 0x3fff) == 0;
+	  return false;
+	}
+      return false;
 
     case CONST_VECTOR:
       {
@@ -4301,7 +4324,7 @@ ia64_gimplify_va_arg (tree valist, tree type, tree *pre_p, tree *post_p)
 		       build_int_cst (NULL_TREE, 2 * UNITS_PER_WORD - 1));
       t = build2 (BIT_AND_EXPR, TREE_TYPE (t), t,
 		  build_int_cst (NULL_TREE, -2 * UNITS_PER_WORD));
-      t = build2 (MODIFY_EXPR, TREE_TYPE (valist), valist, t);
+      t = build2 (GIMPLE_MODIFY_STMT, TREE_TYPE (valist), valist, t);
       gimplify_and_add (t, pre_p);
     }
 
@@ -9091,8 +9114,8 @@ ia64_init_builtins (void)
 					       "__float128");
 
 #define def_builtin(name, type, code)					\
-  lang_hooks.builtin_function ((name), (type), (code), BUILT_IN_MD,	\
-			       NULL, NULL_TREE)
+  add_builtin_function ((name), (type), (code), BUILT_IN_MD,	\
+		       NULL, NULL_TREE)
 
   def_builtin ("__builtin_ia64_bsp",
 	       build_function_type (ptr_type_node, void_list_node),
@@ -9249,6 +9272,22 @@ ia64_hpux_init_libfuncs (void)
 {
   ia64_init_libfuncs ();
 
+  /* The HP SI millicode division and mod functions expect DI arguments.
+     By turning them off completely we avoid using both libgcc and the
+     non-standard millicode routines and use the HP DI millicode routines
+     instead.  */
+
+  set_optab_libfunc (sdiv_optab, SImode, 0);
+  set_optab_libfunc (udiv_optab, SImode, 0);
+  set_optab_libfunc (smod_optab, SImode, 0);
+  set_optab_libfunc (umod_optab, SImode, 0);
+
+  set_optab_libfunc (sdiv_optab, DImode, "__milli_divI");
+  set_optab_libfunc (udiv_optab, DImode, "__milli_divU");
+  set_optab_libfunc (smod_optab, DImode, "__milli_remI");
+  set_optab_libfunc (umod_optab, DImode, "__milli_remU");
+
+  /* HP-UX libc has TF min/max/abs routines in it.  */
   set_optab_libfunc (smin_optab, TFmode, "_U_Qfmin");
   set_optab_libfunc (smax_optab, TFmode, "_U_Qfmax");
   set_optab_libfunc (abs_optab, TFmode, "_U_Qfabs");
@@ -9759,6 +9798,11 @@ ia64_optimization_options (int level ATTRIBUTE_UNUSED,
 {
   /* Let the scheduler form additional regions.  */
   set_param_value ("max-sched-extend-regions-iters", 2);
+
+  /* Set the default values for cache-related parameters.  */
+  set_param_value ("simultaneous-prefetches", 6);
+  set_param_value ("l1-cache-line-size", 32);
+
 }
 
 #include "gt-ia64.h"

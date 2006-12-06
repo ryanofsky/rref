@@ -28,11 +28,11 @@
 // invalidate any other reasons why the executable file might be covered by
 // the GNU General Public License.
 
-// Written by Gabriel Dos Reis <Gabriel.Dos-Reis@DPTMaths.ENS-Cachan.Fr>
-
 /** @file valarray
  *  This is a Standard C++ Library header. 
  */
+
+// Written by Gabriel Dos Reis <Gabriel.Dos-Reis@DPTMaths.ENS-Cachan.Fr>
 
 #ifndef _GLIBCXX_VALARRAY
 #define _GLIBCXX_VALARRAY 1
@@ -1018,6 +1018,8 @@ _DEFINE_BINARY_OPERATOR(<, __less)
 _DEFINE_BINARY_OPERATOR(>, __greater)
 _DEFINE_BINARY_OPERATOR(<=, __less_equal)
 _DEFINE_BINARY_OPERATOR(>=, __greater_equal)
+
+#undef _DEFINE_BINARY_OPERATOR
 
 _GLIBCXX_END_NAMESPACE
 

@@ -716,6 +716,10 @@ dump_cgraph_node (FILE *f, struct cgraph_node *node)
     fprintf (f, " %i insns", node->local.self_insns);
   if (node->global.insns && node->global.insns != node->local.self_insns)
     fprintf (f, " (%i after inlining)", node->global.insns);
+  if (node->local.estimated_self_stack_size)
+    fprintf (f, " %i bytes stack usage", (int)node->local.estimated_self_stack_size);
+  if (node->global.estimated_stack_size != node->local.estimated_self_stack_size)
+    fprintf (f, " %i bytes after inlining", (int)node->global.estimated_stack_size);
   if (node->origin)
     fprintf (f, " nested in: %s", cgraph_node_name (node->origin));
   if (node->needed)
@@ -786,7 +790,10 @@ void
 dump_cgraph_varpool_node (FILE *f, struct cgraph_varpool_node *node)
 {
   fprintf (f, "%s:", cgraph_varpool_node_name (node));
-  fprintf (f, " availability:%s", availability_names [cgraph_variable_initializer_availability (node)]);
+  fprintf (f, " availability:%s",
+	   cgraph_function_flags_ready
+	   ? availability_names[cgraph_variable_initializer_availability (node)]
+	   : "not-ready");
   if (DECL_INITIAL (node->decl))
     fprintf (f, " initialized");
   if (node->needed)

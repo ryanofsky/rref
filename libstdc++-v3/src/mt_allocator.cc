@@ -32,7 +32,7 @@
 //
 
 #include <bits/c++config.h>
-#include <bits/concurrence.h>
+#include <ext/concurrence.h>
 #include <ext/mt_allocator.h>
 #include <cstring>
 
@@ -59,13 +59,13 @@ namespace
 
   // Ensure freelist is constructed first.
   static __freelist freelist;
-  static __glibcxx_mutex_define_initialized(freelist_mutex);
+  __gnu_cxx::__mutex freelist_mutex;
 
   static void 
   _M_destroy_thread_key(void* __id)
   {
     // Return this thread id record to the front of thread_freelist.
-    __gnu_cxx::lock sentry(freelist_mutex);
+    __gnu_cxx::__scoped_lock sentry(freelist_mutex);
     size_t _M_id = reinterpret_cast<size_t>(__id);
 
     typedef __gnu_cxx::__pool<true>::_Thread_record _Thread_record;
@@ -423,7 +423,7 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 	__bin._M_address = __address;
 
 	char* __c = static_cast<char*>(__v) + sizeof(_Block_address);
-	_Block_record* __block = reinterpret_cast<_Block_record*>(__c);
+	__block = reinterpret_cast<_Block_record*>(__c);
  	__bin._M_first[0] = __block;
 	while (--__block_count > 0)
 	  {
@@ -497,17 +497,15 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
     if (__gthread_active_p())
       {
 	{
-	  __gnu_cxx::lock sentry(freelist_mutex);
+	  __gnu_cxx::__scoped_lock sentry(freelist_mutex);
 
 	  if (!freelist._M_thread_freelist_array
-	      || freelist._M_max_threads
-		 < _M_options._M_max_threads)
+	      || freelist._M_max_threads < _M_options._M_max_threads)
 	    {
 	      const size_t __k = sizeof(_Thread_record)
 				 * _M_options._M_max_threads;
 	      __v = ::operator new(__k);
-	      _Thread_record* _M_thread_freelist
-		= static_cast<_Thread_record*>(__v);
+	      _M_thread_freelist = static_cast<_Thread_record*>(__v);
 
 	      // NOTE! The first assignable thread id is 1 since the
 	      // global pool uses id 0
@@ -529,8 +527,7 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 		  // _M_thread_freelist.
 		  __gthread_key_create(&freelist._M_key,
 				       ::_M_destroy_thread_key);
-		  freelist._M_thread_freelist
-		    = _M_thread_freelist;
+		  freelist._M_thread_freelist = _M_thread_freelist;
 		}
 	      else
 		{
@@ -553,10 +550,8 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 		    }
 		  ::operator delete(static_cast<void*>(_M_old_array));
 		}
-	      freelist._M_thread_freelist_array
-		= _M_thread_freelist;
-	      freelist._M_max_threads
-		= _M_options._M_max_threads;
+	      freelist._M_thread_freelist_array = _M_thread_freelist;
+	      freelist._M_max_threads = _M_options._M_max_threads;
 	    }
 	}
 
@@ -571,7 +566,8 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 	    __bin._M_address = NULL;
 
 	    __v = ::operator new(sizeof(size_t) * __max_threads);
-	    std::memset(__v, 0, sizeof(size_t) * __max_threads);	    	    
+	    std::memset(__v, 0, sizeof(size_t) * __max_threads);
+
 	    __bin._M_free = static_cast<size_t*>(__v);
 
 	    __v = ::operator new(sizeof(size_t) * __max_threads
@@ -622,7 +618,7 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 	if (_M_id == 0)
 	  {
 	    {
-	      __gnu_cxx::lock sentry(freelist_mutex);
+	      __gnu_cxx::__scoped_lock sentry(freelist_mutex);
 	      if (freelist._M_thread_freelist)
 		{
 		  _M_id = freelist._M_thread_freelist->_M_id;
@@ -631,8 +627,7 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
 		}
 	    }
 
-	    __gthread_setspecific(freelist._M_key,
-				  (void*)_M_id);
+	    __gthread_setspecific(freelist._M_key, (void*)_M_id);
 	  }
 	return _M_id >= _M_options._M_max_threads ? 0 : _M_id;
       }
@@ -695,17 +690,15 @@ _GLIBCXX_BEGIN_NAMESPACE(__gnu_cxx)
     if (__gthread_active_p())
       {
 	{
-	  __gnu_cxx::lock sentry(freelist_mutex);
+	  __gnu_cxx::__scoped_lock sentry(freelist_mutex);
 
 	  if (!freelist._M_thread_freelist_array
-	      || freelist._M_max_threads
-		 < _M_options._M_max_threads)
+	      || freelist._M_max_threads < _M_options._M_max_threads)
 	    {
 	      const size_t __k = sizeof(_Thread_record)
 				 * _M_options._M_max_threads;
 	      __v = ::operator new(__k);
-	      _Thread_record* _M_thread_freelist
-		= static_cast<_Thread_record*>(__v);
+	      _M_thread_freelist = static_cast<_Thread_record*>(__v);
 
 	      // NOTE! The first assignable thread id is 1 since the
 	      // global pool uses id 0

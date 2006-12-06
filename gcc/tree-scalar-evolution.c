@@ -48,7 +48,7 @@ Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA
    Given a scalar variable to be analyzed, follow the SSA edge to
    its definition:
      
-   - When the definition is a MODIFY_EXPR: if the right hand side
+   - When the definition is a GIMPLE_MODIFY_STMT: if the right hand side
    (RHS) of the definition cannot be statically analyzed, the answer
    of the analyzer is: "don't know".  
    Otherwise, for all the variables that are not yet analyzed in the
@@ -966,8 +966,7 @@ tree
 get_loop_exit_condition (struct loop *loop)
 {
   tree res = NULL_TREE;
-  edge exit_edge = loop->single_exit;
-
+  edge exit_edge = single_exit (loop);
   
   if (dump_file && (dump_flags & TDF_DETAILS))
     fprintf (dump_file, "(get_loop_exit_condition \n  ");
@@ -1003,7 +1002,7 @@ get_exit_conditions_rec (struct loop *loop,
   get_exit_conditions_rec (loop->inner, exit_conditions);
   get_exit_conditions_rec (loop->next, exit_conditions);
   
-  if (loop->single_exit)
+  if (single_exit (loop))
     {
       tree loop_condition = get_loop_exit_condition (loop);
       
@@ -1016,10 +1015,9 @@ get_exit_conditions_rec (struct loop *loop,
    initializes the EXIT_CONDITIONS array.  */
 
 static void
-select_loops_exit_conditions (struct loops *loops, 
-			      VEC(tree,heap) **exit_conditions)
+select_loops_exit_conditions (VEC(tree,heap) **exit_conditions)
 {
-  struct loop *function_body = loops->parray[0];
+  struct loop *function_body = current_loops->tree_root;
   
   get_exit_conditions_rec (function_body->inner, exit_conditions);
 }
@@ -1407,15 +1405,15 @@ follow_ssa_edge (struct loop *loop, tree def, tree halting_phi,
       /* Outer loop.  */
       return t_false;
 
-    case MODIFY_EXPR:
+    case GIMPLE_MODIFY_STMT:
       return follow_ssa_edge_in_rhs (loop, def,
-				     TREE_OPERAND (def, 1), 
+				     GIMPLE_STMT_OPERAND (def, 1), 
 				     halting_phi, 
 				     evolution_of_loop, limit);
       
     default:
       /* At this level of abstraction, the program is just a set
-	 of MODIFY_EXPRs and PHI_NODEs.  In principle there is no
+	 of GIMPLE_MODIFY_STMTs and PHI_NODEs.  In principle there is no
 	 other node to be handled.  */
       return t_false;
     }
@@ -1609,16 +1607,16 @@ interpret_condition_phi (struct loop *loop, tree condition_phi)
   return res;
 }
 
-/* Interpret the right hand side of a modify_expr OPND1.  If we didn't
+/* Interpret the right hand side of a GIMPLE_MODIFY_STMT OPND1.  If we didn't
    analyze this node before, follow the definitions until ending
-   either on an analyzed modify_expr, or on a loop-phi-node.  On the
+   either on an analyzed GIMPLE_MODIFY_STMT, or on a loop-phi-node.  On the
    return path, this function propagates evolutions (ala constant copy
    propagation).  OPND1 is not a GIMPLE expression because we could
    analyze the effect of an inner loop: see interpret_loop_phi.  */
 
 static tree
-interpret_rhs_modify_expr (struct loop *loop, tree at_stmt,
-			   tree opnd1, tree type)
+interpret_rhs_modify_stmt (struct loop *loop, tree at_stmt,
+			   	  tree opnd1, tree type)
 {
   tree res, opnd10, opnd11, chrec10, chrec11;
 
@@ -1885,15 +1883,15 @@ pointer_used_p (tree ptr)
       if (TREE_CODE (stmt) == COND_EXPR)
 	return true;
 
-      if (TREE_CODE (stmt) != MODIFY_EXPR)
+      if (TREE_CODE (stmt) != GIMPLE_MODIFY_STMT)
 	continue;
 
-      rhs = TREE_OPERAND (stmt, 1);
+      rhs = GIMPLE_STMT_OPERAND (stmt, 1);
       if (!COMPARISON_CLASS_P (rhs))
 	continue;
 
-      if (TREE_OPERAND (stmt, 0) == ptr
-	  || TREE_OPERAND (stmt, 1) == ptr)
+      if (GIMPLE_STMT_OPERAND (stmt, 0) == ptr
+	  || GIMPLE_STMT_OPERAND (stmt, 1) == ptr)
 	return true;
     }
 
@@ -1913,7 +1911,7 @@ analyze_scalar_evolution_1 (struct loop *loop, tree var, tree res)
     return chrec_dont_know;
 
   if (TREE_CODE (var) != SSA_NAME)
-    return interpret_rhs_modify_expr (loop, NULL_TREE, var, type);
+    return interpret_rhs_modify_stmt (loop, NULL_TREE, var, type);
 
   def = SSA_NAME_DEF_STMT (var);
   bb = bb_for_stmt (def);
@@ -1946,8 +1944,9 @@ analyze_scalar_evolution_1 (struct loop *loop, tree var, tree res)
 
   switch (TREE_CODE (def))
     {
-    case MODIFY_EXPR:
-      res = interpret_rhs_modify_expr (loop, def, TREE_OPERAND (def, 1), type);
+    case GIMPLE_MODIFY_STMT:
+      res = interpret_rhs_modify_stmt (loop, def,
+	  			       GIMPLE_STMT_OPERAND (def, 1), type);
 
       if (POINTER_TYPE_P (type)
 	  && !automatically_generated_chrec_p (res)
@@ -2107,7 +2106,7 @@ loop_closed_phi_def (tree var)
     return NULL_TREE;
 
   loop = loop_containing_stmt (SSA_NAME_DEF_STMT (var));
-  exit = loop->single_exit;
+  exit = single_exit (loop);
   if (!exit)
     return NULL_TREE;
 
@@ -2485,7 +2484,7 @@ number_of_iterations_in_loop (struct loop *loop)
   if (dump_file && (dump_flags & TDF_DETAILS))
     fprintf (dump_file, "(number_of_iterations_in_loop\n");
   
-  exit = loop->single_exit;
+  exit = single_exit (loop);
   if (!exit)
     goto end;
 
@@ -2746,10 +2745,9 @@ initialize_scalar_evolutions_analyzer (void)
 /* Initialize the analysis of scalar evolutions for LOOPS.  */
 
 void
-scev_initialize (struct loops *loops)
+scev_initialize (void)
 {
   unsigned i;
-  current_loops = loops;
 
   scalar_evolution_info = htab_create (100, hash_scev_info,
 				       eq_scev_info, del_scev_info);
@@ -2757,9 +2755,9 @@ scev_initialize (struct loops *loops)
   
   initialize_scalar_evolutions_analyzer ();
 
-  for (i = 1; i < loops->num; i++)
-    if (loops->parray[i])
-      loops->parray[i]->nb_iterations = NULL_TREE;
+  for (i = 1; i < current_loops->num; i++)
+    if (current_loops->parray[i])
+      current_loops->parray[i]->nb_iterations = NULL_TREE;
 }
 
 /* Cleans up the information cached by the scalar evolutions analysis.  */
@@ -2851,7 +2849,7 @@ scev_analysis (void)
   VEC(tree,heap) *exit_conditions;
   
   exit_conditions = VEC_alloc (tree, heap, 37);
-  select_loops_exit_conditions (current_loops, &exit_conditions);
+  select_loops_exit_conditions (&exit_conditions);
 
   if (dump_file && (dump_flags & TDF_STATS))
     analyze_scalar_evolution_for_all_loop_phi_nodes (&exit_conditions);
@@ -2961,7 +2959,7 @@ scev_const_prop (void)
 
       /* If we do not know exact number of iterations of the loop, we cannot
 	 replace the final value.  */
-      exit = loop->single_exit;
+      exit = single_exit (loop);
       if (!exit)
 	continue;
 
@@ -3008,14 +3006,14 @@ scev_const_prop (void)
 	  SET_PHI_RESULT (phi, NULL_TREE);
 	  remove_phi_node (phi, NULL_TREE);
 
-	  ass = build2 (MODIFY_EXPR, void_type_node, rslt, NULL_TREE);
+	  ass = build2 (GIMPLE_MODIFY_STMT, void_type_node, rslt, NULL_TREE);
 	  SSA_NAME_DEF_STMT (rslt) = ass;
 	  {
 	    block_stmt_iterator dest = bsi;
 	    bsi_insert_before (&dest, ass, BSI_NEW_STMT);
 	    def = force_gimple_operand_bsi (&dest, def, false, NULL_TREE);
 	  }
-	  TREE_OPERAND (ass, 1) = def;
+	  GIMPLE_STMT_OPERAND (ass, 1) = def;
 	  update_stmt (ass);
 	}
     }

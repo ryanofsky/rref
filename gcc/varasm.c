@@ -2749,7 +2749,7 @@ copy_constant (tree exp)
       {
 	tree t = lang_hooks.expand_constant (exp);
 
-	gcc_assert (t == exp);
+	gcc_assert (t != exp);
 	return copy_constant (t);
       }
     }
@@ -4128,8 +4128,12 @@ output_constant (tree exp, unsigned HOST_WIDE_INT size, unsigned int align)
 
 	    link = TREE_VECTOR_CST_ELTS (exp);
 	    output_constant (TREE_VALUE (link), elt_size, align);
+	    thissize = elt_size;
 	    while ((link = TREE_CHAIN (link)) != NULL)
-	      output_constant (TREE_VALUE (link), elt_size, nalign);
+	      {
+		output_constant (TREE_VALUE (link), elt_size, nalign);
+		thissize += elt_size;
+	      }
 	    break;
 	  }
 	default:

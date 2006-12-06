@@ -81,7 +81,7 @@ struct alias_info
 #define NUM_REFERENCES_SET(ANN, VAL) (ANN)->common.aux = (void*) ((void *)(VAL))
 
 /* In tree-ssa-alias.c.  */
-enum escape_type is_escape_site (tree, struct alias_info *);
+enum escape_type is_escape_site (tree);
 
 /* In tree-ssa-structalias.c.  */
 extern void compute_points_to_sets (struct alias_info *);
@@ -94,5 +94,6 @@ extern void dump_solution_for_var (FILE *, unsigned int);
 extern void debug_solution_for_var (unsigned int);
 extern void dump_sa_points_to_info (FILE *);
 extern void debug_sa_points_to_info (void);
+extern void set_used_smts (void);
 
 #endif /* TREE_SSA_STRUCTALIAS_H  */
