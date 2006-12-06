@@ -92,7 +92,9 @@ GFC_UINTEGER_LARGEST
 max_value (int length, int signed_flag)
 {
   GFC_UINTEGER_LARGEST value;
+#if defined HAVE_GFC_REAL_16 || defined HAVE_GFC_REAL_10
   int n;
+#endif
 
   switch (length)
     {
@@ -853,5 +855,5 @@ read_x (st_parameter_dt *dtp, int n)
       dtp->u.p.sf_read_comma = 1;
     }
   else
-    dtp->rec += (GFC_IO_INT) n;
+    dtp->u.p.current_unit->strm_pos += (gfc_offset) n;
 }

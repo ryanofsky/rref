@@ -44,8 +44,8 @@
  * Contains a resize trigger implementation.
  */
 
-#define PB_DS_STATIC_ASSERT(UNIQUE, E) \
-  typedef detail::static_assert_dumclass<sizeof(detail::static_assert<(bool)(E)>)> UNIQUE##static_assert_type
+#define PB_DS_STATIC_ASSERT(UNIQUE, E)  \
+  typedef detail::static_assert_dumclass<sizeof(detail::static_assert<bool(E)>)> UNIQUE##static_assert_type
 
 PB_DS_CLASS_T_DEC
 PB_DS_CLASS_C_DEC::
@@ -275,7 +275,7 @@ set_loads(std::pair<float, float> load_pair)
       m_next_shrink_size = old_next_shrink_size;
       m_next_grow_size = old_next_grow_size;
       m_resize_needed = old_resize_needed;
-      throw;
+      __throw_exception_again;
     }
 }
 

@@ -27,6 +27,10 @@
 // invalidate any other reasons why the executable file might be covered by
 // the GNU General Public License.
 
+/** @file tr1/random.tcc
+ *  This is a TR1 C++ Library header. 
+ */
+
 namespace std
 {
 _GLIBCXX_BEGIN_NAMESPACE(tr1)
@@ -34,7 +38,7 @@ _GLIBCXX_BEGIN_NAMESPACE(tr1)
   /*
    * (Further) implementation-space details.
    */
-  namespace
+  namespace __detail
   {
     // General case for x = (ax + c) mod m -- use Schrage's algorithm to avoid
     // integer overflow.
@@ -86,38 +90,7 @@ _GLIBCXX_BEGIN_NAMESPACE(tr1)
 	__calc(_Tp __x)
 	{ return __a * __x + __c; }
       };
-
-    template<typename _ValueT>
-      struct _To_Unsigned_Type
-      { typedef _ValueT _Type; };
-
-    template<>
-      struct _To_Unsigned_Type<short>
-      { typedef unsigned short _Type; };
-
-    template<>
-      struct _To_Unsigned_Type<int>
-      { typedef unsigned int _Type; };
-
-    template<>
-      struct _To_Unsigned_Type<long>
-      { typedef unsigned long _Type; };
-
-#ifdef _GLIBCXX_USE_LONG_LONG
-    template<>
-      struct _To_Unsigned_Type<long long>
-      { typedef unsigned long long _Type; };
-#endif
-
-    // See N1822.
-    template<typename _RealType>
-      struct _Max_digits10
-      { 
-	static const std::streamsize __value =
-	  2 + std::numeric_limits<_RealType>::digits * 3010/10000;
-      };
-  } // anonymous namespace
-
+  } // namespace __detail
 
   /**
    * Seeds the LCR with integral value @p __x0, adjusted so that the 
@@ -128,11 +101,11 @@ _GLIBCXX_BEGIN_NAMESPACE(tr1)
     linear_congruential<_UIntType, __a, __c, __m>::
     seed(unsigned long __x0)
     {
-      if ((__mod<_UIntType, 1, 0, __m>(__c) == 0)
-	  && (__mod<_UIntType, 1, 0, __m>(__x0) == 0))
-	_M_x = __mod<_UIntType, 1, 0, __m>(1);
+      if ((__detail::__mod<_UIntType, 1, 0, __m>(__c) == 0)
+	  && (__detail::__mod<_UIntType, 1, 0, __m>(__x0) == 0))
+	_M_x = __detail::__mod<_UIntType, 1, 0, __m>(1);
       else
-	_M_x = __mod<_UIntType, 1, 0, __m>(__x0);
+	_M_x = __detail::__mod<_UIntType, 1, 0, __m>(__x0);
     }
 
   /**
@@ -145,11 +118,11 @@ _GLIBCXX_BEGIN_NAMESPACE(tr1)
       seed(_Gen& __g, false_type)
       {
 	_UIntType __x0 = __g();
-	if ((__mod<_UIntType, 1, 0, __m>(__c) == 0)
-	    && (__mod<_UIntType, 1, 0, __m>(__x0) == 0))
-	  _M_x = __mod<_UIntType, 1, 0, __m>(1);
+	if ((__detail::__mod<_UIntType, 1, 0, __m>(__c) == 0)
+	    && (__detail::__mod<_UIntType, 1, 0, __m>(__x0) == 0))
+	  _M_x = __detail::__mod<_UIntType, 1, 0, __m>(1);
 	else
-	  _M_x = __mod<_UIntType, 1, 0, __m>(__x0);
+	  _M_x = __detail::__mod<_UIntType, 1, 0, __m>(__x0);
       }
 
   /**
@@ -160,7 +133,7 @@ _GLIBCXX_BEGIN_NAMESPACE(tr1)
     linear_congruential<_UIntType, __a, __c, __m>::
     operator()()
     {
-      _M_x = __mod<_UIntType, __a, __c, __m>(_M_x);
+      _M_x = __detail::__mod<_UIntType, __a, __c, __m>(_M_x);
       return _M_x;
     }
 
@@ -207,8 +180,8 @@ _GLIBCXX_BEGIN_NAMESPACE(tr1)
 		     __b, __t, __c, __l>::
     seed(unsigned long __value)
     {
-      _M_x[0] = __mod<_UIntType, 1, 0,
-	_Shift<_UIntType, __w>::__value>(__value);
+      _M_x[0] = __detail::__mod<_UIntType, 1, 0,
+	__detail::_Shift<_UIntType, __w>::__value>(__value);
 
       for (int __i = 1; __i < state_size; ++__i)
 	{
@@ -216,8 +189,8 @@ _GLIBCXX_BEGIN_NAMESPACE(tr1)
 	  __x ^= __x >> (__w - 2);
 	  __x *= 1812433253ul;
 	  __x += __i;
-	  _M_x[__i] = __mod<_UIntType, 1, 0,
-	    _Shift<_UIntType, __w>::__value>(__x);	  
+	  _M_x[__i] = __detail::__mod<_UIntType, 1, 0,
+	    __detail::_Shift<_UIntType, __w>::__value>(__x);	  
 	}
       _M_p = state_size;
     }
@@ -232,8 +205,8 @@ _GLIBCXX_BEGIN_NAMESPACE(tr1)
       seed(_Gen& __gen, false_type)
       {
 	for (int __i = 0; __i < state_size; ++__i)
-	  _M_x[__i] = __mod<_UIntType, 1, 0,
-	    _Shift<_UIntType, __w>::__value>(__gen());
+	  _M_x[__i] = __detail::__mod<_UIntType, 1, 0,
+	    __detail::_Shift<_UIntType, __w>::__value>(__gen());
 	_M_p = state_size;
       }
 
@@ -343,7 +316,7 @@ _GLIBCXX_BEGIN_NAMESPACE(tr1)
 	__lcg(__value);
 
       for (int __i = 0; __i < long_lag; ++__i)
-	_M_x[__i] = __mod<_UIntType, 1, 0, modulus>(__lcg());
+	_M_x[__i] = __detail::__mod<_UIntType, 1, 0, modulus>(__lcg());
 
       _M_carry = (_M_x[long_lag - 1] == 0) ? 1 : 0;
       _M_p = 0;
@@ -363,10 +336,11 @@ _GLIBCXX_BEGIN_NAMESPACE(tr1)
 	    _UIntType __factor = 1;
 	    for (int __j = 0; __j < __n; ++__j)
 	      {
-		__tmp += __mod<_UInt32Type, 1, 0, 0>(__gen()) * __factor;
-		__factor *= _Shift<_UIntType, 32>::__value;
+		__tmp += __detail::__mod<__detail::_UInt32Type, 1, 0, 0>
+		         (__gen()) * __factor;
+		__factor *= __detail::_Shift<_UIntType, 32>::__value;
 	      }
-	    _M_x[__i] = __mod<_UIntType, 1, 0, modulus>(__tmp);
+	    _M_x[__i] = __detail::__mod<_UIntType, 1, 0, modulus>(__tmp);
 	  }
 	_M_carry = (_M_x[long_lag - 1] == 0) ? 1 : 0;
 	_M_p = 0;
@@ -483,9 +457,9 @@ _GLIBCXX_BEGIN_NAMESPACE(tr1)
 	for (int __i = 0; __i < long_lag; ++__i)
 	  {
 	    for (int __j = 0; __j < __n - 1; ++__j)
-	      _M_x[__i][__j] = __mod<_UInt32Type, 1, 0, 0>(__gen());
-	    _M_x[__i][__n - 1] = __mod<_UInt32Type, 1, 0,
-	      _Shift<_UInt32Type, __w % 32>::__value>(__gen());
+	      _M_x[__i][__j] = __detail::__mod<_UInt32Type, 1, 0, 0>(__gen());
+	    _M_x[__i][__n - 1] = __detail::__mod<_UInt32Type, 1, 0,
+	      __detail::_Shift<_UInt32Type, __w % 32>::__value>(__gen());
 	  }
 
 	_M_carry = 1;
@@ -528,8 +502,8 @@ _GLIBCXX_BEGIN_NAMESPACE(tr1)
       else
 	__new_carry = 1;
       
-      _M_x[_M_p][__n - 1] = __mod<_UInt32Type, 1, 0,
-	_Shift<_UInt32Type, __w % 32>::__value>
+      _M_x[_M_p][__n - 1] = __detail::__mod<_UInt32Type, 1, 0,
+	__detail::_Shift<_UInt32Type, __w % 32>::__value>
 	(_M_x[__ps][__n - 1] - _M_x[_M_p][__n - 1] - _M_carry);
       _M_carry = __new_carry;
 
@@ -649,30 +623,59 @@ _GLIBCXX_BEGIN_NAMESPACE(tr1)
 		_UniformRandomNumberGenerator2, __s2>::
     _M_initialize_max()
     {
-      const int __lshift = std::abs(__s1 - __s2);
+      const int __w = std::numeric_limits<result_type>::digits;
 
-      result_type __m1 = _M_b1.max() - _M_b1.min();
-      result_type __m2 = _M_b2.max() - _M_b2.min();
+      const result_type __m1 =
+	std::min(result_type(_M_b1.max() - _M_b1.min()),
+		 __detail::_Shift<result_type, __w - __s1>::__value - 1);
 
-      // NB: in TR1 s1 is not required to be >= s2.
-      if (__s1 >= __s2)
-	__m1 <<= __lshift;
+      const result_type __m2 =
+	std::min(result_type(_M_b2.max() - _M_b2.min()),
+		 __detail::_Shift<result_type, __w - __s2>::__value - 1);
+
+      // NB: In TR1 s1 is not required to be >= s2.
+      if (__s1 < __s2)
+	_M_max = _M_initialize_max_aux(__m2, __m1, __s2 - __s1) << __s1;
       else
-	__m2 <<= __lshift;
+	_M_max = _M_initialize_max_aux(__m1, __m2, __s1 - __s2) << __s2;
+    }
 
-      result_type __a = __m1 & __m2;
-      const result_type __b = __m1 | __m2;      
+  template<class _UniformRandomNumberGenerator1, int __s1,
+	   class _UniformRandomNumberGenerator2, int __s2>
+    typename xor_combine<_UniformRandomNumberGenerator1, __s1,
+			 _UniformRandomNumberGenerator2, __s2>::result_type
+    xor_combine<_UniformRandomNumberGenerator1, __s1,
+		_UniformRandomNumberGenerator2, __s2>::
+    _M_initialize_max_aux(result_type __a, result_type __b, int __d)
+    {
+      const result_type __two2d = result_type(1) << __d;
+      const result_type __c = __a * __two2d;
 
-      result_type __c = 0;
-      if (__a)
-	{
-	  result_type __k;
-	  for (__k = 0; __a != 1; __a >>= 1)
-	    ++__k;
-	  __c = (result_type(1) << __k) - 1;
-	}
+      if (__a == 0 || __b < __two2d)
+	return __c + __b;
 
-      _M_max = (__c | __b) << __lshift; 
+      const result_type __t = std::max(__c, __b);
+      const result_type __u = std::min(__c, __b);
+
+      result_type __ub = __u;
+      result_type __p;
+      for (__p = 0; __ub != 1; __ub >>= 1)
+	++__p;
+
+      const result_type __two2p = result_type(1) << __p;
+      const result_type __k = __t / __two2p;
+
+      if (__k & 1)
+	return (__k + 1) * __two2p - 1;
+
+      if (__c >= __b)
+	return (__k + 1) * __two2p + _M_initialize_max_aux((__t % __two2p)
+							   / __two2d,
+							   __u % __two2p, __d);
+      else
+	return (__k + 1) * __two2p + _M_initialize_max_aux((__u % __two2p)
+							   / __two2d,
+							   __t % __two2p, __d);
     }
 
   template<class _UniformRandomNumberGenerator1, int __s1,
@@ -758,7 +761,7 @@ _GLIBCXX_BEGIN_NAMESPACE(tr1)
       const std::streamsize __precision = __os.precision();
       __os.flags(std::ios_base::scientific | std::ios_base::left);
       __os.fill(__os.widen(' '));
-      __os.precision(_Max_digits10<double>::__value);
+      __os.precision(__gnu_cxx::__numeric_traits<double>::__max_digits10);
 
       __os << __x.p();
 
@@ -768,6 +771,28 @@ _GLIBCXX_BEGIN_NAMESPACE(tr1)
       return __os;
     }
 
+
+  template<typename _IntType, typename _RealType>
+    template<class _UniformRandomNumberGenerator>
+      typename geometric_distribution<_IntType, _RealType>::result_type
+      geometric_distribution<_IntType, _RealType>::
+      operator()(_UniformRandomNumberGenerator& __urng)
+      {
+	// About the epsilon thing see this thread:
+        // http://gcc.gnu.org/ml/gcc-patches/2006-10/msg00971.html
+	const _RealType __naf =
+	  (1 - std::numeric_limits<_RealType>::epsilon()) / 2;
+	// The largest _RealType convertible to _IntType.
+	const _RealType __thr =
+	  std::numeric_limits<_IntType>::max() + __naf;
+
+	_RealType __cand;
+	do
+	  __cand = std::ceil(std::log(__urng()) / _M_log_p);
+	while (__cand >= __thr);
+
+	return result_type(__cand + __naf);
+      }
 
   template<typename _IntType, typename _RealType,
 	   typename _CharT, typename _Traits>
@@ -780,7 +805,7 @@ _GLIBCXX_BEGIN_NAMESPACE(tr1)
       const std::streamsize __precision = __os.precision();
       __os.flags(std::ios_base::scientific | std::ios_base::left);
       __os.fill(__os.widen(' '));
-      __os.precision(_Max_digits10<_RealType>::__value);
+      __os.precision(__gnu_cxx::__numeric_traits<_RealType>::__max_digits10);
 
       __os << __x.p();
 
@@ -842,6 +867,12 @@ _GLIBCXX_BEGIN_NAMESPACE(tr1)
 	  {
 	    _RealType __x;
 
+	    // See comments above...
+	    const _RealType __naf =
+	      (1 - std::numeric_limits<_RealType>::epsilon()) / 2;
+	    const _RealType __thr =
+	      std::numeric_limits<_IntType>::max() + __naf;
+
 	    const _RealType __m = std::floor(_M_mean);
 	    // sqrt(pi / 2)
 	    const _RealType __spi_2 = 1.2533141373155002512078826424055226L;
@@ -882,7 +913,8 @@ _GLIBCXX_BEGIN_NAMESPACE(tr1)
 		      continue;
 		  }
 		else if (__u <= __c3)
-		  // XXX This case not in the book, nor in the Errata...
+		  // NB: This case not in the book, nor in the Errata,
+		  // but should be ok...
 		  __x = -1;
 		else if (__u <= __c4)
 		  __x = 0;
@@ -899,9 +931,11 @@ _GLIBCXX_BEGIN_NAMESPACE(tr1)
 		__reject = (__w - __e - __x * _M_lm_thr
 			    > _M_lfm - std::tr1::lgamma(__x + __m + 1));
 
+		__reject |= __x + __m >= __thr;
+
 	      } while (__reject);
 
-	    return _IntType(__x + __m + 0.5);
+	    return result_type(__x + __m + __naf);
 	  }
 	else
 #endif
@@ -932,7 +966,7 @@ _GLIBCXX_BEGIN_NAMESPACE(tr1)
       const _CharT __space = __os.widen(' ');
       __os.flags(std::ios_base::scientific | std::ios_base::left);
       __os.fill(__space);
-      __os.precision(_Max_digits10<_RealType>::__value);
+      __os.precision(__gnu_cxx::__numeric_traits<_RealType>::__max_digits10);
 
       __os << __x.mean() << __space << __x._M_nd;
 
@@ -1055,6 +1089,12 @@ _GLIBCXX_BEGIN_NAMESPACE(tr1)
 	  {
 	    _RealType __x;
 
+	    // See comments above...
+	    const _RealType __naf =
+	      (1 - std::numeric_limits<_RealType>::epsilon()) / 2;
+	    const _RealType __thr =
+	      std::numeric_limits<_IntType>::max() + __naf;
+
 	    const _RealType __np = std::floor(_M_t * __p12);
 	    const _RealType __pa = __np / _M_t;
 
@@ -1127,10 +1167,12 @@ _GLIBCXX_BEGIN_NAMESPACE(tr1)
 		      + std::tr1::lgamma(_M_t - (__np + __x) + 1);
 		    __reject = __v > _M_lf - __lfx + __x * _M_lp1p;
 		  }
+
+		__reject |= __x + __np >= __thr;
 	      }
 	    while (__reject);
 
-	    __x += __np + 0.5;
+	    __x += __np + __naf;
 
 	    const _IntType __z = _M_waiting(__urng, _M_t - _IntType(__x)); 
 	    __ret = _IntType(__x) + __z;
@@ -1156,7 +1198,7 @@ _GLIBCXX_BEGIN_NAMESPACE(tr1)
       const _CharT __space = __os.widen(' ');
       __os.flags(std::ios_base::scientific | std::ios_base::left);
       __os.fill(__space);
-      __os.precision(_Max_digits10<_RealType>::__value);
+      __os.precision(__gnu_cxx::__numeric_traits<_RealType>::__max_digits10);
 
       __os << __x.t() << __space << __x.p() 
 	   << __space << __x._M_nd;
@@ -1195,7 +1237,7 @@ _GLIBCXX_BEGIN_NAMESPACE(tr1)
       const _CharT __space = __os.widen(' ');
       __os.flags(std::ios_base::scientific | std::ios_base::left);
       __os.fill(__space);
-      __os.precision(_Max_digits10<_RealType>::__value);
+      __os.precision(__gnu_cxx::__numeric_traits<_RealType>::__max_digits10);
 
       __os << __x.min() << __space << __x.max();
 
@@ -1230,7 +1272,7 @@ _GLIBCXX_BEGIN_NAMESPACE(tr1)
       const std::streamsize __precision = __os.precision();
       __os.flags(std::ios_base::scientific | std::ios_base::left);
       __os.fill(__os.widen(' '));
-      __os.precision(_Max_digits10<_RealType>::__value);
+      __os.precision(__gnu_cxx::__numeric_traits<_RealType>::__max_digits10);
 
       __os << __x.lambda();
 
@@ -1292,7 +1334,7 @@ _GLIBCXX_BEGIN_NAMESPACE(tr1)
       const _CharT __space = __os.widen(' ');
       __os.flags(std::ios_base::scientific | std::ios_base::left);
       __os.fill(__space);
-      __os.precision(_Max_digits10<_RealType>::__value);
+      __os.precision(__gnu_cxx::__numeric_traits<_RealType>::__max_digits10);
 
       __os << __x._M_saved_available << __space
 	   << __x.mean() << __space
@@ -1418,7 +1460,7 @@ _GLIBCXX_BEGIN_NAMESPACE(tr1)
       const std::streamsize __precision = __os.precision();
       __os.flags(std::ios_base::scientific | std::ios_base::left);
       __os.fill(__os.widen(' '));
-      __os.precision(_Max_digits10<_RealType>::__value);
+      __os.precision(__gnu_cxx::__numeric_traits<_RealType>::__max_digits10);
 
       __os << __x.alpha();
 

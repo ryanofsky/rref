@@ -995,7 +995,7 @@ reload (rtx first, int global)
 	HARD_REG_SET to_spill;
 	CLEAR_HARD_REG_SET (to_spill);
 	update_eliminables (&to_spill);
-	AND_COMPL_HARD_REG_SET(used_spill_regs, to_spill);
+	AND_COMPL_HARD_REG_SET (used_spill_regs, to_spill);
 
 	for (i = 0; i < FIRST_PSEUDO_REGISTER; i++)
 	  if (TEST_HARD_REG_BIT (to_spill, i))
@@ -1166,6 +1166,20 @@ reload (rtx first, int global)
     if (INSN_P (insn))
       {
 	rtx *pnote;
+
+	/* Clean up invalid ASMs so that they don't confuse later passes.
+	   See PR 21299.  */
+	if (asm_noperands (PATTERN (insn)) >= 0)
+	  {
+	    extract_insn (insn);
+	    if (!constrain_operands (1))
+	      {
+		error_for_asm (insn,
+			       "%<asm%> operand has impossible constraints");
+		delete_insn (insn);
+		continue;
+	      }
+	  }
 
 	if (CALL_P (insn))
 	  replace_pseudos_in (& CALL_INSN_FUNCTION_USAGE (insn),
@@ -1846,7 +1860,7 @@ find_reload_regs (struct insn_chain *chain)
 	if (! find_reg (chain, i))
 	  {
 	    if (dump_file)
-	      fprintf(dump_file, "reload failure for reload %d\n", r);
+	      fprintf (dump_file, "reload failure for reload %d\n", r);
 	    spill_failure (chain->insn, rld[r].class);
 	    failure = 1;
 	    return;
@@ -1982,8 +1996,11 @@ alter_reg (int i, int from_reg)
       && reg_equiv_memory_loc[i] == 0)
     {
       rtx x;
+      enum machine_mode mode = GET_MODE (regno_reg_rtx[i]);
       unsigned int inherent_size = PSEUDO_REGNO_BYTES (i);
+      unsigned int inherent_align = GET_MODE_ALIGNMENT (mode);
       unsigned int total_size = MAX (inherent_size, reg_max_ref_width[i]);
+      unsigned int min_align = reg_max_ref_width[i] * BITS_PER_UNIT;
       int adjust = 0;
 
       /* Each pseudo reg has an inherent size which comes from its own mode,
@@ -1997,8 +2014,9 @@ alter_reg (int i, int from_reg)
       if (from_reg == -1)
 	{
 	  /* No known place to spill from => no slot to reuse.  */
-	  x = assign_stack_local (GET_MODE (regno_reg_rtx[i]), total_size,
-				  inherent_size == total_size ? 0 : -1);
+	  x = assign_stack_local (mode, total_size,
+				  min_align > inherent_align
+				  || total_size > inherent_size ? -1 : 0);
 	  if (BYTES_BIG_ENDIAN)
 	    /* Cancel the  big-endian correction done in assign_stack_local.
 	       Get the address of the beginning of the slot.
@@ -2014,7 +2032,8 @@ alter_reg (int i, int from_reg)
       else if (spill_stack_slot[from_reg] != 0
 	       && spill_stack_slot_width[from_reg] >= total_size
 	       && (GET_MODE_SIZE (GET_MODE (spill_stack_slot[from_reg]))
-		   >= inherent_size))
+		   >= inherent_size)
+	       && MEM_ALIGN (spill_stack_slot[from_reg]) >= min_align)
 	x = spill_stack_slot[from_reg];
 
       /* Allocate a bigger slot.  */
@@ -2022,7 +2041,6 @@ alter_reg (int i, int from_reg)
 	{
 	  /* Compute maximum size needed, both for inherent size
 	     and for total size.  */
-	  enum machine_mode mode = GET_MODE (regno_reg_rtx[i]);
 	  rtx stack_slot;
 
 	  if (spill_stack_slot[from_reg])
@@ -2032,11 +2050,14 @@ alter_reg (int i, int from_reg)
 		mode = GET_MODE (spill_stack_slot[from_reg]);
 	      if (spill_stack_slot_width[from_reg] > total_size)
 		total_size = spill_stack_slot_width[from_reg];
+	      if (MEM_ALIGN (spill_stack_slot[from_reg]) > min_align)
+		min_align = MEM_ALIGN (spill_stack_slot[from_reg]);
 	    }
 
 	  /* Make a slot with that size.  */
 	  x = assign_stack_local (mode, total_size,
-				  inherent_size == total_size ? 0 : -1);
+				  min_align > inherent_align
+				  || total_size > inherent_size ? -1 : 0);
 	  stack_slot = x;
 
 	  /* All pseudos mapped to this slot can alias each other.  */
@@ -2534,6 +2555,7 @@ eliminate_regs_1 (rtx x, enum machine_mode mem_mode, rtx insn,
     case CTZ:
     case POPCOUNT:
     case PARITY:
+    case BSWAP:
       new = eliminate_regs_1 (XEXP (x, 0), mem_mode, insn, false);
       if (new != XEXP (x, 0))
 	return gen_rtx_fmt_e (code, GET_MODE (x), new);
@@ -2754,6 +2776,7 @@ elimination_effects (rtx x, enum machine_mode mem_mode)
     case CTZ:
     case POPCOUNT:
     case PARITY:
+    case BSWAP:
       elimination_effects (XEXP (x, 0), mem_mode);
       return;
 
@@ -3814,7 +3837,8 @@ scan_paradoxical_subregs (rtx x)
 
     case SUBREG:
       if (REG_P (SUBREG_REG (x))
-	  && GET_MODE_SIZE (GET_MODE (x)) > GET_MODE_SIZE (GET_MODE (SUBREG_REG (x))))
+	  && (GET_MODE_SIZE (GET_MODE (x))
+	      > reg_max_ref_width[REGNO (SUBREG_REG (x))]))
 	reg_max_ref_width[REGNO (SUBREG_REG (x))]
 	  = GET_MODE_SIZE (GET_MODE (x));
       return;
@@ -4770,6 +4794,51 @@ reload_reg_reaches_end_p (unsigned int regno, int opnum, enum reload_type type)
     }
 }
 
+
+/*  Returns whether R1 and R2 are uniquely chained: the value of one
+    is used by the other, and that value is not used by any other
+    reload for this insn.  This is used to partially undo the decision
+    made in find_reloads when in the case of multiple
+    RELOAD_FOR_OPERAND_ADDRESS reloads it converts all
+    RELOAD_FOR_OPADDR_ADDR reloads into RELOAD_FOR_OPERAND_ADDRESS
+    reloads.  This code tries to avoid the conflict created by that
+    change.  It might be cleaner to explicitly keep track of which
+    RELOAD_FOR_OPADDR_ADDR reload is associated with which
+    RELOAD_FOR_OPERAND_ADDRESS reload, rather than to try to detect
+    this after the fact. */
+static bool
+reloads_unique_chain_p (int r1, int r2)
+{
+  int i;
+
+  /* We only check input reloads.  */
+  if (! rld[r1].in || ! rld[r2].in)
+    return false;
+
+  /* Avoid anything with output reloads.  */
+  if (rld[r1].out || rld[r2].out)
+    return false;
+
+  /* "chained" means one reload is a component of the other reload,
+     not the same as the other reload.  */
+  if (rld[r1].opnum != rld[r2].opnum
+      || rtx_equal_p (rld[r1].in, rld[r2].in)
+      || rld[r1].optional || rld[r2].optional
+      || ! (reg_mentioned_p (rld[r1].in, rld[r2].in)
+	    || reg_mentioned_p (rld[r2].in, rld[r1].in)))
+    return false;
+
+  for (i = 0; i < n_reloads; i ++)
+    /* Look for input reloads that aren't our two */
+    if (i != r1 && i != r2 && rld[i].in)
+      {
+	/* If our reload is mentioned at all, it isn't a simple chain.  */
+	if (reg_mentioned_p (rld[r1].in, rld[i].in))
+	  return false;
+      }
+  return true;
+}
+
 /* Return 1 if the reloads denoted by R1 and R2 cannot share a register.
    Return 0 otherwise.
 
@@ -4818,7 +4887,8 @@ reloads_conflict (int r1, int r2)
 
     case RELOAD_FOR_OPERAND_ADDRESS:
       return (r2_type == RELOAD_FOR_INPUT || r2_type == RELOAD_FOR_INSN
-	      || r2_type == RELOAD_FOR_OPERAND_ADDRESS);
+	      || (r2_type == RELOAD_FOR_OPERAND_ADDRESS
+		  && !reloads_unique_chain_p (r1, r2)));
 
     case RELOAD_FOR_OPADDR_ADDR:
       return (r2_type == RELOAD_FOR_INPUT
@@ -7902,6 +7972,9 @@ delete_output_reload (rtx insn, int j, int last_reload_reg)
 	}
     }
   n_occurrences = count_occurrences (PATTERN (insn), reg, 0);
+  if (CALL_P (insn) && CALL_INSN_FUNCTION_USAGE (insn))
+    n_occurrences += count_occurrences (CALL_INSN_FUNCTION_USAGE (insn),
+					reg, 0);
   if (substed)
     n_occurrences += count_occurrences (PATTERN (insn),
 					eliminate_regs (substed, 0,
@@ -8177,7 +8250,7 @@ static rtx
 inc_for_reload (rtx reloadreg, rtx in, rtx value, int inc_amount)
 {
   /* REG or MEM to be copied and incremented.  */
-  rtx incloc = XEXP (value, 0);
+  rtx incloc = find_replacement (&XEXP (value, 0));
   /* Nonzero if increment after copying.  */
   int post = (GET_CODE (value) == POST_DEC || GET_CODE (value) == POST_INC
 	      || GET_CODE (value) == POST_MODIFY);
@@ -8186,7 +8259,7 @@ inc_for_reload (rtx reloadreg, rtx in, rtx value, int inc_amount)
   rtx add_insn;
   int code;
   rtx store;
-  rtx real_in = in == value ? XEXP (in, 0) : in;
+  rtx real_in = in == value ? incloc : in;
 
   /* No hard register is equivalent to this register after
      inc/dec operation.  If REG_LAST_RELOAD_REG were nonzero,
@@ -8198,7 +8271,7 @@ inc_for_reload (rtx reloadreg, rtx in, rtx value, int inc_amount)
   if (GET_CODE (value) == PRE_MODIFY || GET_CODE (value) == POST_MODIFY)
     {
       gcc_assert (GET_CODE (XEXP (value, 1)) == PLUS);
-      inc = XEXP (XEXP (value, 1), 1);
+      inc = find_replacement (&XEXP (XEXP (value, 1), 1));
     }
   else
     {
@@ -8267,7 +8340,7 @@ inc_for_reload (rtx reloadreg, rtx in, rtx value, int inc_amount)
       emit_insn (gen_add2_insn (reloadreg, inc));
       store = emit_insn (gen_move_insn (incloc, reloadreg));
       if (GET_CODE (inc) == CONST_INT)
-	emit_insn (gen_add2_insn (reloadreg, GEN_INT (-INTVAL(inc))));
+	emit_insn (gen_add2_insn (reloadreg, GEN_INT (-INTVAL (inc))));
       else
 	emit_insn (gen_sub2_insn (reloadreg, inc));
     }

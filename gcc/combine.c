@@ -1659,7 +1659,7 @@ likely_spilled_retval_1 (rtx x, rtx set, void *data)
     new_mask >>= info->regno - regno;
   else
     new_mask <<= regno - info->regno;
-  info->mask &= new_mask;
+  info->mask &= ~new_mask;
 }
 
 /* Return nonzero iff part of the return value is live during INSN, and
@@ -1695,7 +1695,8 @@ likely_spilled_retval_p (rtx insn)
   info.nregs = nregs;
   info.mask = mask;
   for (p = PREV_INSN (use); info.mask && p != insn; p = PREV_INSN (p))
-    note_stores (PATTERN (insn), likely_spilled_retval_1, &info);
+    if (INSN_P (p))
+      note_stores (PATTERN (p), likely_spilled_retval_1, &info);
   mask = info.mask;
 
   /* Check if any of the (probably) live return value registers is
@@ -12165,12 +12166,14 @@ distribute_notes (rtx notes, rtx from_insn, rtx i3, rtx i2, rtx elim_i2,
 		      continue;
 		    }
 
-		  /* If the register is being set at TEM, see if that is all
-		     TEM is doing.  If so, delete TEM.  Otherwise, make this
-		     into a REG_UNUSED note instead. Don't delete sets to
-		     global register vars.  */
-		  if ((REGNO (XEXP (note, 0)) >= FIRST_PSEUDO_REGISTER
-		       || !global_regs[REGNO (XEXP (note, 0))])
+		  /* If TEM is a (reaching) definition of the use to which the
+		     note was attached, see if that is all TEM is doing.  If so,
+		     delete TEM.  Otherwise, make this into a REG_UNUSED note
+		     instead.  Don't delete sets to global register vars.  */
+		  if ((!from_insn
+		       || INSN_CUID (tem) < INSN_CUID (from_insn))
+		      && (REGNO (XEXP (note, 0)) >= FIRST_PSEUDO_REGISTER
+			  || !global_regs[REGNO (XEXP (note, 0))])
 		      && reg_set_p (XEXP (note, 0), PATTERN (tem)))
 		    {
 		      rtx set = single_set (tem);

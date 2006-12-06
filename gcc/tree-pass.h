@@ -151,8 +151,6 @@ struct dump_file_info
 #define PROP_rtl		(1 << 8)
 #define PROP_alias		(1 << 9)
 #define PROP_gimple_lomp	(1 << 10)	/* lowered OpenMP directives */
-#define PROP_smt_usage          (1 << 11)       /* which SMT's are
-						   used alone.  */
 
 #define PROP_trees \
   (PROP_gimple_any | PROP_gimple_lcf | PROP_gimple_leh | PROP_gimple_lomp)
@@ -330,6 +328,8 @@ extern struct tree_opt_pass pass_rtl_eh;
 extern struct tree_opt_pass pass_initial_value_sets;
 extern struct tree_opt_pass pass_unshare_all_rtl;
 extern struct tree_opt_pass pass_instantiate_virtual_regs;
+extern struct tree_opt_pass pass_rtl_fwprop;
+extern struct tree_opt_pass pass_rtl_fwprop_addr;
 extern struct tree_opt_pass pass_jump2;
 extern struct tree_opt_pass pass_cse;
 extern struct tree_opt_pass pass_gcse;
@@ -384,7 +384,6 @@ extern struct tree_opt_pass pass_duplicate_computed_gotos;
 extern struct tree_opt_pass pass_variable_tracking;
 extern struct tree_opt_pass pass_free_cfg;
 extern struct tree_opt_pass pass_machine_reorg;
-extern struct tree_opt_pass pass_purge_lineno_notes;
 extern struct tree_opt_pass pass_cleanup_barriers;
 extern struct tree_opt_pass pass_delay_slots;
 extern struct tree_opt_pass pass_split_for_shorten_branches;
