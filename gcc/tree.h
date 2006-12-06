@@ -1281,7 +1281,7 @@ extern void omp_clause_range_check_failed (const tree, const char *, int,
 
 /* In a REFERENCE_TYPE, means that reference is an rvalue reference */
 #define TYPE_REF_IS_RVALUE(NODE) \
-  (REFERENCE_TYPE_CHECK (NODE)->common.protected_flag)
+  (REFERENCE_TYPE_CHECK (NODE)->base.protected_flag)
 
 /* In a type, nonzero means that all objects of the type are guaranteed by the
    language or front-end to be properly aligned, so we can indicate that a MEM
