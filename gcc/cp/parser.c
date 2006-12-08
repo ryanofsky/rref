@@ -11942,12 +11942,8 @@ cp_parser_ptr_operator (cp_parser* parser,
     code = INDIRECT_REF;
   else if (token->type == CPP_AND)
     code = ADDR_EXPR;
-  else if (token->type == CPP_AND_AND)
-  {
+  else if (flag_cpp0x && token->type == CPP_AND_AND) /* C++0x only */
     code = NON_LVALUE_EXPR;
-    if (pedantic)
-      pedwarn ("ISO C++ does not support rvalue reference declarations");
-  }
 
   if (code != ERROR_MARK)
     {

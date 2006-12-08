@@ -1,4 +1,4 @@
-// { dg-options "" }
+// { dg-options "--std=c++0x" }
 
 struct S { };
 

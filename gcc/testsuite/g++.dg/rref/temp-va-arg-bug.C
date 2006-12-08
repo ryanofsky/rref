@@ -1,3 +1,4 @@
+// { dg-options "--std=c++0x" }
 #include <stdarg.h>
 
 struct S { };
