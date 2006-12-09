@@ -27,7 +27,7 @@
 	(cp_parser_conversion_declarator_opt): same
 	(cp_parser_declarator): same
 	(cp_parser_ptr_operator): parse "&&" tokens into rvalue reference
-	declarators
+	declarators when --std=c++0x option is passed to g++
 	* gcc/cp/pt.c (tsubst_aggr_type): update call to 
 	cp_build_qualified_type_real
 	(tsubst_function_type): same
