@@ -1128,7 +1128,14 @@ reference_binding (tree rto, tree rfrom, tree expr, int flags)
   related_p = reference_related_p (to, from);
   compatible_p = reference_compatible_p (to, from);
 
-  if (lvalue_p && compatible_p)
+  /* Directly bind reference when target expression's type is compatible with
+     the reference and expression is an lvalue. In c++0x, also directly bind
+     const and rvalue references to rvalues of compatible class type. */
+  if (compatible_p 
+      && (lvalue_p
+          || (flag_cpp0x
+              && (CP_TYPE_CONST_NON_VOLATILE_P (to) || TYPE_REF_IS_RVALUE (rto))
+              && CLASS_TYPE_P (from))))
     {
       /* [dcl.init.ref]
 
@@ -1141,7 +1148,8 @@ reference_binding (tree rto, tree rfrom, tree expr, int flags)
 	 lvalue.  */
       conv = build_identity_conv (from, expr);
       conv = direct_reference_binding (rto, conv);
-      conv->valuedness_matches_p = !TYPE_REF_IS_RVALUE(rto);
+      conv->valuedness_matches_p = (lvalue_p && !TYPE_REF_IS_RVALUE(rto))
+                                   || (!lvalue_p && TYPE_REF_IS_RVALUE(rto));
       if ((lvalue_p & clk_bitfield) != 0
 	  || ((lvalue_p & clk_packed) != 0 && !TYPE_PACKED (to)))
 	/* For the purposes of overload resolution, we ignore the fact
@@ -1179,40 +1187,6 @@ reference_binding (tree rto, tree rfrom, tree expr, int flags)
 	return conv;
     }
 
-  /* [dcl.init.ref]
-
-     Otherwise, the reference shall be an rvalue-reference or an
-     lvalue-reference to a non-volatile const type.  */
-  if (!CP_TYPE_CONST_NON_VOLATILE_P (to) && !TYPE_REF_IS_RVALUE(rto))
-    return NULL;
-
-  /* [dcl.init.ref]
-
-     If the initializer expression is an rvalue, with T2 a class type,
-     and "cv1 T1" is reference-compatible with "cv2 T2", the reference
-     is bound to the object represented by the rvalue (see basic.lval)
-     or to a sub-object within that object.   */
-
-  /* This is either an identity conversion or the derived-to-base
-     conversion, just as for direct binding.  */
-  if (CLASS_TYPE_P (from) && compatible_p)
-    {
-      conv = build_identity_conv (from, expr);
-      conv = direct_reference_binding (rto, conv);
-      conv->valuedness_matches_p = TYPE_REF_IS_RVALUE(rto);
-      return conv;
-    }
-
-  /* [dcl.init.ref]
-
-     Otherwise, a temporary of type "cv1 T1" is created and
-     initialized from the initializer expression using the rules for a
-     non-reference copy initialization.  If T1 is reference-related to
-     T2, cv1 must be the same cv-qualification as, or greater
-     cv-qualification than, cv2; otherwise, the program is ill-formed.  */
-  if (related_p && !at_least_as_qualified_p (to, from))
-    return NULL;
-
   /* From this point on, we conceptually need temporaries, even if we
      elide them.  Only the cases above are "direct bindings".  */
   if (flags & LOOKUP_NO_TEMP_BIND)
@@ -1228,6 +1202,49 @@ reference_binding (tree rto, tree rfrom, tree expr, int flags)
      of the underlying type with the argument expression.  Any
      difference in top-level cv-qualification is subsumed by the
      initialization itself and does not constitute a conversion.  */
+
+  /* [dcl.init.ref]
+
+     Otherwise, the reference shall be an rvalue-reference or an
+     lvalue-reference to a non-volatile const type.  */
+  if (!CP_TYPE_CONST_NON_VOLATILE_P (to) && !TYPE_REF_IS_RVALUE (rto))
+    return NULL;
+
+  /* [dcl.init.ref]
+
+     If the initializer expression is an rvalue, with T2 a class type,
+     and "cv1 T1" is reference-compatible with "cv2 T2", the reference
+     is bound in one of the following ways:
+
+     -- The reference is bound to the object represented by the rvalue
+	or to a sub-object within that object.
+
+     -- ...
+
+     We use the first alternative.  The implicit conversion sequence
+     is supposed to be same as we would obtain by generating a
+     temporary.  Fortunately, if the types are reference compatible,
+     then this is either an identity conversion or the derived-to-base
+     conversion, just as for direct binding.  */
+  if (CLASS_TYPE_P (from) && compatible_p)
+    {
+      conv = build_identity_conv (from, expr);
+      conv = direct_reference_binding (rto, conv);
+      conv->valuedness_matches_p = TYPE_REF_IS_RVALUE(rto);
+      if (!(flags & LOOKUP_CONSTRUCTOR_CALLABLE))
+	conv->u.next->check_copy_constructor_p = true;
+      return conv;
+    }
+
+  /* [dcl.init.ref]
+
+     Otherwise, a temporary of type "cv1 T1" is created and
+     initialized from the initializer expression using the rules for a
+     non-reference copy initialization.  If T1 is reference-related to
+     T2, cv1 must be the same cv-qualification as, or greater
+     cv-qualification than, cv2; otherwise, the program is ill-formed.  */
+  if (related_p && !at_least_as_qualified_p (to, from))
+    return NULL;
 
   conv = implicit_conversion (to, from, expr, /*c_cast_p=*/false,
 			      flags);
