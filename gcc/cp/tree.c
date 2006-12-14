@@ -488,18 +488,12 @@ build_cplus_array_type (tree elt_type, tree index_type)
    dispensation is provided for qualifying a function type.  [dcl.fct]
    DR 295 queries this and the proposed resolution brings it into line
    with qualifying a reference.  We implement the DR.  We also behave
-   in a similar manner for restricting non-pointer types.
-
-   FOLD_REF only has an effect when TYPE is a REFERENCE_TYPE. Under 
-   DR 106, cv-qualifiers on a reference type are in some cases applied to
-   type the reference refers to. A true value for FOLD_REF enables this
-   "folding" of cv qualifiers into the reference type.  */
+   in a similar manner for restricting non-pointer types.  */
 
 tree
 cp_build_qualified_type_real (tree type,
 			      int type_quals,
-			      tsubst_flags_t complain,
-			      bool fold_ref)
+			      tsubst_flags_t complain)
 {
   tree result;
   int bad_quals = TYPE_UNQUALIFIED;
@@ -518,7 +512,7 @@ cp_build_qualified_type_real (tree type,
       tree element_type
 	= cp_build_qualified_type_real (TREE_TYPE (type),
 					type_quals,
-					complain, 0);
+					complain);
 
       if (element_type == error_mark_node)
 	return error_mark_node;
@@ -560,14 +554,14 @@ cp_build_qualified_type_real (tree type,
       tree t;
 
       t = TYPE_PTRMEMFUNC_FN_TYPE (type);
-      t = cp_build_qualified_type_real (t, type_quals, complain, 0);
+      t = cp_build_qualified_type_real (t, type_quals, complain);
       return build_ptrmemfunc_type (t);
     }
 
   /* A reference or method type shall not be cv qualified.
      [dcl.ref], [dct.fct]  */
   if (type_quals & (TYPE_QUAL_CONST | TYPE_QUAL_VOLATILE)
-      && ((TREE_CODE (type) == REFERENCE_TYPE && !fold_ref)
+      && (TREE_CODE (type) == REFERENCE_TYPE
 	  || TREE_CODE (type) == METHOD_TYPE))
     {
       bad_quals |= type_quals & (TYPE_QUAL_CONST | TYPE_QUAL_VOLATILE);
@@ -604,45 +598,6 @@ cp_build_qualified_type_real (tree type,
 	    error ("%qV qualifiers cannot be applied to %qT",
 		   bad_type, type);
 	}
-    }
-
-  /* C++ doesn't have a consistent way of handling cv-qualifiers on
-     reference types. They are not allowed in normal type expressions,
-     for example:
-
-       void f(int & const); // error: const qualifier cannot be applied
-
-     But there is an exception to allow them, and ignore them for
-     references which are typedefs or template parameters.
-
-       typedef int & int_ref;
-       void f(int_ref const); // legal, treated like f(int &)
-
-     The proposed "reference collapsing" solution to CWG Defect 106
-     creates an exception to the exception for references which are part
-     of reference to reference declarations. There, a reference type that
-     is cv-qualified and followed by an extra reference declarator has its
-     cv-qualifiers applied to the type it refers to, instead of ignored.
-
-       void f(int_ref const &); // treated like f(int const &)
-
-     The FOLD_REF argument will be true in cases like the last, triggering
-     code below to apply cv qualifiers to the type of the reference.
-   */
-  if (TREE_CODE (type) == REFERENCE_TYPE && fold_ref)
-    {
-      int cv_quals = type_quals & (TYPE_QUAL_CONST | TYPE_QUAL_VOLATILE);
-
-      if (cv_quals)
-	type = build_rval_reference_type_for_mode
-	  (cp_build_qualified_type_real
-	   (TREE_TYPE (type), cv_quals | cp_type_quals (TREE_TYPE (type)),
-	    complain, 0),
-	   TYPE_MODE (type),
-	   TYPE_REF_CAN_ALIAS_ALL (type),
-	   TYPE_REF_IS_RVALUE(type));
-
-      type_quals &= ~cv_quals;
     }
 
   /* Retrieve (or create) the appropriately qualified variant.  */

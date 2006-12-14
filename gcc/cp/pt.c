@@ -158,7 +158,6 @@ static void copy_default_args_to_explicit_spec (tree);
 static int invalid_nontype_parm_type_p (tree, tsubst_flags_t);
 static int eq_local_specializations (const void *, const void *);
 static bool dependent_type_p_r (tree);
-static tree tsubst_1 (tree, tree, tsubst_flags_t, tree, bool);
 static tree tsubst (tree, tree, tsubst_flags_t, tree);
 static tree tsubst_expr	(tree, tree, tsubst_flags_t, tree, bool);
 static tree tsubst_copy	(tree, tree, tsubst_flags_t, tree);
@@ -6311,7 +6310,7 @@ tsubst_aggr_type (tree t,
 	    {
 	      r = lookup_template_class (t, argvec, in_decl, context,
 					 entering_scope, complain);
-	      r = cp_build_qualified_type_real (r, TYPE_QUALS (t), complain, false);
+	      r = cp_build_qualified_type_real (r, TYPE_QUALS (t), complain);
 	    }
 
 	  skip_evaluation = saved_skip_evaluation;
@@ -7194,8 +7193,7 @@ tsubst_function_type (tree t,
       fntype = build_method_type_directly (r, return_type,
 					   TREE_CHAIN (arg_types));
     }
-  fntype = cp_build_qualified_type_real (fntype, TYPE_QUALS (t), 
-					 complain, false);
+  fntype = cp_build_qualified_type_real (fntype, TYPE_QUALS (t), complain);
   fntype = cp_build_type_attribute_variant (fntype, TYPE_ATTRIBUTES (t));
 
   return fntype;
@@ -7248,16 +7246,10 @@ tsubst_exception_specification (tree fntype,
    yet.
 
    This function is used for dealing with types, decls and the like;
-   for expressions, use tsubst_expr or tsubst_copy.
-
-   FOLD_REF should be set to 0 unless the result of the substitution
-   is being used to create a reference to type T. Under DR 106, this
-   condition changes the way CV qualifiers are applied to T when T is
-   itself a reference type.  */
+   for expressions, use tsubst_expr or tsubst_copy.  */
 
 static tree
-tsubst_1 (tree t, tree args, tsubst_flags_t complain, tree in_decl,
-	  bool fold_ref)
+tsubst (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 {
   tree type, r;
 
@@ -7284,8 +7276,7 @@ tsubst_1 (tree t, tree args, tsubst_flags_t complain, tree in_decl,
       && TREE_CODE (t) != IDENTIFIER_NODE
       && TREE_CODE (t) != FUNCTION_TYPE
       && TREE_CODE (t) != METHOD_TYPE)
-    type = tsubst_1 (type, args, complain, in_decl,
-		     TREE_CODE (t) == REFERENCE_TYPE);
+    type = tsubst (type, args, complain, in_decl);
   if (type == error_mark_node)
     return error_mark_node;
 
@@ -7397,15 +7388,16 @@ tsubst_1 (tree t, tree args, tsubst_flags_t complain, tree in_decl,
 		gcc_assert (TYPE_P (arg));
 
 		/* cv-quals from the template are discarded when
-		   substituting in a function type.  */
+		   substituting in a function or reference type.  */
 		if (TREE_CODE (arg) == FUNCTION_TYPE
-		    || TREE_CODE (arg) == METHOD_TYPE)
+		    || TREE_CODE (arg) == METHOD_TYPE
+		    || TREE_CODE (arg) == REFERENCE_TYPE)
 		  quals = cp_type_quals (arg);
 		else
 		  quals = cp_type_quals (arg) | cp_type_quals (t);
 		  
 		return cp_build_qualified_type_real
-		  (arg, quals, complain | tf_ignore_bad_quals, fold_ref);
+		  (arg, quals, complain | tf_ignore_bad_quals);
 	      }
 	    else if (TREE_CODE (t) == BOUND_TEMPLATE_TEMPLATE_PARM)
 	      {
@@ -7430,7 +7422,7 @@ tsubst_1 (tree t, tree args, tsubst_flags_t complain, tree in_decl,
 					    /*entering_scope=*/0,
 					   complain);
 		return cp_build_qualified_type_real
-		  (r, TYPE_QUALS (t), complain, false);
+		  (r, TYPE_QUALS (t), complain);
 	      }
 	    else
 	      /* TEMPLATE_TEMPLATE_PARM or TEMPLATE_PARM_INDEX.  */
@@ -7453,13 +7445,11 @@ tsubst_1 (tree t, tree args, tsubst_flags_t complain, tree in_decl,
 	  case BOUND_TEMPLATE_TEMPLATE_PARM:
 	    if (cp_type_quals (t))
 	      {
-		r = tsubst_1 (TYPE_MAIN_VARIANT (t), args, complain, 
-			      in_decl, fold_ref);
+		r = tsubst (TYPE_MAIN_VARIANT (t), args, complain, in_decl);
 		r = cp_build_qualified_type_real
 		  (r, cp_type_quals (t),
 		   complain | (TREE_CODE (t) == TEMPLATE_TYPE_PARM
-			       ? tf_ignore_bad_quals : 0),
-		   fold_ref);
+			       ? tf_ignore_bad_quals : 0));
 	      }
 	    else
 	      {
@@ -7557,10 +7547,7 @@ tsubst_1 (tree t, tree args, tsubst_flags_t complain, tree in_decl,
 	   reasons:
 
 	   -- Attempting to create a pointer to reference type.
-	   -- Attempting to create a reference to void
-
-	   References to reference types are allowed by DR 106. */
-
+	   -- Attempting to create a reference to void.  */
 	if ((code == POINTER_TYPE && TREE_CODE (type) == REFERENCE_TYPE)
 	    || (code == REFERENCE_TYPE && TREE_CODE (type) == VOID_TYPE))
 	  {
@@ -7602,8 +7589,7 @@ tsubst_1 (tree t, tree args, tsubst_flags_t complain, tree in_decl,
 	       TYPE_REF_IS_RVALUE (t) && TYPE_REF_IS_RVALUE (type));
 	else
 	  r = build_rval_reference_type (type, TYPE_REF_IS_RVALUE (t));
-	r = cp_build_qualified_type_real (r, TYPE_QUALS (t), complain,
-					  fold_ref);
+	r = cp_build_qualified_type_real (r, TYPE_QUALS (t), complain);
 
 	if (r != error_mark_node)
 	  /* Will this ever be needed for TYPE_..._TO values?  */
@@ -7653,12 +7639,12 @@ tsubst_1 (tree t, tree args, tsubst_flags_t complain, tree in_decl,
 						      TYPE_ARG_TYPES (type));
 	    memptr = build_ptrmemfunc_type (build_pointer_type (method_type));
 	    return cp_build_qualified_type_real (memptr, cp_type_quals (t),
-						 complain, false);
+						 complain);
 	  }
 	else
 	  return cp_build_qualified_type_real (build_ptrmem_type (r, type),
 					       TYPE_QUALS (t),
-					       complain, false);
+					       complain);
       }
     case FUNCTION_TYPE:
     case METHOD_TYPE:
@@ -7796,7 +7782,7 @@ tsubst_1 (tree t, tree args, tsubst_flags_t complain, tree in_decl,
 	  }
 
 	return cp_build_qualified_type_real
-	  (f, cp_type_quals (f) | cp_type_quals (t), complain, false);
+	  (f, cp_type_quals (f) | cp_type_quals (t), complain);
       }
 
     case UNBOUND_CLASS_TEMPLATE:
@@ -7852,7 +7838,7 @@ tsubst_1 (tree t, tree args, tsubst_flags_t complain, tree in_decl,
 	return cp_build_qualified_type_real (type,
 					     cp_type_quals (t)
 					     | cp_type_quals (type),
-					     complain, fold_ref);
+					     complain);
       }
 
     default:
@@ -7860,14 +7846,6 @@ tsubst_1 (tree t, tree args, tsubst_flags_t complain, tree in_decl,
 	     tree_code_name [(int) TREE_CODE (t)]);
       return error_mark_node;
     }
-}
-
-/* Call tsubst_1 with default value for FOLD_REF */
-
-static tree
-tsubst (tree t, tree args, tsubst_flags_t complain, tree in_decl)
-{
-  return tsubst_1 (t, args, complain, in_decl, false);
 }
 
 /* Like tsubst_expr for a BASELINK.  OBJECT_TYPE, if non-NULL, is the
@@ -10627,7 +10605,7 @@ unify (tree tparms, tree targs, tree parm, tree arg, int strict,
 	  /* Consider the case where ARG is `const volatile int' and
 	     PARM is `const T'.  Then, T should be `volatile int'.  */
 	  arg = cp_build_qualified_type_real
-	    (arg, cp_type_quals (arg) & ~cp_type_quals (parm), tf_none, 0);
+	    (arg, cp_type_quals (arg) & ~cp_type_quals (parm), tf_none);
 	  if (arg == error_mark_node)
 	    return 1;
 

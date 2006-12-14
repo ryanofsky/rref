@@ -23,8 +23,8 @@ void f()
   same_type<rref &, int &>();
   same_type<rref &&, int &&>();
 
-  same_type<rref const &, int const &>();
-  same_type<crref volatile &&, int volatile const &&>();
+  same_type<rref const &, int &>();
+  same_type<crref volatile &&, int const &&>();
   same_type<clref const &&, int const &>();
 
   same_type<S<int &>::lref &, int &>();
@@ -33,6 +33,6 @@ void f()
   same_type<S<int &&>::rref &&, int &&>();
 
   same_type<S<int const &>::rref, int const &>();
-  same_type<S<int volatile &&>::crref, int volatile const &&>();
+  same_type<S<int volatile &&>::crref, int volatile &&>();
   same_type<S<int const &&>::clref, int const &>();
 }
