@@ -1,6 +1,7 @@
 /* Definitions of target machine for GCC for IA-32.
    Copyright (C) 1988, 1992, 1994, 1995, 1996, 1997, 1998, 1999, 2000,
-   2001, 2002, 2003, 2004, 2005, 2006 Free Software Foundation, Inc.
+   2001, 2002, 2003, 2004, 2005, 2006, 2007 Free Software Foundation,
+   Inc.
 
 This file is part of GCC.
 
@@ -198,12 +199,12 @@ extern const int x86_sse_typeless_stores, x86_sse_load0_by_pxor;
 extern const int x86_use_ffreep;
 extern const int x86_inter_unit_moves, x86_schedule;
 extern const int x86_use_bt;
-extern const int x86_cmpxchg, x86_cmpxchg8b, x86_cmpxchg16b, x86_xadd;
+extern const int x86_cmpxchg, x86_cmpxchg8b, x86_xadd;
 extern const int x86_use_incdec;
 extern const int x86_pad_returns;
 extern const int x86_bswap;
 extern const int x86_partial_flag_reg_stall;
-extern int x86_prefetch_sse;
+extern int x86_prefetch_sse, x86_cmpxchg16b;
 
 #define TARGET_USE_LEAVE (x86_use_leave & TUNEMASK)
 #define TARGET_PUSH_MEMORY (x86_push_memory & TUNEMASK)
@@ -272,7 +273,7 @@ extern int x86_prefetch_sse;
 
 #define TARGET_CMPXCHG (x86_cmpxchg & (1 << ix86_arch))
 #define TARGET_CMPXCHG8B (x86_cmpxchg8b & (1 << ix86_arch))
-#define TARGET_CMPXCHG16B (x86_cmpxchg16b & (1 << ix86_arch))
+#define TARGET_CMPXCHG16B (x86_cmpxchg16b)
 #define TARGET_XADD (x86_xadd & (1 << ix86_arch))
 #define TARGET_BSWAP (x86_bswap & (1 << ix86_arch))
 
@@ -768,7 +769,7 @@ extern const char *host_detect_local_cpu (int argc, const char **argv);
    eliminated during reloading in favor of either the stack or frame
    pointer.  */
 
-#define FIRST_PSEUDO_REGISTER 54
+#define FIRST_PSEUDO_REGISTER 53
 
 /* Number of hardware registers that go into the DWARF-2 unwind info.
    If not defined, equals FIRST_PSEUDO_REGISTER.  */
@@ -788,8 +789,8 @@ extern const char *host_detect_local_cpu (int argc, const char **argv);
 #define FIXED_REGISTERS						\
 /*ax,dx,cx,bx,si,di,bp,sp,st,st1,st2,st3,st4,st5,st6,st7*/	\
 {  0, 0, 0, 0, 0, 0, 0, 1, 0,  0,  0,  0,  0,  0,  0,  0,	\
-/*arg,flags,fpsr,fpcr,dir,frame*/				\
-    1,    1,   1,   1,  1,    1,				\
+/*arg,flags,fpsr,fpcr,frame*/					\
+    1,    1,   1,   1,    1,					\
 /*xmm0,xmm1,xmm2,xmm3,xmm4,xmm5,xmm6,xmm7*/			\
      0,   0,   0,   0,   0,   0,   0,   0,			\
 /*mmx0,mmx1,mmx2,mmx3,mmx4,mmx5,mmx6,mmx7*/			\
@@ -816,8 +817,8 @@ extern const char *host_detect_local_cpu (int argc, const char **argv);
 #define CALL_USED_REGISTERS					\
 /*ax,dx,cx,bx,si,di,bp,sp,st,st1,st2,st3,st4,st5,st6,st7*/	\
 {  1, 1, 1, 0, 3, 3, 0, 1, 1,  1,  1,  1,  1,  1,  1,  1,	\
-/*arg,flags,fpsr,fpcr,dir,frame*/				\
-    1,   1,    1,   1,  1,    1,				\
+/*arg,flags,fpsr,fpcr,frame*/					\
+    1,   1,    1,   1,    1,					\
 /*xmm0,xmm1,xmm2,xmm3,xmm4,xmm5,xmm6,xmm7*/			\
      1,   1,   1,   1,   1,   1,   1,   1,			\
 /*mmx0,mmx1,mmx2,mmx3,mmx4,mmx5,mmx6,mmx7*/			\
@@ -840,7 +841,7 @@ extern const char *host_detect_local_cpu (int argc, const char **argv);
 {  0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,\
    18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32,	\
    33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47,  \
-   48, 49, 50, 51, 52, 53 }
+   48, 49, 50, 51, 52 }
 
 /* ORDER_REGS_FOR_LOCAL_ALLOC is a macro which permits reg_alloc_order
    to be rearranged based on a particular function.  When using sse math,
@@ -853,6 +854,7 @@ extern const char *host_detect_local_cpu (int argc, const char **argv);
 #define CONDITIONAL_REGISTER_USAGE					\
 do {									\
     int i;								\
+    unsigned int j;							\
     for (i = 0; i < FIRST_PSEUDO_REGISTER; i++)				\
       {									\
 	if (fixed_regs[i] > 1)						\
@@ -861,10 +863,11 @@ do {									\
 	  call_used_regs[i] = (call_used_regs[i]			\
 			       == (TARGET_64BIT ? 3 : 2));		\
       }									\
-    if (PIC_OFFSET_TABLE_REGNUM != INVALID_REGNUM)			\
+    j = PIC_OFFSET_TABLE_REGNUM;					\
+    if (j != INVALID_REGNUM)			\
       {									\
-	fixed_regs[PIC_OFFSET_TABLE_REGNUM] = 1;			\
-	call_used_regs[PIC_OFFSET_TABLE_REGNUM] = 1;			\
+	fixed_regs[j] = 1;			\
+	call_used_regs[j] = 1;			\
       }									\
     if (! TARGET_MMX)							\
       {									\
@@ -1006,7 +1009,7 @@ do {									\
 #define HARD_FRAME_POINTER_REGNUM 6
 
 /* Base register for access to local variables of the function.  */
-#define FRAME_POINTER_REGNUM 21
+#define FRAME_POINTER_REGNUM 20
 
 /* First floating point reg */
 #define FIRST_FLOAT_REG 8
@@ -1200,21 +1203,21 @@ enum reg_class
       { 0x10,     0x0 }, { 0x20, 0x0 },	/* SIREG, DIREG */		\
       { 0x03,     0x0 },		/* AD_REGS */			\
       { 0x0f,     0x0 },		/* Q_REGS */			\
-  { 0x2100f0,  0x3fc0 },		/* NON_Q_REGS */		\
-      { 0x7f,  0x3fc0 },		/* INDEX_REGS */		\
-  { 0x2100ff,     0x0 },		/* LEGACY_REGS */		\
-  { 0x2100ff,  0x3fc0 },		/* GENERAL_REGS */		\
+  { 0x1100f0,  0x1fe0 },		/* NON_Q_REGS */		\
+      { 0x7f,  0x1fe0 },		/* INDEX_REGS */		\
+  { 0x1100ff,     0x0 },		/* LEGACY_REGS */		\
+  { 0x1100ff,  0x1fe0 },		/* GENERAL_REGS */		\
      { 0x100,     0x0 }, { 0x0200, 0x0 },/* FP_TOP_REG, FP_SECOND_REG */\
     { 0xff00,     0x0 },		/* FLOAT_REGS */		\
-{ 0x3fc00000,0x3fc000 },		/* SSE_REGS */			\
-{ 0xc0000000,    0x3f },		/* MMX_REGS */			\
-{ 0x3fc00100,0x3fc000 },		/* FP_TOP_SSE_REG */		\
-{ 0x3fc00200,0x3fc000 },		/* FP_SECOND_SSE_REG */		\
-{ 0x3fc0ff00,0x3fc000 },		/* FLOAT_SSE_REGS */		\
-   { 0x1ffff,  0x3fc0 },		/* FLOAT_INT_REGS */		\
-{ 0x3fc100ff,0x3fffc0 },		/* INT_SSE_REGS */		\
-{ 0x3fc1ffff,0x3fffc0 },		/* FLOAT_INT_SSE_REGS */	\
-{ 0xffffffff,0x3fffff }							\
+{ 0x1fe00000,0x1fe000 },		/* SSE_REGS */			\
+{ 0xe0000000,    0x1f },		/* MMX_REGS */			\
+{ 0x1fe00100,0x1fe000 },		/* FP_TOP_SSE_REG */		\
+{ 0x1fe00200,0x1fe000 },		/* FP_SECOND_SSE_REG */		\
+{ 0x1fe0ff00,0x3fe000 },		/* FLOAT_SSE_REGS */		\
+   { 0x1ffff,  0x1fe0 },		/* FLOAT_INT_REGS */		\
+{ 0x1fe100ff,0x1fffe0 },		/* INT_SSE_REGS */		\
+{ 0x1fe1ffff,0x1fffe0 },		/* FLOAT_INT_SSE_REGS */	\
+{ 0xffffffff,0x1fffff }							\
 }
 
 /* The same information, inverted:
@@ -1270,8 +1273,6 @@ enum reg_class
 #define MMX_REGNO_P(N) IN_RANGE ((N), FIRST_MMX_REG, LAST_MMX_REG)
 
 #define STACK_REG_P(XOP) (REG_P (XOP) && STACK_REGNO_P (REGNO (XOP)))
-#define NON_STACK_REG_P(XOP) \
-  (REG_P (XOP) && ! STACK_REGNO_P (REGNO (XOP)))
 #define STACK_REGNO_P(N) IN_RANGE ((N), FIRST_STACK_REG, LAST_STACK_REG)
 
 #define STACK_TOP_P(XOP) (REG_P (XOP) && REGNO (XOP) == FIRST_STACK_REG)
@@ -1481,21 +1482,19 @@ enum reg_class
    such as FUNCTION_ARG to determine where the next arg should go.  */
 
 typedef struct ix86_args {
+  int words;			/* # words passed so far */
   int nregs;			/* # registers available for passing */
   int regno;			/* next available register number */
-  int words;			/* # words passed so far */
   int fastcall;			/* fastcall calling convention is used */
-  int x87_nregs;		/* # x87 registers available for passing */
-  int x87_regno;		/* # next available x87 register number */
+  int sse_words;		/* # sse words passed so far */
   int sse_nregs;		/* # sse registers available for passing */
-  int sse_regno;		/* next available sse register number */
   int warn_sse;			/* True when we want to warn about SSE ABI.  */
+  int warn_mmx;			/* True when we want to warn about MMX ABI.  */
+  int sse_regno;		/* next available sse register number */
+  int mmx_words;		/* # mmx words passed so far */
   int mmx_nregs;		/* # mmx registers available for passing */
   int mmx_regno;		/* next available mmx register number */
-  int warn_mmx;			/* True when we want to warn about MMX ABI.  */
   int maybe_vaarg;		/* true for calls to possibly vardic fncts.  */
-  int float_in_x87;		/* 1 if floating point arguments should
-				   be passed in 80387 registers.  */
   int float_in_sse;		/* 1 if in 32-bit mode SFmode (2 for DFmode) should
 				   be passed in SSE registers.  Otherwise 0.  */
 } CUMULATIVE_ARGS;
@@ -1632,11 +1631,6 @@ typedef struct ix86_args {
    || (REGNO) == FRAME_POINTER_REGNUM 					\
    || GENERAL_REGNO_P ((unsigned) reg_renumber[(REGNO)]))
 
-#define REGNO_OK_FOR_SIREG_P(REGNO) \
-  ((REGNO) == 4 || reg_renumber[(REGNO)] == 4)
-#define REGNO_OK_FOR_DIREG_P(REGNO) \
-  ((REGNO) == 5 || reg_renumber[(REGNO)] == 5)
-
 /* The macros REG_OK_FOR..._P assume that the arg is a REG rtx
    and check its validity for a certain class.
    We have two alternate definitions for each of them.
@@ -1751,8 +1745,6 @@ do {									\
     goto WIN;								\
 } while (0)
 
-#define REWRITE_ADDRESS(X) rewrite_address (X)
-
 /* Nonzero if the constant value X is a legitimate general operand
    when generating PIC code.  It is given that flag_pic is on and
    that X satisfies CONSTANT_P or is a CONST_DOUBLE.  */
@@ -1767,13 +1759,9 @@ do {									\
 /* Go to LABEL if ADDR (a legitimate address expression)
    has an effect that depends on the machine mode it is used for.
    On the 80386, only postdecrement and postincrement address depend thus
-   (the amount of decrement or increment being the length of the operand).  */
-#define GO_IF_MODE_DEPENDENT_ADDRESS(ADDR, LABEL)	\
-do {							\
- if (GET_CODE (ADDR) == POST_INC			\
-     || GET_CODE (ADDR) == POST_DEC)			\
-   goto LABEL;						\
-} while (0)
+   (the amount of decrement or increment being the length of the operand).
+   These are now caught in recog.c.  */
+#define GO_IF_MODE_DEPENDENT_ADDRESS(ADDR, LABEL)
 
 /* Max number of args passed in registers.  If this is more than 3, we will
    have problems with ebx (register #4), since it is a caller save register and
@@ -1781,8 +1769,6 @@ do {							\
    3 registers to be passed in registers.  */
 
 #define REGPARM_MAX (TARGET_64BIT ? 6 : 3)
-
-#define X87_REGPARM_MAX 3
 
 #define SSE_REGPARM_MAX (TARGET_64BIT ? 8 : (TARGET_SSE ? 3 : 0))
 
@@ -1961,7 +1947,7 @@ do {							\
 #define HI_REGISTER_NAMES						\
 {"ax","dx","cx","bx","si","di","bp","sp",				\
  "st","st(1)","st(2)","st(3)","st(4)","st(5)","st(6)","st(7)",		\
- "argp", "flags", "fpsr", "fpcr", "dirflag", "frame",			\
+ "argp", "flags", "fpsr", "fpcr", "frame",				\
  "xmm0","xmm1","xmm2","xmm3","xmm4","xmm5","xmm6","xmm7",		\
  "mm0", "mm1", "mm2", "mm3", "mm4", "mm5", "mm6", "mm7",		\
  "r8", "r9", "r10", "r11", "r12", "r13", "r14", "r15",			\
@@ -2103,13 +2089,6 @@ do {						\
   if (! output_addr_const_extra (FILE, (X)))	\
     goto FAIL;					\
 } while (0);
-
-/* a letter which is not needed by the normal asm syntax, which
-   we can use for operand syntax in the extended asm */
-
-#define ASM_OPERAND_LETTER '#'
-#define RET return ""
-#define AT_SP(MODE) (gen_rtx_MEM ((MODE), stack_pointer_rtx))
 
 /* Which processor to schedule for. The cpu attribute defines a list that
    mirrors this list, so changes to i386.md must be made at the same time.  */

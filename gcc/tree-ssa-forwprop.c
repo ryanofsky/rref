@@ -490,15 +490,16 @@ find_equivalent_equality_comparison (tree cond)
   return NULL;
 }
 
-/* STMT is a COND_EXPR
+/* EXPR is a COND_EXPR
+   STMT is the statement containing EXPR.
 
    This routine attempts to find equivalent forms of the condition
    which we may be able to optimize better.  */
 
 static void
-simplify_cond (tree stmt)
+simplify_cond (tree cond_expr, tree stmt)
 {
-  tree cond = COND_EXPR_COND (stmt);
+  tree cond = COND_EXPR_COND (cond_expr);
 
   if (COMPARISON_CLASS_P (cond))
     {
@@ -517,7 +518,7 @@ simplify_cond (tree stmt)
 
 	      if (new_cond)
 		{
-		  COND_EXPR_COND (stmt) = new_cond;
+		  COND_EXPR_COND (cond_expr) = new_cond;
 		  update_stmt (stmt);
 		}
 	    }
@@ -529,7 +530,7 @@ simplify_cond (tree stmt)
    times as possible.  */
 
 static void
-forward_propagate_into_cond (tree cond_expr)
+forward_propagate_into_cond (tree cond_expr, tree stmt)
 {
   gcc_assert (TREE_CODE (cond_expr) == COND_EXPR);
 
@@ -554,13 +555,14 @@ forward_propagate_into_cond (tree cond_expr)
 	}
 
       COND_EXPR_COND (cond_expr) = new_cond;
-      update_stmt (cond_expr);
+      update_stmt (stmt);
 
       if (has_zero_uses (test_var))
 	{
 	  tree def = SSA_NAME_DEF_STMT (test_var);
 	  block_stmt_iterator bsi = bsi_for_stmt (def);
 	  bsi_remove (&bsi, true);
+	  release_defs (def);
 	}
     }
 
@@ -569,7 +571,7 @@ forward_propagate_into_cond (tree cond_expr)
      against a constant where the SSA_NAME is the result of a
      conversion.  Perhaps this should be folded into the rest
      of the COND_EXPR simplification code.  */
-  simplify_cond (cond_expr);
+  simplify_cond (cond_expr, stmt);
 }
 
 /* We've just substituted an ADDR_EXPR into stmt.  Update all the 
@@ -586,7 +588,7 @@ tidy_after_forward_propagate_addr (tree stmt)
   if (TREE_CODE (GIMPLE_STMT_OPERAND (stmt, 1)) == ADDR_EXPR)
      recompute_tree_invariant_for_addr_expr (GIMPLE_STMT_OPERAND (stmt, 1));
 
-  mark_new_vars_to_rename (stmt);
+  mark_symbols_for_renaming (stmt);
 }
 
 /* STMT defines LHS which is contains the address of the 0th element
@@ -856,9 +858,13 @@ forward_propagate_addr_expr (tree stmt, bool *some)
 	  continue;
 	}
       
+      push_stmt_changes (&use_stmt);
+
       result = forward_propagate_addr_expr_1 (stmt, use_stmt, some);
       *some |= result;
       all &= result;
+
+      pop_stmt_changes (&use_stmt);
     }
 
   return all;
@@ -995,7 +1001,10 @@ tree_ssa_forward_propagate_single_use_vars (void)
 		{
 		  bool some = false;
 		  if (forward_propagate_addr_expr (stmt, &some))
-		    bsi_remove (&bsi, true);
+		    {
+		      release_defs (stmt);
+		      bsi_remove (&bsi, true);
+		    }
 		  else
 		    bsi_next (&bsi);
 		  if (some)
@@ -1008,6 +1017,11 @@ tree_ssa_forward_propagate_single_use_vars (void)
 		  simplify_not_neg_expr (stmt);
 		  bsi_next (&bsi);
 		}
+              else if (TREE_CODE (rhs) == COND_EXPR)
+                {
+                  forward_propagate_into_cond (rhs, stmt);
+		  bsi_next (&bsi);
+                }
 	      else
 		bsi_next (&bsi);
 	    }
@@ -1018,7 +1032,7 @@ tree_ssa_forward_propagate_single_use_vars (void)
 	    }
 	  else if (TREE_CODE (stmt) == COND_EXPR)
 	    {
-	      forward_propagate_into_cond (stmt);
+	      forward_propagate_into_cond (stmt, stmt);
 	      bsi_next (&bsi);
 	    }
 	  else
@@ -1027,7 +1041,7 @@ tree_ssa_forward_propagate_single_use_vars (void)
     }
 
   if (cfg_changed)
-    cleanup_tree_cfg ();
+    todoflags |= TODO_cleanup_cfg;
   return todoflags;
 }
 
@@ -1046,13 +1060,13 @@ struct tree_opt_pass pass_forwprop = {
   NULL,				/* next */
   0,				/* static_pass_number */
   TV_TREE_FORWPROP,		/* tv_id */
-  PROP_cfg | PROP_ssa
-    | PROP_alias,		/* properties_required */
+  PROP_cfg | PROP_ssa,		/* properties_required */
   0,				/* properties_provided */
   0,				/* properties_destroyed */
   0,				/* todo_flags_start */
-  TODO_dump_func /* todo_flags_finish */
+  TODO_dump_func
   | TODO_ggc_collect
-  | TODO_update_ssa | TODO_verify_ssa,
-  0					/* letter */
+  | TODO_update_ssa
+  | TODO_verify_ssa,		/* todo_flags_finish */
+  0				/* letter */
 };

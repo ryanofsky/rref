@@ -1,6 +1,6 @@
 // interpret.cc - Code for the interpreter
 
-/* Copyright (C) 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006 Free Software Foundation
+/* Copyright (C) 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007 Free Software Foundation
 
    This file is part of libgcj.
 
@@ -37,7 +37,12 @@ details.  */
 #include <execution.h>
 #include <java/lang/reflect/Modifier.h>
 
+#include <jvmti.h>
+#include "jvmti-int.h"
+
 #include <gnu/classpath/jdwp/Jdwp.h>
+#include <gnu/gcj/jvmti/Breakpoint.h>
+#include <gnu/gcj/jvmti/BreakpointManager.h>
 
 #ifdef INTERPRETER
 
@@ -1179,13 +1184,13 @@ _Jv_count_arguments (_Jv_Utf8Const *signature,
  * caller.
  */
 
-static int 
-init_cif (_Jv_Utf8Const* signature,
-	  int arg_count,
-	  jboolean staticp,
-	  ffi_cif *cif,
-	  ffi_type **arg_types,
-	  ffi_type **rtype_p)
+int 
+_Jv_init_cif (_Jv_Utf8Const* signature,
+	      int arg_count,
+	      jboolean staticp,
+	      ffi_cif *cif,
+	      ffi_type **arg_types,
+	      ffi_type **rtype_p)
 {
   unsigned char *ptr = (unsigned char*) signature->chars();
 
@@ -1269,12 +1274,12 @@ _Jv_InterpMethod::ncode ()
     (ncode_closure*)_Jv_AllocBytes (sizeof (ncode_closure)
 					+ arg_count * sizeof (ffi_type*));
 
-  init_cif (self->signature,
-	    arg_count,
-	    staticp,
-	    &closure->cif,
-	    &closure->arg_types[0],
-	    NULL);
+  _Jv_init_cif (self->signature,
+		arg_count,
+		staticp,
+		&closure->cif,
+		&closure->arg_types[0],
+		NULL);
 
   ffi_closure_fun fun;
 
@@ -1465,12 +1470,12 @@ _Jv_JNIMethod::ncode ()
 				    + arg_count * sizeof (ffi_type*));
 
   ffi_type *rtype;
-  init_cif (self->signature,
-	    arg_count,
-	    staticp,
-	    &closure->cif,
-	    &closure->arg_types[0],
-	    &rtype);
+  _Jv_init_cif (self->signature,
+		arg_count,
+		staticp,
+		&closure->cif,
+		&closure->arg_types[0],
+		&rtype);
 
   ffi_closure_fun fun;
 
@@ -1632,12 +1637,12 @@ _Jv_InterpreterEngine::do_resolve_method (_Jv_Method *method, jclass klass,
 		    + arg_count*sizeof (ffi_type*));
 
   result->stack_item_count
-    = init_cif (method->signature,
-		arg_count,
-		staticp,
-		&result->cif,
-		&result->arg_types[0],
-		NULL);
+    = _Jv_init_cif (method->signature,
+		    arg_count,
+		    staticp,
+		    &result->cif,
+		    &result->arg_types[0],
+		    NULL);
 
   result->method              = method;
   result->klass               = klass;

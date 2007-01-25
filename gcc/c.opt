@@ -132,6 +132,9 @@ Wc++-compat
 C Var(warn_cxx_compat)
 Warn about C constructs that are not in the common subset of C and C++
 
+Wc++0x-compat
+C++ ObjC++ Var(warn_cxx0x_compat)
+Warn about C++ constructs whose meaning differs between ISO C++ 1998 and ISO C++ 200x
 
 Wcast-qual
 C ObjC C++ ObjC++ Var(warn_cast_qual)
@@ -140,6 +143,10 @@ Warn about casts which discard qualifiers
 Wchar-subscripts
 C ObjC C++ ObjC++ Var(warn_char_subscripts)
 Warn about subscripts whose type is \"char\"
+
+Wclobbered
+C ObjC C++ ObjC++ Var(warn_clobbered) Init(-1)
+Warn about variables that might be changed by \"longjmp\" or \"vfork\"
 
 Wcomment
 C ObjC C++ ObjC++
@@ -172,6 +179,10 @@ Warn about compile-time integer division by zero
 Weffc++
 C++ ObjC++ Var(warn_ecpp)
 Warn about violations of Effective C++ style rules
+
+Wempty-body
+C ObjC C++ ObjC++ Var(warn_empty_body) Init(-1)
+Warn about an empty body in an if or else statement
 
 Wendif-labels
 C ObjC C++ ObjC++
@@ -260,7 +271,7 @@ C ObjC C++ ObjC++ Var(warn_missing_braces)
 Warn about possibly missing braces around initializers
 
 Wmissing-declarations
-C ObjC Var(warn_missing_declarations)
+C ObjC C++ ObjC++ Var(warn_missing_declarations)
 Warn about global functions without previous declarations
 
 Wmissing-field-initializers
@@ -274,6 +285,10 @@ Warn about functions which might be candidates for format attributes
 Wmissing-include-dirs
 C ObjC C++ ObjC++
 Warn about user-specified include directories that do not exist
+
+Wmissing-parameter-type
+C ObjC Var(warn_missing_parameter_type) Init(-1)
+Warn about function parameters declared without a type specifier in K&R-style functions
 
 Wmissing-prototypes
 C ObjC Var(warn_missing_prototypes)
@@ -306,6 +321,10 @@ C ObjC C++ ObjC++ Joined
 Wold-style-cast
 C++ ObjC++ Var(warn_old_style_cast)
 Warn if a C-style cast is used in a program
+
+Wold-style-declaration
+C ObjC Var(warn_old_style_declaration) Init(-1)
+Warn for obsolescent usage in a declaration
 
 Wold-style-definition
 C ObjC Var(warn_old_style_definition)
@@ -566,6 +585,10 @@ Inject friend functions into enclosing namespace
 
 flabels-ok
 C++ ObjC++
+
+flax-vector-conversions
+C ObjC C++ ObjC++
+Allow implicit conversions between vectors with differing numbers of subparts and/or differing element types.
 
 fms-extensions
 C ObjC C++ ObjC++

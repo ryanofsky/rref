@@ -68,7 +68,7 @@
 	(match_operand:MMXMODEI 1 "vector_move_operand"
 				"Cr ,m,C ,*ym,*y,Y ,*y,C,xm,x,x,r"))]
   "TARGET_64BIT && TARGET_MMX
-   && (GET_CODE (operands[0]) != MEM || GET_CODE (operands[1]) != MEM)"
+   && !(MEM_P (operands[0]) && MEM_P (operands[1]))"
   "@
     movq\t{%1, %0|%0, %1}
     movq\t{%1, %0|%0, %1}
@@ -92,7 +92,7 @@
 	(match_operand:MMXMODEI 1 "vector_move_operand"
 			"C  ,*ym,*y,*Y,*y,C ,*Ym,*Y,C ,*x,m ,*x,irm,r"))]
   "TARGET_MMX
-   && (GET_CODE (operands[0]) != MEM || GET_CODE (operands[1]) != MEM)"
+   && !(MEM_P (operands[0]) && MEM_P (operands[1]))"
   "@
     pxor\t%0, %0
     movq\t{%1, %0|%0, %1}
@@ -127,7 +127,7 @@
         (match_operand:V2SF 1 "vector_move_operand"
 				"Cr ,m ,C ,*ym,*y,Y ,*y,C,x,m,x,x,r"))]
   "TARGET_64BIT && TARGET_MMX
-   && (GET_CODE (operands[0]) != MEM || GET_CODE (operands[1]) != MEM)"
+   && !(MEM_P (operands[0]) && MEM_P (operands[1]))"
   "@
     movq\t{%1, %0|%0, %1}
     movq\t{%1, %0|%0, %1}
@@ -152,7 +152,7 @@
         (match_operand:V2SF 1 "vector_move_operand"
 					"C ,*ym,*y,*Y,*y,C ,*x,m ,*x,irm,r"))]
   "TARGET_MMX
-   && (GET_CODE (operands[0]) != MEM || GET_CODE (operands[1]) != MEM)"
+   && !(MEM_P (operands[0]) && MEM_P (operands[1]))"
   "@
     pxor\t%0, %0
     movq\t{%1, %0|%0, %1}
@@ -1396,14 +1396,14 @@
    (clobber (reg:XF 13))
    (clobber (reg:XF 14))
    (clobber (reg:XF 15))
+   (clobber (reg:DI 29))
    (clobber (reg:DI 30))
    (clobber (reg:DI 31))
    (clobber (reg:DI 32))
    (clobber (reg:DI 33))
    (clobber (reg:DI 34))
    (clobber (reg:DI 35))
-   (clobber (reg:DI 36))
-   (clobber (reg:DI 37))]
+   (clobber (reg:DI 36))]
   "TARGET_MMX"
   "emms"
   [(set_attr "type" "mmx")
@@ -1419,14 +1419,14 @@
    (clobber (reg:XF 13))
    (clobber (reg:XF 14))
    (clobber (reg:XF 15))
+   (clobber (reg:DI 29))
    (clobber (reg:DI 30))
    (clobber (reg:DI 31))
    (clobber (reg:DI 32))
    (clobber (reg:DI 33))
    (clobber (reg:DI 34))
    (clobber (reg:DI 35))
-   (clobber (reg:DI 36))
-   (clobber (reg:DI 37))]
+   (clobber (reg:DI 36))]
   "TARGET_3DNOW"
   "femms"
   [(set_attr "type" "mmx")

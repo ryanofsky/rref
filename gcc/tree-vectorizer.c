@@ -174,14 +174,11 @@ FILE *vect_dump;
    to mark that it's uninitialized.  */
 enum verbosity_levels vect_verbosity_level = MAX_VERBOSITY_LEVEL;
 
-/* Number of loops, at the beginning of vectorization.  */
-unsigned int vect_loops_num;
-
 /* Loop location.  */
 static LOC vect_loop_location;
 
 /* Bitmap of virtual variables to be renamed.  */
-bitmap vect_vnames_to_rename;
+bitmap vect_memsyms_to_rename;
 
 /*************************************************************************
   Simple Loop Peeling Utilities
@@ -229,8 +226,7 @@ rename_variables_in_bb (basic_block bb)
   for (bsi = bsi_start (bb); !bsi_end_p (bsi); bsi_next (&bsi))
     {
       stmt = bsi_stmt (bsi);
-      FOR_EACH_SSA_USE_OPERAND (use_p, stmt, iter, 
-				 (SSA_OP_ALL_USES | SSA_OP_ALL_KILLS))
+      FOR_EACH_SSA_USE_OPERAND (use_p, stmt, iter, SSA_OP_ALL_USES)
 	rename_use_op (use_p);
     }
 
@@ -532,7 +528,7 @@ slpeel_update_phi_nodes_for_guard1 (edge guard_edge, struct loop *loop,
 	 renaming later.  */
       name = PHI_RESULT (orig_phi);
       if (!is_gimple_reg (SSA_NAME_VAR (name)))
-        bitmap_set_bit (vect_vnames_to_rename, SSA_NAME_VERSION (name));
+        bitmap_set_bit (vect_memsyms_to_rename, DECL_UID (SSA_NAME_VAR (name)));
 
       /** 1. Handle new-merge-point phis  **/
 
@@ -556,6 +552,9 @@ slpeel_update_phi_nodes_for_guard1 (edge guard_edge, struct loop *loop,
 
 
       /** 2. Handle loop-closed-ssa-form phis  **/
+
+      if (!is_gimple_reg (PHI_RESULT (orig_phi)))
+	continue;
 
       /* 2.1. Generate new phi node in NEW_EXIT_BB:  */
       new_phi = create_phi_node (SSA_NAME_VAR (PHI_RESULT (orig_phi)),
@@ -863,7 +862,6 @@ slpeel_tree_duplicate_loop_to_edge_cfg (struct loop *loop, edge e)
   copy_bbs (bbs, loop->num_nodes, new_bbs,
 	    &exit, 1, &new_exit, NULL,
 	    e->src);
-  set_single_exit (new_loop, new_exit);
 
   /* Duplicating phi args at exit bbs as coming 
      also from exit of duplicated loop.  */
@@ -1066,7 +1064,8 @@ slpeel_verify_cfg_after_peeling (struct loop *first_loop,
 struct loop*
 slpeel_tree_peel_loop_to_edge (struct loop *loop, 
 			       edge e, tree first_niters, 
-			       tree niters, bool update_first_loop_count)
+			       tree niters, bool update_first_loop_count,
+			       unsigned int th)
 {
   struct loop *new_loop = NULL, *first_loop, *second_loop;
   edge skip_e;
@@ -1159,7 +1158,8 @@ slpeel_tree_peel_loop_to_edge (struct loop *loop,
 
   pre_condition =
     fold_build2 (LE_EXPR, boolean_type_node, first_niters, 
-                 build_int_cst (TREE_TYPE (first_niters), 0));
+	build_int_cst (TREE_TYPE (first_niters), th));
+
   skip_e = slpeel_add_loop_guard (bb_before_first_loop, pre_condition,
                                   bb_before_second_loop, bb_before_first_loop);
   slpeel_update_phi_nodes_for_guard1 (skip_e, first_loop,
@@ -1373,6 +1373,7 @@ new_stmt_vec_info (tree stmt, loop_vec_info loop_vinfo)
   DR_GROUP_STORE_COUNT (res) = 0;
   DR_GROUP_GAP (res) = 0;
   DR_GROUP_SAME_DR_STMT (res) = NULL_TREE;
+  DR_GROUP_READ_WRITE_DEPENDENCE (res) = false;
 
   return res;
 }
@@ -2157,27 +2158,26 @@ vectorize_loops (void)
 {
   unsigned int i;
   unsigned int num_vectorized_loops = 0;
+  unsigned int vect_loops_num;
+  loop_iterator li;
+  struct loop *loop;
 
   /* Fix the verbosity level if not defined explicitly by the user.  */
   vect_set_dump_settings ();
 
   /* Allocate the bitmap that records which virtual variables that 
      need to be renamed.  */
-  vect_vnames_to_rename = BITMAP_ALLOC (NULL);
+  vect_memsyms_to_rename = BITMAP_ALLOC (NULL);
 
   /*  ----------- Analyze loops. -----------  */
 
   /* If some loop was duplicated, it gets bigger number 
      than all previously defined loops. This fact allows us to run 
      only over initial loops skipping newly generated ones.  */
-  vect_loops_num = current_loops->num;
-  for (i = 1; i < vect_loops_num; i++)
+  vect_loops_num = number_of_loops ();
+  FOR_EACH_LOOP (li, loop, LI_ONLY_OLD)
     {
       loop_vec_info loop_vinfo;
-      struct loop *loop = current_loops->parray[i];
-
-      if (!loop)
-        continue;
 
       vect_loop_location = find_loop_location (loop);
       loop_vinfo = vect_analyze_loop (loop);
@@ -2197,13 +2197,13 @@ vectorize_loops (void)
 
   /*  ----------- Finalize. -----------  */
 
-  BITMAP_FREE (vect_vnames_to_rename);
+  BITMAP_FREE (vect_memsyms_to_rename);
 
   for (i = 1; i < vect_loops_num; i++)
     {
-      struct loop *loop = current_loops->parray[i];
       loop_vec_info loop_vinfo;
 
+      loop = get_loop (i);
       if (!loop)
 	continue;
       loop_vinfo = loop->aux;
@@ -2213,3 +2213,69 @@ vectorize_loops (void)
 
   return num_vectorized_loops > 0 ? TODO_cleanup_cfg : 0;
 }
+
+/* Increase alignment of global arrays to improve vectorization potential.
+   TODO:
+   - Consider also structs that have an array field.
+   - Use ipa analysis to prune arrays that can't be vectorized?
+     This should involve global alignment analysis and in the future also
+     array padding.  */
+
+static unsigned int
+increase_alignment (void)
+{
+  struct varpool_node *vnode;
+
+  /* Increase the alignment of all global arrays for vectorization.  */
+  for (vnode = varpool_nodes_queue;
+       vnode;
+       vnode = vnode->next_needed)
+    {
+      tree vectype, decl = vnode->decl;
+      unsigned int alignment;
+
+      if (TREE_CODE (TREE_TYPE (decl)) != ARRAY_TYPE)
+	continue;
+      vectype = get_vectype_for_scalar_type (TREE_TYPE (TREE_TYPE (decl)));
+      if (!vectype)
+	continue;
+      alignment = TYPE_ALIGN (vectype);
+      if (DECL_ALIGN (decl) >= alignment)
+	continue;
+
+      if (vect_can_force_dr_alignment_p (decl, alignment))
+	{ 
+	  DECL_ALIGN (decl) = TYPE_ALIGN (vectype);
+	  DECL_USER_ALIGN (decl) = 1;
+	  if (dump_file)
+	    { 
+	      fprintf (dump_file, "Increasing alignment of decl: ");
+	      print_generic_expr (dump_file, decl, TDF_SLIM);
+	    }
+	}
+    }
+  return 0;
+}
+
+static bool
+gate_increase_alignment (void)
+{
+  return flag_section_anchors && flag_tree_vectorize;
+}
+
+struct tree_opt_pass pass_ipa_increase_alignment = 
+{
+  "increase_alignment",			/* name */
+  gate_increase_alignment,		/* gate */
+  increase_alignment,			/* execute */
+  NULL,					/* sub */
+  NULL,					/* next */
+  0,					/* static_pass_number */
+  0,					/* tv_id */
+  0,					/* properties_required */
+  0,					/* properties_provided */
+  0,					/* properties_destroyed */
+  0,					/* todo_flags_start */
+  0, 					/* todo_flags_finish */
+  0					/* letter */
+};

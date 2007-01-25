@@ -22,8 +22,10 @@
 #define TARGET_VERSION fprintf (stderr, " (spu %s)", __DATE__);
 
 #define OVERRIDE_OPTIONS spu_override_options()
+#define C_COMMON_OVERRIDE_OPTIONS spu_c_common_override_options()
 
 extern int target_flags;
+extern const char *spu_fixed_range_string;
 
 /* Default target_flags if no switches specified.  */
 #ifndef TARGET_DEFAULT
@@ -86,6 +88,7 @@ extern int target_flags;
 /* symbol_ref's of functions are not aligned to 16 byte boundary. */
 #define ALIGNED_SYMBOL_REF_P(X) \
 	(GET_CODE (X) == SYMBOL_REF \
+          && (SYMBOL_REF_FLAGS (X) & SYMBOL_FLAG_ALIGN1) == 0 \
 	  && (! SYMBOL_REF_FUNCTION_P (X) \
 	      || align_functions >= 16))
 
@@ -93,7 +96,10 @@ extern int target_flags;
 
 #define MAX_FIXED_MODE_SIZE 128
 
-#define STACK_SAVEAREA_MODE(save_level) SImode
+#define STACK_SAVEAREA_MODE(save_level) \
+  (save_level == SAVE_FUNCTION ? VOIDmode \
+    : save_level == SAVE_NONLOCAL ? SImode \
+      : Pmode)
 
 #define STACK_SIZE_MODE SImode
 
@@ -240,8 +246,6 @@ enum reg_class {
 
 #define REGISTER_TARGET_PRAGMAS() do {					\
 targetm.resolve_overloaded_builtin = spu_resolve_overloaded_builtin;	\
-  /* Don't give warnings about the main() function. */			\
-warn_main = 0;								\
 }while (0);
 
 
@@ -263,6 +267,8 @@ warn_main = 0;								\
 /* #define RETURN_ADDR_IN_PREVIOUS_FRAME */
 
 #define INCOMING_RETURN_ADDR_RTX gen_rtx_REG(Pmode, LINK_REGISTER_REGNUM)
+
+#define ARG_POINTER_CFA_OFFSET(FNDECL) (-STACK_POINTER_OFFSET)
 
 
 /* Stack Checking */
@@ -371,6 +377,9 @@ warn_main = 0;								\
 
 #define FUNCTION_VALUE_REGNO_P(N) ((N) >= (FIRST_RETURN_REGNUM) && (N) <= (LAST_RETURN_REGNUM))
 
+
+/* Machine-specific symbol_ref flags.  */
+#define SYMBOL_FLAG_ALIGN1	(SYMBOL_FLAG_MACH_DEP << 0)
 
 /* Aggregate Return */
 
@@ -547,6 +556,7 @@ warn_main = 0;								\
 
 #define NO_IMPLICIT_EXTERN_C 1
 
+#define HANDLE_PRAGMA_PACK_PUSH_POP 1
 
 
 /* These are set by the cmp patterns and used while expanding

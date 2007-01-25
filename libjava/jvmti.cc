@@ -1,6 +1,6 @@
 // jvmti.cc - JVMTI implementation
 
-/* Copyright (C) 2006 Free Software Foundation
+/* Copyright (C) 2006, 2007 Free Software Foundation
 
    This file is part of libgcj.
 
@@ -28,7 +28,9 @@ details.  */
 #include <java/lang/Class.h>
 #include <java/lang/ClassLoader.h>
 #include <java/lang/Object.h>
+#include <java/lang/OutOfMemoryError.h>
 #include <java/lang/Thread.h>
+#include <java/lang/ThreadGroup.h>
 #include <java/lang/Throwable.h>
 #include <java/lang/VMClassLoader.h>
 #include <java/lang/reflect/Field.h>
@@ -193,6 +195,49 @@ _Jv_JVMTI_InterruptThread (MAYBE_UNUSED jvmtiEnv *env, jthread thread)
   THREAD_CHECK_VALID (real_thread);
   THREAD_CHECK_IS_ALIVE (real_thread);
   real_thread->interrupt();
+  return JVMTI_ERROR_NONE;
+}
+
+static jvmtiError JNICALL
+_Jv_JVMTI_GetAllThreads(MAYBE_UNUSED jvmtiEnv *env, jint *thread_cnt,
+                        jthread **threads)
+{
+  REQUIRE_PHASE (env, JVMTI_PHASE_LIVE);
+  NULL_CHECK (thread_cnt);
+  NULL_CHECK (threads);
+   
+  using namespace java::lang;
+   
+  ThreadGroup *root_grp = ThreadGroup::root;
+  jint estimate = root_grp->activeCount ();
+
+  JArray<Thread *> *thr_arr;
+
+  // Allocate some extra space since threads can be created between calls
+  try
+    { 
+      thr_arr = reinterpret_cast<JArray<Thread *> *> (JvNewObjectArray 
+						      ((estimate * 2),
+						       &Thread::class$, NULL));
+    }
+  catch (java::lang::OutOfMemoryError *err)
+    {
+      return JVMTI_ERROR_OUT_OF_MEMORY;
+    }
+    
+  *thread_cnt = root_grp->enumerate (thr_arr);
+   
+  jvmtiError jerr = env->Allocate ((jlong) ((*thread_cnt) * sizeof (jthread)),
+                                   (unsigned char **) threads);
+ 
+  if (jerr != JVMTI_ERROR_NONE)
+    return jerr;
+   
+  // Transfer the threads to the result array
+  jthread *tmp_arr = reinterpret_cast<jthread *> (elements (thr_arr));
+ 
+  memcpy ((*threads), tmp_arr, (*thread_cnt));
+   
   return JVMTI_ERROR_NONE;
 }
 
@@ -371,6 +416,36 @@ _Jv_JVMTI_Deallocate (MAYBE_UNUSED jvmtiEnv *env, unsigned char *mem)
 {
   if (mem != NULL)
     _Jv_Free (mem);
+  return JVMTI_ERROR_NONE;
+}
+
+static jvmtiError JNICALL
+_Jv_JVMTI_GetClassStatus (MAYBE_UNUSED jvmtiEnv *env, jclass klass,
+			  jint *status_ptr)
+{
+  REQUIRE_PHASE (env, JVMTI_PHASE_START | JVMTI_PHASE_LIVE);
+  NULL_CHECK (status_ptr);
+  if (klass == NULL)
+    return JVMTI_ERROR_INVALID_CLASS;
+
+  if (klass->isArray ())
+    *status_ptr = JVMTI_CLASS_STATUS_ARRAY;
+  else if (klass->isPrimitive ())
+    *status_ptr  = JVMTI_CLASS_STATUS_PRIMITIVE;
+  else
+    {
+      jbyte state = _Jv_GetClassState (klass);
+      *status_ptr = 0;
+      if (state >= JV_STATE_LINKED)
+	(*status_ptr) |= JVMTI_CLASS_STATUS_VERIFIED;
+      if (state >= JV_STATE_PREPARED)
+	(*status_ptr) |= JVMTI_CLASS_STATUS_PREPARED;
+      if (state == JV_STATE_ERROR || state == JV_STATE_PHANTOM)
+	(*status_ptr) |= JVMTI_CLASS_STATUS_ERROR;
+      else if (state == JV_STATE_DONE)
+	(*status_ptr) |= JVMTI_CLASS_STATUS_INITIALIZED;
+    }
+
   return JVMTI_ERROR_NONE;
 }
 
@@ -1362,7 +1437,7 @@ struct _Jv_jvmtiEnv _Jv_JVMTI_Interface =
   RESERVED,			// reserved1
   _Jv_JVMTI_SetEventNotificationMode, // SetEventNotificationMode
   RESERVED,			// reserved3
-  UNIMPLEMENTED,		// GetAllThreads
+  _Jv_JVMTI_GetAllThreads,		// GetAllThreads
   _Jv_JVMTI_SuspendThread,	// SuspendThread
   _Jv_JVMTI_ResumeThread,	// ResumeThread
   UNIMPLEMENTED,		// StopThread
@@ -1407,7 +1482,7 @@ struct _Jv_jvmtiEnv _Jv_JVMTI_Interface =
   _Jv_JVMTI_Allocate,		// Allocate
   _Jv_JVMTI_Deallocate,		// Deallocate
   UNIMPLEMENTED,		// GetClassSignature
-  UNIMPLEMENTED,		// GetClassStatus
+  _Jv_JVMTI_GetClassStatus,	// GetClassStatus
   UNIMPLEMENTED,		// GetSourceFileName
   _Jv_JVMTI_GetClassModifiers,	// GetClassModifiers
   _Jv_JVMTI_GetClassMethods,	// GetClassMethods

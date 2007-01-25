@@ -1,5 +1,5 @@
 /* Parse and display command line options.
-   Copyright (C) 2000, 2001, 2002, 2003, 2004, 2005, 2006
+   Copyright (C) 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007
    Free Software Foundation, Inc.
    Contributed by Andy Vaught
 
@@ -20,7 +20,6 @@ along with GCC; see the file COPYING.  If not, write to the Free
 Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA
 02110-1301, USA.  */
 
-
 #include "config.h"
 #include "system.h"
 #include "coretypes.h"
@@ -29,8 +28,8 @@ Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA
 #include "intl.h"
 #include "opts.h"
 #include "options.h"
+#include "params.h"
 #include "tree-inline.h"
-
 #include "gfortran.h"
 #include "target.h"
 
@@ -58,6 +57,7 @@ gfc_init_options (unsigned int argc ATTRIBUTE_UNUSED,
 
   gfc_option.warn_aliasing = 0;
   gfc_option.warn_ampersand = 0;
+  gfc_option.warn_character_truncation = 0;
   gfc_option.warn_conversion = 0;
   gfc_option.warn_implicit_interface = 0;
   gfc_option.warn_line_truncation = 0;
@@ -82,6 +82,8 @@ gfc_init_options (unsigned int argc ATTRIBUTE_UNUSED,
   gfc_option.flag_preprocessed = 0;
   gfc_option.flag_automatic = 1;
   gfc_option.flag_backslash = 1;
+  gfc_option.flag_allow_leading_underscore = 0;
+  gfc_option.flag_dump_core = 0;
   gfc_option.flag_external_blas = 0;
   gfc_option.blas_matmul_limit = 30;
   gfc_option.flag_cray_pointer = 0;
@@ -90,8 +92,7 @@ gfc_init_options (unsigned int argc ATTRIBUTE_UNUSED,
 
   gfc_option.fpe = 0;
 
-  /* Argument pointers cannot point to anything
-     but their argument.  */
+  /* Argument pointers cannot point to anything but their argument.  */
   flag_argument_noalias = 3;
 
   flag_errno_math = 0;
@@ -107,6 +108,10 @@ gfc_init_options (unsigned int argc ATTRIBUTE_UNUSED,
   /* -fshort-enums can be default on some targets.  */
   gfc_option.fshort_enums = targetm.default_short_enums ();
 
+  /* Increase MAX_ALIASED_VOPS to account for different characteristics
+     of Fortran regarding VOPs.  */
+  MAX_ALIASED_VOPS = 50;
+
   return CL_Fortran;
 }
 
@@ -117,7 +122,6 @@ gfc_init_options (unsigned int argc ATTRIBUTE_UNUSED,
 static gfc_source_form
 form_from_filename (const char *filename)
 {
-
   static const struct
   {
     const char *extension;
@@ -215,6 +219,7 @@ gfc_post_options (const char **pfilename)
   i = strlen (canon_source_file);
   while (i > 0 && !IS_DIR_SEPARATOR (canon_source_file[i]))
     i--;
+
   if (i != 0)
     {
       source_path = alloca (i + 1);
@@ -252,8 +257,7 @@ gfc_post_options (const char **pfilename)
 	gfc_warning_now ("'-fd-lines-as-comments' has no effect "
 			 "in free form");
       else if (gfc_option.flag_d_lines == 1)
-	gfc_warning_now ("'-fd-lines-as-code' has no effect "
-			 "in free form");
+	gfc_warning_now ("'-fd-lines-as-code' has no effect in free form");
     }
 
   flag_inline_trees = 1;
@@ -296,7 +300,6 @@ gfc_post_options (const char **pfilename)
 static void
 set_Wall (void)
 {
-
   gfc_option.warn_aliasing = 1;
   gfc_option.warn_ampersand = 1;
   gfc_option.warn_line_truncation = 1;
@@ -304,6 +307,7 @@ set_Wall (void)
   gfc_option.warn_surprising = 1;
   gfc_option.warn_tabs = 0;
   gfc_option.warn_underflow = 1;
+  gfc_option.warn_character_truncation = 1;
 
   set_Wunused (1);
   warn_return_type = 1;
@@ -337,14 +341,17 @@ gfc_handle_module_path_options (const char *arg)
   gfc_option.module_dir = (char *) gfc_getmem (strlen (arg) + 2);
   strcpy (gfc_option.module_dir, arg);
   strcat (gfc_option.module_dir, "/");
+
+  gfc_add_include_path (gfc_option.module_dir, true);
 }
+
 
 static void
 gfc_handle_fpe_trap_option (const char *arg)
 {
   int result, pos = 0, n;
   static const char * const exception[] = { "invalid", "denormal", "zero",
-                                            "overflow", "underflow",
+					    "overflow", "underflow",
 					    "precision", NULL };
   static const int opt_exception[] = { GFC_FPE_INVALID, GFC_FPE_DENORMAL,
 				       GFC_FPE_ZERO, GFC_FPE_OVERFLOW,
@@ -355,8 +362,10 @@ gfc_handle_fpe_trap_option (const char *arg)
     {
       while (*arg == ',')
 	arg++;
+
       while (arg[pos] && arg[pos] != ',')
 	pos++;
+
       result = 0;
       for (n = 0; exception[n] != NULL; n++)
 	{
@@ -369,13 +378,15 @@ gfc_handle_fpe_trap_option (const char *arg)
 	      break;
 	    }
 	}
-      if (! result)
+      if (!result)
 	gfc_fatal_error ("Argument to -ffpe-trap is not valid: %s", arg);
     }
 }
 
+
 /* Handle command-line options.  Returns 0 if unrecognized, 1 if
    recognized and handled.  */
+
 int
 gfc_handle_option (size_t scode, const char *arg, int value)
 {
@@ -402,6 +413,10 @@ gfc_handle_option (size_t scode, const char *arg, int value)
 
     case OPT_Wampersand:
       gfc_option.warn_ampersand = value;
+      break;
+
+    case OPT_Wcharacter_truncation:
+      gfc_option.warn_character_truncation = value;
       break;
 
     case OPT_Wconversion:
@@ -436,10 +451,18 @@ gfc_handle_option (size_t scode, const char *arg, int value)
       gfc_option.flag_automatic = value;
       break;
 
+    case OPT_fallow_leading_underscore:
+      gfc_option.flag_allow_leading_underscore = value;
+      break;
+      
     case OPT_fbackslash:
       gfc_option.flag_backslash = value;
       break;
       
+    case OPT_fdump_core:
+      gfc_option.flag_dump_core = value;
+      break;
+
     case OPT_fcray_pointer:
       gfc_option.flag_cray_pointer = value;
       break;
@@ -642,7 +665,8 @@ gfc_handle_option (size_t scode, const char *arg, int value)
 
     case OPT_fmax_subrecord_length_:
       if (value > MAX_SUBRECORD_LENGTH)
-	gfc_fatal_error ("Maximum subrecord length cannot exceed %d", MAX_SUBRECORD_LENGTH);
+	gfc_fatal_error ("Maximum subrecord length cannot exceed %d",
+			 MAX_SUBRECORD_LENGTH);
 
       gfc_option.max_subrecord_length = value;
     }

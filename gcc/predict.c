@@ -630,17 +630,17 @@ combine_predictions_for_bb (basic_block bb)
 static void
 predict_loops (void)
 {
-  unsigned i;
+  loop_iterator li;
+  struct loop *loop;
 
   scev_initialize ();
 
   /* Try to predict out blocks in a loop that are not part of a
      natural loop.  */
-  for (i = 1; i < current_loops->num; i++)
+  FOR_EACH_LOOP (li, loop, 0)
     {
       basic_block bb, *bbs;
       unsigned j, n_exits;
-      struct loop *loop = current_loops->parray[i];
       VEC (edge, heap) *exits;
       struct tree_niter_desc niter_desc;
       edge ex;
@@ -662,8 +662,7 @@ predict_loops (void)
 	      int probability;
 	      int max = PARAM_VALUE (PARAM_MAX_PREDICTED_ITERATIONS);
 	      if (host_integerp (niter, 1)
-		  && tree_int_cst_lt (niter,
-				      build_int_cstu (NULL_TREE, max - 1)))
+		  && compare_tree_int (niter, max-1) == -1)
 		{
 		  HOST_WIDE_INT nitercst = tree_low_cst (niter, 1) + 1;
 		  probability = ((REG_BR_PROB_BASE + nitercst / 2)
@@ -1639,6 +1638,7 @@ counts_to_freqs (void)
   count_max = MAX (true_count_max, 1);
   FOR_BB_BETWEEN (bb, ENTRY_BLOCK_PTR, NULL, next_bb)
     bb->frequency = (bb->count * BB_FREQ_MAX + count_max / 2) / count_max;
+
   return true_count_max;
 }
 

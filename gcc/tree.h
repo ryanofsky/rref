@@ -1,6 +1,6 @@
 /* Front-end tree definitions for GNU compiler.
    Copyright (C) 1989, 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000,
-   2001, 2002, 2003, 2004, 2005, 2006 Free Software Foundation, Inc.
+   2001, 2002, 2003, 2004, 2005, 2006, 2007 Free Software Foundation, Inc.
 
 This file is part of GCC.
 
@@ -107,7 +107,8 @@ extern const enum tree_code_class tree_code_type[];
 #define MTAG_P(CODE) \
   (TREE_CODE (CODE) == STRUCT_FIELD_TAG		\
    || TREE_CODE (CODE) == NAME_MEMORY_TAG	\
-   || TREE_CODE (CODE) == SYMBOL_MEMORY_TAG)
+   || TREE_CODE (CODE) == SYMBOL_MEMORY_TAG	\
+   || TREE_CODE (CODE) == MEMORY_PARTITION_TAG)
 
 
 /* Nonzero if DECL represents a VAR_DECL or FUNCTION_DECL.  */
@@ -425,8 +426,6 @@ struct gimple_stmt GTY(())
            VAR_DECL, FUNCTION_DECL, CONSTRUCTOR, ADDR_EXPR
        BINFO_VIRTUAL_P in
            TREE_BINFO
-       TREE_CONSTANT_OVERFLOW in
-           INTEGER_CST, REAL_CST, COMPLEX_CST, VECTOR_CST
        TREE_SYMBOL_REFERENCED in
            IDENTIFIER_NODE
        CLEANUP_EH_ONLY in
@@ -1132,12 +1131,6 @@ extern void omp_clause_range_check_failed (const tree, const char *, int,
    emitted.  */
 #define TREE_NO_WARNING(NODE) ((NODE)->base.nowarning_flag)
 
-/* In an INTEGER_CST, REAL_CST, COMPLEX_CST, or VECTOR_CST this means
-   there was an overflow in folding.  This is distinct from
-   TREE_OVERFLOW because ANSI C requires a diagnostic when overflows
-   occur in constant expressions.  */
-#define TREE_CONSTANT_OVERFLOW(NODE) (CST_CHECK (NODE)->base.static_flag)
-
 /* In an IDENTIFIER_NODE, this means that assemble_name was called with
    this string as an argument.  */
 #define TREE_SYMBOL_REFERENCED(NODE) \
@@ -1149,11 +1142,17 @@ extern void omp_clause_range_check_failed (const tree, const char *, int,
   (PTR_OR_REF_CHECK (NODE)->base.static_flag)
 
 /* In an INTEGER_CST, REAL_CST, COMPLEX_CST, or VECTOR_CST, this means
-   there was an overflow in folding, and no warning has been issued
-   for this subexpression.  TREE_OVERFLOW implies TREE_CONSTANT_OVERFLOW,
-   but not vice versa.  */
+   there was an overflow in folding.  */
 
 #define TREE_OVERFLOW(NODE) (CST_CHECK (NODE)->base.public_flag)
+
+/* ??? This is an obsolete synonym for TREE_OVERFLOW.  */
+#define TREE_CONSTANT_OVERFLOW(NODE) TREE_OVERFLOW(NODE)
+
+/* TREE_OVERFLOW can only be true for EXPR of CONSTANT_CLASS_P.  */
+
+#define TREE_OVERFLOW_P(EXPR) \
+ (CONSTANT_CLASS_P (EXPR) && TREE_OVERFLOW (EXPR))
 
 /* In a VAR_DECL, FUNCTION_DECL, NAMESPACE_DECL or TYPE_DECL,
    nonzero means name is to be accessible from outside this module.
@@ -1587,6 +1586,12 @@ struct tree_constructor GTY(())
 #define COND_EXPR_THEN(NODE)	(TREE_OPERAND (COND_EXPR_CHECK (NODE), 1))
 #define COND_EXPR_ELSE(NODE)	(TREE_OPERAND (COND_EXPR_CHECK (NODE), 2))
 
+/* Accessors for the chains of recurrences.  */
+#define CHREC_VAR(NODE)           TREE_OPERAND (POLYNOMIAL_CHREC_CHECK (NODE), 0)
+#define CHREC_LEFT(NODE)          TREE_OPERAND (POLYNOMIAL_CHREC_CHECK (NODE), 1)
+#define CHREC_RIGHT(NODE)         TREE_OPERAND (POLYNOMIAL_CHREC_CHECK (NODE), 2)
+#define CHREC_VARIABLE(NODE)      TREE_INT_CST_LOW (CHREC_VAR (NODE))
+
 /* LABEL_EXPR accessor. This gives access to the label associated with
    the given label expression.  */
 #define LABEL_EXPR_LABEL(NODE)  TREE_OPERAND (LABEL_EXPR_CHECK (NODE), 0)
@@ -1756,6 +1761,14 @@ struct tree_exp GTY(())
 #define SSA_NAME_IN_FREE_LIST(NODE) \
     SSA_NAME_CHECK (NODE)->base.nothrow_flag
 
+/* Nonzero if this SSA_NAME is the default definition for the
+   underlying symbol.  A default SSA name is created for symbol S if
+   the very first reference to S in the function is a read operation.
+   Default definitions are always created by an empty statement and
+   belong to no basic block.  */
+#define SSA_NAME_IS_DEFAULT_DEF(NODE)	\
+    SSA_NAME_CHECK (NODE)->base.volatile_flag
+
 /* Attributes for SSA_NAMEs for pointer-type variables.  */
 #define SSA_NAME_PTR_INFO(N) \
     SSA_NAME_CHECK (N)->ssa_name.ptr_info
@@ -1845,13 +1858,14 @@ struct tree_phi_node GTY(())
   int num_args;
   int capacity;
 
-  /* Basic block to that the phi node belongs.  */
+  /* Basic block holding this PHI node.  */
   struct basic_block_def *bb;
 
   /* Arguments of the PHI node.  These are maintained in the same
      order as predecessor edge vector BB->PREDS.  */
   struct phi_arg_d GTY ((length ("((tree)&%h)->phi.num_args"))) a[1];
 };
+
 
 #define OMP_CLAUSE_CODE(NODE)					\
 	(OMP_CLAUSE_CHECK (NODE))->omp_clause.code
@@ -1989,6 +2003,27 @@ struct tree_block GTY(())
 #define TYPE_NEXT_VARIANT(NODE) (TYPE_CHECK (NODE)->type.next_variant)
 #define TYPE_MAIN_VARIANT(NODE) (TYPE_CHECK (NODE)->type.main_variant)
 #define TYPE_CONTEXT(NODE) (TYPE_CHECK (NODE)->type.context)
+
+/* The "canonical" type for this type node, which can be used to
+   compare the type for equality with another type. If two types are
+   equal (based on the semantics of the language), then they will have
+   equivalent TYPE_CANONICAL entries. 
+
+   As a special case, if TYPE_CANONICAL is NULL_TREE, then it cannot
+   be used for comparison against other types. Instead, the type is
+   said to require structural equality checks, described in
+   TYPE_STRUCTURAL_EQUALITY_P. */
+#define TYPE_CANONICAL(NODE) (TYPE_CHECK (NODE)->type.canonical)
+/* Indicates that the type node requires structural equality
+   checks. The compiler will need to look at the composition of the
+   type to determine whether it is equal to another type, rather than
+   just comparing canonical type pointers. For instance, we would need
+   to look at the return and parameter types of a FUNCTION_TYPE
+   node. */
+#define TYPE_STRUCTURAL_EQUALITY_P(NODE) (TYPE_CANONICAL (NODE) == NULL_TREE)
+/* Sets the TYPE_CANONICAL field to NULL_TREE, indicating that the
+   type node requires structural equality. */
+#define SET_TYPE_STRUCTURAL_EQUALITY(NODE) (TYPE_CANONICAL (NODE) = NULL_TREE)
 #define TYPE_LANG_SPECIFIC(NODE) (TYPE_CHECK (NODE)->type.lang_specific)
 
 /* For a VECTOR_TYPE node, this describes a different type which is emitted
@@ -2189,6 +2224,7 @@ struct tree_type GTY(())
   tree main_variant;
   tree binfo;
   tree context;
+  tree canonical;
   HOST_WIDE_INT alias_set;
   /* Points to a structure whose details depend on the language in use.  */
   struct lang_type *lang_specific;
@@ -2429,6 +2465,20 @@ struct tree_struct_field_tag GTY(())
 #define SFT_OFFSET(NODE) (STRUCT_FIELD_TAG_CHECK (NODE)->sft.offset)
 #define SFT_SIZE(NODE) (STRUCT_FIELD_TAG_CHECK (NODE)->sft.size)
 
+/* Memory Partition Tags (MPTs) group memory symbols under one
+   common name for the purposes of placing memory PHI nodes.  */
+
+struct tree_memory_partition_tag GTY(())
+{
+  struct tree_memory_tag common;
+  
+  /* Set of symbols grouped under this MPT.  */
+  bitmap symbols;
+};
+
+#define MPT_SYMBOLS(NODE)	(MEMORY_PARTITION_TAG_CHECK (NODE)->mpt.symbols)
+
+
 /* For any sort of a ..._DECL node, this points to the original (abstract)
    decl node which this decl is an instance of, or else it is NULL indicating
    that this decl is not an instance of some other decl.  For example,
@@ -2568,19 +2618,14 @@ struct tree_struct_field_tag GTY(())
 #define DECL_PRESERVE_P(DECL) \
   DECL_COMMON_CHECK (DECL)->decl_common.preserve_flag
 
-/* For function local variables of COMPLEX type, indicates that the
-   variable is not aliased, and that all modifications to the variable
-   have been adjusted so that they are killing assignments.  Thus the
-   variable may now be treated as a GIMPLE register, and use real
-   instead of virtual ops in SSA form.  */
-#define DECL_COMPLEX_GIMPLE_REG_P(DECL) \
+/* For function local variables of COMPLEX and VECTOR types,
+   indicates that the variable is not aliased, and that all
+   modifications to the variable have been adjusted so that
+   they are killing assignments.  Thus the variable may now
+   be treated as a GIMPLE register, and use real instead of
+   virtual ops in SSA form.  */
+#define DECL_GIMPLE_REG_P(DECL) \
   DECL_COMMON_CHECK (DECL)->decl_common.gimple_reg_flag
-
-/* This is true if DECL is call clobbered in the current function.
-   The result of this flag should always be the same as
-   bitmap_bit_p (call_clobbered_vars, DECL_UID (decl)).  */
-#define DECL_CALL_CLOBBERED(DECL) \
-  DECL_COMMON_CHECK (DECL)->decl_common.call_clobbered_flag
 
 struct tree_decl_common GTY(())
 {
@@ -2622,7 +2667,6 @@ struct tree_decl_common GTY(())
   /* Logically, these two would go in a theoretical base shared by var and
      parm decl. */
   unsigned gimple_reg_flag : 1;
-  unsigned call_clobbered_flag : 1;
 
   union tree_decl_u1 {
     /* In a FUNCTION_DECL for which DECL_BUILT_IN holds, this is
@@ -3250,6 +3294,7 @@ union tree_node GTY ((ptr_alias (union lang_tree_node),
   struct tree_memory_tag GTY ((tag ("TS_MEMORY_TAG"))) mtag;
   struct tree_struct_field_tag GTY ((tag ("TS_STRUCT_FIELD_TAG"))) sft;
   struct tree_omp_clause GTY ((tag ("TS_OMP_CLAUSE"))) omp_clause;
+  struct tree_memory_partition_tag GTY ((tag ("TS_MEMORY_PARTITION_TAG"))) mpt;
 };
 
 /* Standard named or nameless data types of the C compiler.  */
@@ -3490,6 +3535,7 @@ enum ptrmemfunc_vbit_where_t
 #define NULL_TREE (tree) NULL
 
 extern tree decl_assembler_name (tree);
+extern bool decl_assembler_name_equal (tree decl, tree asmname);
 
 /* Compute the number of bytes occupied by 'node'.  This routine only
    looks at TREE_CODE and, if the code is TREE_VEC, TREE_VEC_LENGTH.  */
@@ -3601,6 +3647,8 @@ extern tree build_int_cst (tree, HOST_WIDE_INT);
 extern tree build_int_cst_type (tree, HOST_WIDE_INT);
 extern tree build_int_cstu (tree, unsigned HOST_WIDE_INT);
 extern tree build_int_cst_wide (tree, unsigned HOST_WIDE_INT, HOST_WIDE_INT);
+extern tree build_int_cst_wide_type (tree,
+				     unsigned HOST_WIDE_INT, HOST_WIDE_INT);
 extern tree build_vector (tree, tree);
 extern tree build_vector_from_ctor (tree, VEC(constructor_elt,gc) *);
 extern tree build_constructor (tree, VEC(constructor_elt,gc) *);
@@ -4042,7 +4090,6 @@ extern int integer_pow2p (tree);
 
 extern int integer_nonzerop (tree);
 
-extern bool zero_p (tree);
 extern bool cst_and_fits_in_hwi (tree);
 extern tree num_ending_zeros (tree);
 
@@ -4267,8 +4314,11 @@ extern tree fold_ignored_result (tree);
 extern tree fold_abs_const (tree, tree);
 extern tree fold_indirect_ref_1 (tree, tree);
 
-extern tree force_fit_type (tree, int, bool, bool);
+extern tree force_fit_type_double (tree, unsigned HOST_WIDE_INT, HOST_WIDE_INT,
+				   int, bool);
 
+extern int fit_double_type (unsigned HOST_WIDE_INT, HOST_WIDE_INT,
+			    unsigned HOST_WIDE_INT *, HOST_WIDE_INT *, tree);
 extern int add_double_with_sign (unsigned HOST_WIDE_INT, HOST_WIDE_INT,
 				 unsigned HOST_WIDE_INT, HOST_WIDE_INT,
 				 unsigned HOST_WIDE_INT *, HOST_WIDE_INT *,
@@ -4355,7 +4405,10 @@ extern tree strip_float_extensions (tree);
 extern tree c_strlen (tree, int);
 extern tree std_gimplify_va_arg_expr (tree, tree, tree *, tree *);
 extern tree build_va_arg_indirect_ref (tree);
-tree build_string_literal (int, const char *);
+extern tree build_string_literal (int, const char *);
+extern int validate_arglist (tree, ...);
+extern rtx builtin_memset_read_str (void *, HOST_WIDE_INT, enum machine_mode);
+extern int get_pointer_alignment (tree, unsigned int);
 
 /* In convert.c */
 extern tree strip_float_extensions (tree);

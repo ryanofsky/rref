@@ -252,6 +252,9 @@ typedef struct _stmt_vec_info {
   /* In case that two or more stmts share data-ref, this is the pointer to the
      previously detected stmt with the same dr.  */
   tree same_dr_stmt;
+  /* For loads only, if there is a store with the same location, this field is
+     TRUE.  */
+  bool read_write_dep;
 } *stmt_vec_info;
 
 /* Access Functions.  */
@@ -273,6 +276,7 @@ typedef struct _stmt_vec_info {
 #define STMT_VINFO_DR_GROUP_STORE_COUNT(S) (S)->store_count
 #define STMT_VINFO_DR_GROUP_GAP(S)         (S)->gap
 #define STMT_VINFO_DR_GROUP_SAME_DR_STMT(S)(S)->same_dr_stmt
+#define STMT_VINFO_DR_GROUP_READ_WRITE_DEPENDENCE(S)  (S)->read_write_dep
 
 #define DR_GROUP_FIRST_DR(S)               (S)->first_dr
 #define DR_GROUP_NEXT_DR(S)                (S)->next_dr
@@ -280,6 +284,7 @@ typedef struct _stmt_vec_info {
 #define DR_GROUP_STORE_COUNT(S)            (S)->store_count
 #define DR_GROUP_GAP(S)                    (S)->gap
 #define DR_GROUP_SAME_DR_STMT(S)           (S)->same_dr_stmt
+#define DR_GROUP_READ_WRITE_DEPENDENCE(S)  (S)->read_write_dep
 
 #define STMT_VINFO_RELEVANT_P(S)          ((S)->relevant != vect_unused_in_loop)
 
@@ -298,6 +303,21 @@ vinfo_for_stmt (tree stmt)
 {
   stmt_ann_t ann = stmt_ann (stmt);
   return ann ? (stmt_vec_info) ann->common.aux : NULL;
+}
+
+static inline bool
+is_pattern_stmt_p (stmt_vec_info stmt_info)
+{
+  tree related_stmt;
+  stmt_vec_info related_stmt_info;
+
+  related_stmt = STMT_VINFO_RELATED_STMT (stmt_info);
+  if (related_stmt
+      && (related_stmt_info = vinfo_for_stmt (related_stmt))
+      && STMT_VINFO_IN_PATTERN_P (related_stmt_info))
+    return true;
+
+  return false;
 }
 
 /*-----------------------------------------------------------------*/
@@ -320,18 +340,12 @@ known_alignment_for_access_p (struct data_reference *data_ref_info)
   return (DR_MISALIGNMENT (data_ref_info) != -1);
 }
 
-/* Perform signed modulo, always returning a non-negative value.  */
-#define VECT_SMODULO(x,y) ((x) % (y) < 0 ? ((x) % (y) + (y)) : (x) % (y))
-
 /* vect_dump will be set to stderr or dump_file if exist.  */
 extern FILE *vect_dump;
 extern enum verbosity_levels vect_verbosity_level;
 
-/* Number of loops, at the beginning of vectorization.  */
-extern unsigned int vect_loops_num;
-
 /* Bitmap of virtual variables to be renamed.  */
-extern bitmap vect_vnames_to_rename;
+extern bitmap vect_memsyms_to_rename;
 
 /*-----------------------------------------------------------------*/
 /* Function prototypes.                                            */
@@ -348,7 +362,7 @@ extern bitmap vect_vnames_to_rename;
    divide by the vectorization factor, and to peel the first few iterations
    to force the alignment of data references in the loop.  */
 extern struct loop *slpeel_tree_peel_loop_to_edge 
-  (struct loop *, edge, tree, tree, bool);
+  (struct loop *, edge, tree, tree, bool, unsigned int);
 extern void slpeel_make_loop_iterate_ntimes (struct loop *, tree);
 extern bool slpeel_can_duplicate_loop_p (struct loop *, edge);
 #ifdef ENABLE_CHECKING

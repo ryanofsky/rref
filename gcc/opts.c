@@ -449,7 +449,6 @@ decode_options (unsigned int argc, const char **argv)
       flag_tree_dom = 1;
       flag_tree_dse = 1;
       flag_tree_ter = 1;
-      flag_tree_live_range_split = 1;
       flag_tree_sra = 1;
       flag_tree_copyrename = 1;
       flag_tree_fre = 1;
@@ -993,10 +992,6 @@ common_handle_option (size_t scode, const char *arg, int value,
       flag_pedantic_errors = pedantic = 1;
       break;
 
-    case OPT_fforce_mem:
-      warning (0, "-f[no-]force-mem is nop and option will be removed in 4.2");
-      break;
-
     case OPT_floop_optimize:
     case OPT_frerun_loop_opt:
     case OPT_fstrength_reduce:
@@ -1081,6 +1076,7 @@ set_fast_math_flags (int set)
   flag_trapping_math = !set;
   flag_unsafe_math_optimizations = set;
   flag_finite_math_only = set;
+  flag_signed_zeros = !set;
   flag_errno_math = !set;
   if (set)
     {
@@ -1097,6 +1093,7 @@ fast_math_flags_set_p (void)
   return (!flag_trapping_math
 	  && flag_unsafe_math_optimizations
 	  && flag_finite_math_only
+	  && !flag_signed_zeros
 	  && !flag_errno_math);
 }
 
