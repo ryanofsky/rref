@@ -5307,8 +5307,8 @@ build_rval_reference_type_for_mode (tree to_type, enum machine_mode mode,
     SET_TYPE_STRUCTURAL_EQUALITY (t);
   else if (TYPE_CANONICAL (to_type) != to_type)
     TYPE_CANONICAL (t) 
-      = build_reference_type_for_mode (TYPE_CANONICAL (to_type),
-				       mode, can_alias_all);
+      = build_rval_reference_type_for_mode (TYPE_CANONICAL (to_type),
+					    mode, can_alias_all, rval);
 
   layout_type (t);
 
