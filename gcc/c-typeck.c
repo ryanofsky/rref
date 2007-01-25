@@ -1,6 +1,6 @@
 /* Build expressions with type checking for C compiler.
    Copyright (C) 1987, 1988, 1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998,
-   1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006
+   1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007
    Free Software Foundation, Inc.
 
 This file is part of GCC.
@@ -117,7 +117,7 @@ null_pointer_constant_p (tree expr)
      yet available everywhere required.  */
   tree type = TREE_TYPE (expr);
   return (TREE_CODE (expr) == INTEGER_CST
-	  && !TREE_CONSTANT_OVERFLOW (expr)
+	  && !TREE_OVERFLOW (expr)
 	  && integer_zerop (expr)
 	  && (INTEGRAL_TYPE_P (type)
 	      || (TREE_CODE (type) == POINTER_TYPE
@@ -2601,7 +2601,10 @@ parser_build_unary_op (enum tree_code code, struct c_expr arg)
 
   result.original_code = ERROR_MARK;
   result.value = build_unary_op (code, arg.value, 0);
-  overflow_warning (result.value);
+  
+  if (TREE_OVERFLOW_P (result.value) && !TREE_OVERFLOW_P (arg.value))
+    overflow_warning (result.value);
+
   return result;
 }
 
@@ -2629,73 +2632,7 @@ parser_build_binary_op (enum tree_code code, struct c_expr arg1,
   /* Check for cases such as x+y<<z which users are likely
      to misinterpret.  */
   if (warn_parentheses)
-    {
-      if (code == LSHIFT_EXPR || code == RSHIFT_EXPR)
-	{
-	  if (code1 == PLUS_EXPR || code1 == MINUS_EXPR
-	      || code2 == PLUS_EXPR || code2 == MINUS_EXPR)
-	    warning (OPT_Wparentheses,
-		     "suggest parentheses around + or - inside shift");
-	}
-
-      if (code == TRUTH_ORIF_EXPR)
-	{
-	  if (code1 == TRUTH_ANDIF_EXPR
-	      || code2 == TRUTH_ANDIF_EXPR)
-	    warning (OPT_Wparentheses,
-		     "suggest parentheses around && within ||");
-	}
-
-      if (code == BIT_IOR_EXPR)
-	{
-	  if (code1 == BIT_AND_EXPR || code1 == BIT_XOR_EXPR
-	      || code1 == PLUS_EXPR || code1 == MINUS_EXPR
-	      || code2 == BIT_AND_EXPR || code2 == BIT_XOR_EXPR
-	      || code2 == PLUS_EXPR || code2 == MINUS_EXPR)
-	    warning (OPT_Wparentheses,
-		     "suggest parentheses around arithmetic in operand of |");
-	  /* Check cases like x|y==z */
-	  if (TREE_CODE_CLASS (code1) == tcc_comparison
-	      || TREE_CODE_CLASS (code2) == tcc_comparison)
-	    warning (OPT_Wparentheses,
-		     "suggest parentheses around comparison in operand of |");
-	}
-
-      if (code == BIT_XOR_EXPR)
-	{
-	  if (code1 == BIT_AND_EXPR
-	      || code1 == PLUS_EXPR || code1 == MINUS_EXPR
-	      || code2 == BIT_AND_EXPR
-	      || code2 == PLUS_EXPR || code2 == MINUS_EXPR)
-	    warning (OPT_Wparentheses,
-		     "suggest parentheses around arithmetic in operand of ^");
-	  /* Check cases like x^y==z */
-	  if (TREE_CODE_CLASS (code1) == tcc_comparison
-	      || TREE_CODE_CLASS (code2) == tcc_comparison)
-	    warning (OPT_Wparentheses,
-		     "suggest parentheses around comparison in operand of ^");
-	}
-
-      if (code == BIT_AND_EXPR)
-	{
-	  if (code1 == PLUS_EXPR || code1 == MINUS_EXPR
-	      || code2 == PLUS_EXPR || code2 == MINUS_EXPR)
-	    warning (OPT_Wparentheses,
-		     "suggest parentheses around + or - in operand of &");
-	  /* Check cases like x&y==z */
-	  if (TREE_CODE_CLASS (code1) == tcc_comparison
-	      || TREE_CODE_CLASS (code2) == tcc_comparison)
-	    warning (OPT_Wparentheses,
-		     "suggest parentheses around comparison in operand of &");
-	}
-      /* Similarly, check for cases like 1<=i<=10 that are probably errors.  */
-      if (TREE_CODE_CLASS (code) == tcc_comparison
-	  && (TREE_CODE_CLASS (code1) == tcc_comparison
-	      || TREE_CODE_CLASS (code2) == tcc_comparison))
-	warning (OPT_Wparentheses, "comparisons like X<=Y<=Z do not "
-		 "have their mathematical meaning");
-
-    }
+    warn_about_parentheses (code, code1, code2);
 
   /* Warn about comparisons against string literals, with the exception
      of testing for equality or inequality of a string literal with NULL.  */
@@ -2711,7 +2648,10 @@ parser_build_binary_op (enum tree_code code, struct c_expr arg1,
     warning (OPT_Wstring_literal_comparison,
 	     "comparison with string literal");
 
-  overflow_warning (result.value);
+  if (TREE_OVERFLOW_P (result.value) 
+      && !TREE_OVERFLOW_P (arg1.value) 
+      && !TREE_OVERFLOW_P (arg2.value))
+    overflow_warning (result.value);
 
   return result;
 }
@@ -3648,15 +3588,16 @@ build_c_cast (tree type, tree expr)
       /* Ignore any integer overflow caused by the cast.  */
       if (TREE_CODE (value) == INTEGER_CST)
 	{
-	  if (CONSTANT_CLASS_P (ovalue)
-	      && (TREE_OVERFLOW (ovalue) || TREE_CONSTANT_OVERFLOW (ovalue)))
+	  if (CONSTANT_CLASS_P (ovalue) && TREE_OVERFLOW (ovalue))
 	    {
-	      /* Avoid clobbering a shared constant.  */
-	      value = copy_node (value);
-	      TREE_OVERFLOW (value) = TREE_OVERFLOW (ovalue);
-	      TREE_CONSTANT_OVERFLOW (value) = TREE_CONSTANT_OVERFLOW (ovalue);
+	      if (!TREE_OVERFLOW (value))
+		{
+		  /* Avoid clobbering a shared constant.  */
+		  value = copy_node (value);
+		  TREE_OVERFLOW (value) = TREE_OVERFLOW (ovalue);
+		}
 	    }
-	  else if (TREE_OVERFLOW (value) || TREE_CONSTANT_OVERFLOW (value))
+	  else if (TREE_OVERFLOW (value))
 	    /* Reset VALUE's overflow flags, ensuring constant sharing.  */
 	    value = build_int_cst_wide (TREE_TYPE (value),
 					TREE_INT_CST_LOW (value),
@@ -3893,10 +3834,7 @@ convert_for_assignment (tree type, tree rhs, enum impl_conv errtype,
     }
 
   if (TYPE_MAIN_VARIANT (type) == TYPE_MAIN_VARIANT (rhstype))
-    {
-      overflow_warning (rhs);
-      return rhs;
-    }
+    return rhs;
 
   if (coder == VOID_TYPE)
     {
@@ -3936,7 +3874,7 @@ convert_for_assignment (tree type, tree rhs, enum impl_conv errtype,
     }
   /* Some types can interconvert without explicit casts.  */
   else if (codel == VECTOR_TYPE && coder == VECTOR_TYPE
-	   && vector_types_convertible_p (type, TREE_TYPE (rhs)))
+	   && vector_types_convertible_p (type, TREE_TYPE (rhs), true))
     return convert (type, rhs);
   /* Arithmetic types all interconvert, and enum is treated like int.  */
   else if ((codel == INTEGER_TYPE || codel == REAL_TYPE
@@ -4358,7 +4296,8 @@ store_init_value (tree decl, tree init)
 
   /* ANSI wants warnings about out-of-range constant initializers.  */
   STRIP_TYPE_NOPS (value);
-  constant_expression_warning (value);
+  if (TREE_STATIC (decl)) 
+    constant_expression_warning (value);
 
   /* Check if we need to set array size from compound literal size.  */
   if (TREE_CODE (type) == ARRAY_TYPE
@@ -4666,7 +4605,7 @@ digest_init (tree type, tree init, bool strict_string, int require_constant)
      below and handle as a constructor.  */
   if (code == VECTOR_TYPE
       && TREE_CODE (TREE_TYPE (inside_init)) == VECTOR_TYPE
-      && vector_types_convertible_p (TREE_TYPE (inside_init), type)
+      && vector_types_convertible_p (TREE_TYPE (inside_init), type, true)
       && TREE_CONSTANT (inside_init))
     {
       if (TREE_CODE (inside_init) == VECTOR_CST
@@ -8079,10 +8018,7 @@ build_binary_op (enum tree_code code, tree orig_op0, tree orig_op1,
       else if (code0 == POINTER_TYPE && null_pointer_constant_p (orig_op1))
 	{
 	  if (TREE_CODE (op0) == ADDR_EXPR
-	      && DECL_P (TREE_OPERAND (op0, 0))
-	      && (TREE_CODE (TREE_OPERAND (op0, 0)) == PARM_DECL
-		  || TREE_CODE (TREE_OPERAND (op0, 0)) == LABEL_DECL
-		  || !DECL_WEAK (TREE_OPERAND (op0, 0))))
+	      && decl_with_nonnull_addr_p (TREE_OPERAND (op0, 0)))
 	    warning (OPT_Walways_true, "the address of %qD will never be NULL",
 		     TREE_OPERAND (op0, 0));
 	  result_type = type0;
@@ -8090,10 +8026,7 @@ build_binary_op (enum tree_code code, tree orig_op0, tree orig_op1,
       else if (code1 == POINTER_TYPE && null_pointer_constant_p (orig_op0))
 	{
 	  if (TREE_CODE (op1) == ADDR_EXPR
-	      && DECL_P (TREE_OPERAND (op1, 0))
-	      && (TREE_CODE (TREE_OPERAND (op1, 0)) == PARM_DECL
-		  || TREE_CODE (TREE_OPERAND (op1, 0)) == LABEL_DECL
-		  || !DECL_WEAK (TREE_OPERAND (op1, 0))))
+	      && decl_with_nonnull_addr_p (TREE_OPERAND (op1, 0)))
 	    warning (OPT_Walways_true, "the address of %qD will never be NULL",
 		     TREE_OPERAND (op1, 0));
 	  result_type = type1;

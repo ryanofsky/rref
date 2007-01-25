@@ -2002,9 +2002,6 @@ struct lang_decl GTY(())
   (!DECL_TEMPLATE_PARM_P (NODE)					\
    && TREE_CODE (CP_DECL_CONTEXT (NODE)) == NAMESPACE_DECL)
 
-#define TYPE_NAMESPACE_SCOPE_P(NODE)				\
-  (TREE_CODE (CP_TYPE_CONTEXT (NODE)) == NAMESPACE_DECL)
-
 /* 1 iff NODE is a class member.  */
 #define DECL_CLASS_SCOPE_P(NODE) \
   (DECL_CONTEXT (NODE) && TYPE_P (DECL_CONTEXT (NODE)))
@@ -2016,10 +2013,6 @@ struct lang_decl GTY(())
 #define DECL_FUNCTION_SCOPE_P(NODE) \
   (DECL_CONTEXT (NODE) \
    && TREE_CODE (DECL_CONTEXT (NODE)) == FUNCTION_DECL)
-
-#define TYPE_FUNCTION_SCOPE_P(NODE) \
-  (TYPE_CONTEXT (NODE) \
-   && TREE_CODE (TYPE_CONTEXT (NODE)) == FUNCTION_DECL)
 
 /* 1 iff VAR_DECL node NODE is a type-info decl.  This flag is set for
    both the primary typeinfo object and the associated NTBS name.  */
@@ -2879,8 +2872,14 @@ extern void decl_shadowed_for_var_insert (tree, tree);
    indicates the type of specializations:
 
      1=implicit instantiation
-     2=explicit specialization, e.g. int min<int> (int, int);
-     3=explicit instantiation, e.g. template int min<int> (int, int);
+
+     2=partial or explicit specialization, e.g.:
+
+        template <> int min<int> (int, int),
+
+     3=explicit instantiation, e.g.:
+  
+        template int min<int> (int, int);
 
    Note that NODE will be marked as a specialization even if the
    template it is instantiating is not a primary template.  For
@@ -3509,6 +3508,10 @@ enum overload_flags { NO_SPECIAL = 0, DTOR_FLAG, OP_FLAG, TYPENAME_FLAG };
 #define COMPARE_REDECLARATION 4 /* The comparison is being done when
 				   another declaration of an existing
 				   entity is seen.  */
+#define COMPARE_STRUCTURAL    8 /* The comparison is intended to be
+				   structural. The actual comparison
+				   will be identical to
+				   COMPARE_STRICT.  */
 
 /* Used with push_overloaded_decl.  */
 #define PUSH_GLOBAL	     0  /* Push the DECL into namespace scope,
@@ -4170,6 +4173,7 @@ extern tree build_non_dependent_expr		(tree);
 extern tree build_non_dependent_args		(tree);
 extern bool reregister_specialization		(tree, tree, tree);
 extern tree fold_non_dependent_expr		(tree);
+extern bool explicit_class_specialization_p     (tree);
 
 /* in repo.c */
 extern void init_repo				(void);
@@ -4229,14 +4233,29 @@ extern tree copied_binfo			(tree, tree);
 extern tree original_binfo			(tree, tree);
 extern int shared_member_p			(tree);
 
+
+/* The representation of a deferred access check.  */
+
+typedef struct deferred_access_check GTY(())
+{
+  /* The base class in which the declaration is referenced. */
+  tree binfo;
+  /* The declaration whose access must be checked.  */
+  tree decl;
+  /* The declaration that should be used in the error message.  */
+  tree diag_decl;
+} deferred_access_check;
+DEF_VEC_O(deferred_access_check);
+DEF_VEC_ALLOC_O(deferred_access_check,gc);
+
 /* in semantics.c */
 extern void push_deferring_access_checks	(deferring_kind);
 extern void resume_deferring_access_checks	(void);
 extern void stop_deferring_access_checks	(void);
 extern void pop_deferring_access_checks		(void);
-extern tree get_deferred_access_checks		(void);
+extern VEC (deferred_access_check,gc)* get_deferred_access_checks		(void);
 extern void pop_to_parent_deferring_access_checks (void);
-extern void perform_access_checks		(tree);
+extern void perform_access_checks		(VEC (deferred_access_check,gc)*);
 extern void perform_deferred_access_checks	(void);
 extern void perform_or_defer_access_check	(tree, tree, tree);
 extern int stmts_are_full_exprs_p		(void);
@@ -4453,8 +4472,9 @@ extern tree build_x_indirect_ref		(tree, const char *);
 extern tree build_indirect_ref			(tree, const char *);
 extern tree build_array_ref			(tree, tree);
 extern tree get_member_function_from_ptrfunc	(tree *, tree);
-extern tree build_x_binary_op			(enum tree_code, tree, tree,
-						 bool *);
+extern tree build_x_binary_op			(enum tree_code, tree,
+						 enum tree_code, tree,
+						 enum tree_code, bool *);
 extern tree build_x_unary_op			(enum tree_code, tree);
 extern tree unary_complex_lvalue		(enum tree_code, tree);
 extern tree build_x_conditional_expr		(tree, tree, tree);

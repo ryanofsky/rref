@@ -126,7 +126,6 @@ static unsigned HOST_WIDE_INT array_size_for_constructor (tree);
 static unsigned min_align (unsigned, unsigned);
 static void output_constructor (tree, unsigned HOST_WIDE_INT, unsigned int);
 static void globalize_decl (tree);
-static void maybe_assemble_visibility (tree);
 #ifdef BSS_SECTION_ASM_OP
 #ifdef ASM_OUTPUT_BSS
 static void asm_output_bss (FILE *, tree, const char *,
@@ -490,7 +489,8 @@ asm_output_bss (FILE *file, tree decl ATTRIBUTE_UNUSED,
 		unsigned HOST_WIDE_INT size ATTRIBUTE_UNUSED,
 		unsigned HOST_WIDE_INT rounded)
 {
-  targetm.asm_out.globalize_label (file, name);
+  gcc_assert (strcmp (XSTR (XEXP (DECL_RTL (decl), 0), 0), name) == 0);
+  targetm.asm_out.globalize_decl_name (file, decl);
   switch_to_section (bss_section);
 #ifdef ASM_DECLARE_OBJECT_NAME
   last_assemble_variable_decl = decl;
@@ -1964,11 +1964,10 @@ assemble_external (tree decl ATTRIBUTE_UNUSED)
   if (!DECL_P (decl) || !DECL_EXTERNAL (decl) || !TREE_PUBLIC (decl))
     return;
 
-  if (flag_unit_at_a_time)
-    pending_assemble_externals = tree_cons (0, decl,
-					    pending_assemble_externals);
-  else
-    assemble_external_real (decl);
+  /* We want to output external symbols at very last to check if they
+     are references or not.  */
+  pending_assemble_externals = tree_cons (0, decl,
+					  pending_assemble_externals);
 #endif
 }
 
@@ -2018,8 +2017,8 @@ mark_decl_referenced (tree decl)
     }
   else if (TREE_CODE (decl) == VAR_DECL)
     {
-      struct cgraph_varpool_node *node = cgraph_varpool_node (decl);
-      cgraph_varpool_mark_needed_node (node);
+      struct varpool_node *node = varpool_node (decl);
+      varpool_mark_needed_node (node);
       /* C++ frontend use mark_decl_references to force COMDAT variables
          to be output that might appear dead otherwise.  */
       node->force_output = true;
@@ -4741,11 +4740,11 @@ weak_finish (void)
 static void
 globalize_decl (tree decl)
 {
-  const char *name = XSTR (XEXP (DECL_RTL (decl), 0), 0);
 
 #if defined (ASM_WEAKEN_LABEL) || defined (ASM_WEAKEN_DECL)
   if (DECL_WEAK (decl))
     {
+      const char *name = XSTR (XEXP (DECL_RTL (decl), 0), 0);
       tree *p, t;
 
 #ifdef ASM_WEAKEN_DECL
@@ -4777,12 +4776,9 @@ globalize_decl (tree decl)
 
       return;
     }
-#elif defined(ASM_MAKE_LABEL_LINKONCE)
-  if (DECL_ONE_ONLY (decl))
-    ASM_MAKE_LABEL_LINKONCE (asm_out_file, name);
 #endif
 
-  targetm.asm_out.globalize_label (asm_out_file, name);
+  targetm.asm_out.globalize_decl_name (asm_out_file, decl);
 }
 
 /* We have to be able to tell cgraph about the needed-ness of the target
@@ -4808,17 +4804,17 @@ static tree
 find_decl_and_mark_needed (tree decl, tree target)
 {
   struct cgraph_node *fnode = NULL;
-  struct cgraph_varpool_node *vnode = NULL;
+  struct varpool_node *vnode = NULL;
 
   if (TREE_CODE (decl) == FUNCTION_DECL)
     {
       fnode = cgraph_node_for_asm (target);
       if (fnode == NULL)
-	vnode = cgraph_varpool_node_for_asm (target);
+	vnode = varpool_node_for_asm (target);
     }
   else
     {
-      vnode = cgraph_varpool_node_for_asm (target);
+      vnode = varpool_node_for_asm (target);
       if (vnode == NULL)
 	fnode = cgraph_node_for_asm (target);
     }
@@ -4836,7 +4832,7 @@ find_decl_and_mark_needed (tree decl, tree target)
     }
   else if (vnode)
     {
-      cgraph_varpool_mark_needed_node (vnode);
+      varpool_mark_needed_node (vnode);
       return vnode->decl;
     }
   else
@@ -5029,7 +5025,7 @@ assemble_alias (tree decl, tree target)
   if (TREE_CODE (decl) == FUNCTION_DECL)
     cgraph_node (decl)->alias = true;
   else
-    cgraph_varpool_node (decl)->alias = true;
+    varpool_node (decl)->alias = true;
 
   /* If the target has already been emitted, we don't have to queue the
      alias.  This saves a tad o memory.  */
@@ -5071,13 +5067,18 @@ default_assemble_visibility (tree decl, int vis)
 
 /* A helper function to call assemble_visibility when needed for a decl.  */
 
-static void
+int
 maybe_assemble_visibility (tree decl)
 {
   enum symbol_visibility vis = DECL_VISIBILITY (decl);
 
   if (vis != VISIBILITY_DEFAULT)
-    targetm.asm_out.visibility (decl, vis);
+    {
+      targetm.asm_out.visibility (decl, vis);
+      return 1;
+    }
+  else
+    return 0;
 }
 
 /* Returns 1 if the target configuration supports defining public symbols
@@ -5913,6 +5914,14 @@ default_globalize_label (FILE * stream, const char *name)
 }
 #endif /* GLOBAL_ASM_OP */
 
+/* Default function to output code that will globalize a declaration.  */
+void
+default_globalize_decl_name (FILE * stream, tree decl)
+{
+  const char *name = XSTR (XEXP (DECL_RTL (decl), 0), 0);
+  targetm.asm_out.globalize_label (stream, name);
+}
+
 /* Default function to output a label for unwind information.  The
    default is to do nothing.  A target that needs nonlocal labels for
    unwind information must provide its own function to do this.  */
@@ -6224,6 +6233,122 @@ void
 output_object_blocks (void)
 {
   htab_traverse (object_block_htab, output_object_block_htab, NULL);
+}
+
+/* This function provides a possible implementation of the
+   TARGET_ASM_RECORD_GCC_SWITCHES target hook for ELF targets.  When triggered
+   by -frecord-gcc-switches it creates a new mergeable, string section in the
+   assembler output file called TARGET_ASM_RECORD_GCC_SWITCHES_SECTION which
+   contains the switches in ASCII format.
+
+   FIXME: This code does not correctly handle double quote characters
+   that appear inside strings, (it strips them rather than preserving them).
+   FIXME: ASM_OUTPUT_ASCII, as defined in config/elfos.h will not emit NUL
+   characters - instead it treats them as sub-string separators.  Since
+   we want to emit NUL strings terminators into the object file we have to use
+   ASM_OUTPUT_SKIP.  */
+
+int
+elf_record_gcc_switches (print_switch_type type, const char * name)
+{
+  static char buffer[1024];
+
+  /* This variable is used as part of a simplistic heuristic to detect
+     command line switches which take an argument:
+
+       "If a command line option does not start with a dash then
+        it is an argument for the previous command line option."
+
+     This fails in the case of the command line option which is the name
+     of the file to compile, but otherwise it is pretty reasonable.  */
+  static bool previous_name_held_back = FALSE;
+
+  switch (type)
+    {
+    case SWITCH_TYPE_PASSED:
+      if (* name != '-')
+	{
+	  if (previous_name_held_back)
+	    {
+	      unsigned int len = strlen (buffer);
+
+	      snprintf (buffer + len, sizeof buffer - len, " %s", name);
+	      ASM_OUTPUT_ASCII (asm_out_file, buffer, strlen (buffer));
+	      ASM_OUTPUT_SKIP (asm_out_file, (unsigned HOST_WIDE_INT) 1);
+	      previous_name_held_back = FALSE;
+	    }
+	  else
+	    {
+	      strncpy (buffer, name, sizeof buffer);
+	      ASM_OUTPUT_ASCII (asm_out_file, buffer, strlen (buffer));
+	      ASM_OUTPUT_SKIP (asm_out_file, (unsigned HOST_WIDE_INT) 1);
+	    }
+	}
+      else
+	{
+	  if (previous_name_held_back)
+	    {
+	      ASM_OUTPUT_ASCII (asm_out_file, buffer, strlen (buffer));
+	      ASM_OUTPUT_SKIP (asm_out_file, (unsigned HOST_WIDE_INT) 1);
+	    }
+
+	  strncpy (buffer, name, sizeof buffer);
+	  previous_name_held_back = TRUE;
+	}
+      break;
+
+    case SWITCH_TYPE_DESCRIPTIVE:
+      if (name == NULL)
+	{
+	  /* Distinguish between invocations where name is NULL.  */
+	  static bool started = false;
+
+	  if (started)
+	    {
+	      if (previous_name_held_back)
+		{
+		  ASM_OUTPUT_ASCII (asm_out_file, buffer, strlen (buffer));
+		  ASM_OUTPUT_SKIP (asm_out_file, (unsigned HOST_WIDE_INT) 1);
+		}
+	    }
+	  else
+	    {
+	      section * sec;
+
+	      sec = get_section (targetm.asm_out.record_gcc_switches_section,
+				 SECTION_DEBUG
+				 | SECTION_MERGE
+				 | SECTION_STRINGS
+				 | (SECTION_ENTSIZE & 1),
+				 NULL);
+	      switch_to_section (sec);
+	      started = true;
+	    }
+	}
+
+    default:
+      break;
+    }
+
+  /* The return value is currently ignored by the caller, but must be 0.
+     For -fverbose-asm the return value would be the number of characters
+     emitted into the assembler file.  */
+  return 0;
+}
+
+/* Emit text to declare externally defined symbols. It is needed to
+   properly support non-default visibility.  */
+void
+default_elf_asm_output_external (FILE *file ATTRIBUTE_UNUSED,
+				 tree decl,
+				 const char *name ATTRIBUTE_UNUSED)
+{
+  /* We output the name if and only if TREE_SYMBOL_REFERENCED is
+     set in order to avoid putting out names that are never really
+     used. */
+  if (TREE_SYMBOL_REFERENCED (DECL_ASSEMBLER_NAME (decl))
+      && targetm.binds_local_p (decl))
+    maybe_assemble_visibility (decl);
 }
 
 #include "gt-varasm.h"

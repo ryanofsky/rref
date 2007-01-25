@@ -1,5 +1,5 @@
 /* Control flow functions for trees.
-   Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006
+   Copyright (C) 2001, 2002, 2003, 2004, 2005, 2006, 2007
    Free Software Foundation, Inc.
    Contributed by Diego Novillo <dnovillo@redhat.com>
 
@@ -46,6 +46,8 @@ Boston, MA 02110-1301, USA.  */
 #include "cfglayout.h"
 #include "hashtab.h"
 #include "tree-ssa-propagate.h"
+#include "value-prof.h"
+#include "pointer-set.h"
 
 /* This file contains functions for building the Control Flow Graph (CFG)
    for a function tree.  */
@@ -132,15 +134,13 @@ init_empty_tree_cfg (void)
   n_basic_blocks = NUM_FIXED_BLOCKS;
   last_basic_block = NUM_FIXED_BLOCKS;
   basic_block_info = VEC_alloc (basic_block, gc, initial_cfg_capacity);
-  VEC_safe_grow (basic_block, gc, basic_block_info, initial_cfg_capacity);
-  memset (VEC_address (basic_block, basic_block_info), 0,
-	  sizeof (basic_block) * initial_cfg_capacity);
+  VEC_safe_grow_cleared (basic_block, gc, basic_block_info,
+			 initial_cfg_capacity);
 
   /* Build a mapping of labels to their associated blocks.  */
   label_to_block_map = VEC_alloc (basic_block, gc, initial_cfg_capacity);
-  VEC_safe_grow (basic_block, gc, label_to_block_map, initial_cfg_capacity);
-  memset (VEC_address (basic_block, label_to_block_map),
-	  0, sizeof (basic_block) * initial_cfg_capacity);
+  VEC_safe_grow_cleared (basic_block, gc, label_to_block_map,
+			 initial_cfg_capacity);
 
   SET_BASIC_BLOCK (ENTRY_BLOCK, ENTRY_BLOCK_PTR);
   SET_BASIC_BLOCK (EXIT_BLOCK, EXIT_BLOCK_PTR);
@@ -182,14 +182,7 @@ build_tree_cfg (tree *tp)
 
   /* Adjust the size of the array.  */
   if (VEC_length (basic_block, basic_block_info) < (size_t) n_basic_blocks)
-    {
-      size_t old_size = VEC_length (basic_block, basic_block_info);
-      basic_block *p;
-      VEC_safe_grow (basic_block, gc, basic_block_info, n_basic_blocks);
-      p = VEC_address (basic_block, basic_block_info);
-      memset (&p[old_size], 0,
-	      sizeof (basic_block) * (n_basic_blocks - old_size));
-    }
+    VEC_safe_grow_cleared (basic_block, gc, basic_block_info, n_basic_blocks);
 
   /* To speed up statement iterator walks, we first purge dead labels.  */
   cleanup_dead_labels ();
@@ -244,7 +237,7 @@ struct tree_opt_pass pass_build_cfg =
   PROP_cfg,				/* properties_provided */
   0,					/* properties_destroyed */
   0,					/* todo_flags_start */
-  TODO_verify_stmts,			/* todo_flags_finish */
+  TODO_verify_stmts | TODO_cleanup_cfg,	/* todo_flags_finish */
   0					/* letter */
 };
 
@@ -396,12 +389,8 @@ create_bb (void *h, void *e, basic_block after)
   /* Grow the basic block array if needed.  */
   if ((size_t) last_basic_block == VEC_length (basic_block, basic_block_info))
     {
-      size_t old_size = VEC_length (basic_block, basic_block_info);
       size_t new_size = last_basic_block + (last_basic_block + 3) / 4;
-      basic_block *p;
-      VEC_safe_grow (basic_block, gc, basic_block_info, new_size);
-      p = VEC_address (basic_block, basic_block_info);
-      memset (&p[old_size], 0, sizeof (basic_block) * (new_size - old_size));
+      VEC_safe_grow_cleared (basic_block, gc, basic_block_info, new_size);
     }
 
   /* Add the newly created block to the array.  */
@@ -590,9 +579,6 @@ make_edges (void)
 
   /* Fold COND_EXPR_COND of each COND_EXPR.  */
   fold_cond_expr_cond ();
-
-  /* Clean up the graph and warn for unreachable code.  */
-  cleanup_tree_cfg ();
 }
 
 
@@ -1245,10 +1231,12 @@ replace_uses_by (tree name, tree val)
   use_operand_p use;
   tree stmt;
   edge e;
-  unsigned i;
 
   FOR_EACH_IMM_USE_STMT (stmt, imm_iter, name)
     {
+      if (TREE_CODE (stmt) != PHI_NODE)
+	push_stmt_changes (&stmt);
+
       FOR_EACH_IMM_USE_ON_STMT (use, imm_iter)
         {
 	  replace_exp (use, val);
@@ -1266,32 +1254,35 @@ replace_uses_by (tree name, tree val)
 		}
 	    }
 	}
+
       if (TREE_CODE (stmt) != PHI_NODE)
 	{
 	  tree rhs;
 
 	  fold_stmt_inplace (stmt);
+
+	  /* FIXME.  This should go in pop_stmt_changes.  */
 	  rhs = get_rhs (stmt);
 	  if (TREE_CODE (rhs) == ADDR_EXPR)
 	    recompute_tree_invariant_for_addr_expr (rhs);
 
 	  maybe_clean_or_replace_eh_stmt (stmt, stmt);
-	  mark_new_vars_to_rename (stmt);
+
+	  pop_stmt_changes (&stmt);
 	}
     }
 
-  gcc_assert (num_imm_uses (name) == 0);
+  gcc_assert (zero_imm_uses_p (name));
 
   /* Also update the trees stored in loop structures.  */
   if (current_loops)
     {
       struct loop *loop;
+      loop_iterator li;
 
-      for (i = 0; i < current_loops->num; i++)
+      FOR_EACH_LOOP (li, loop, 0)
 	{
-	  loop = current_loops->parray[i];
-	  if (loop)
-	    substitute_in_loop_info (loop, name, val);
+	  substitute_in_loop_info (loop, name, val);
 	}
     }
 }
@@ -1335,13 +1326,14 @@ tree_merge_blocks (basic_block a, basic_block b)
 	     appear as arguments of the phi nodes.  */
 	  copy = build2_gimple (GIMPLE_MODIFY_STMT, def, use);
 	  bsi_insert_after (&bsi, copy, BSI_NEW_STMT);
-	  SET_PHI_RESULT (phi, NULL_TREE);
 	  SSA_NAME_DEF_STMT (def) = copy;
+          remove_phi_node (phi, NULL, false);
 	}
       else
-	replace_uses_by (def, use);
-
-      remove_phi_node (phi, NULL);
+        {
+          replace_uses_by (def, use);
+          remove_phi_node (phi, NULL, true);
+        }
     }
 
   /* Ensure that B follows A.  */
@@ -1972,7 +1964,7 @@ remove_phi_nodes_and_edges_for_unreachable_block (basic_block bb)
   while (phi)
     {
       tree next = PHI_CHAIN (phi);
-      remove_phi_node (phi, NULL_TREE);
+      remove_phi_node (phi, NULL_TREE, true);
       phi = next;
     }
 
@@ -2148,7 +2140,7 @@ find_taken_edge_cond_expr (basic_block bb, tree val)
   extract_true_false_edges_from_block (bb, &true_edge, &false_edge);
 
   gcc_assert (TREE_CODE (val) == INTEGER_CST);
-  return (zero_p (val) ? false_edge : true_edge);
+  return (integer_zerop (val) ? false_edge : true_edge);
 }
 
 /* Given an INTEGER_CST VAL and the entry block BB to a SWITCH_EXPR
@@ -2226,7 +2218,7 @@ find_case_label_for_value (tree switch_expr, tree val)
 void
 tree_dump_bb (basic_block bb, FILE *outf, int indent)
 {
-  dump_generic_bb (outf, bb, indent, TDF_VOPS);
+  dump_generic_bb (outf, bb, indent, TDF_VOPS|TDF_MEMSYMS);
 }
 
 
@@ -2657,6 +2649,17 @@ disband_implicit_edges (void)
 void
 delete_tree_cfg_annotations (void)
 {
+  basic_block bb;
+  block_stmt_iterator bsi;
+
+  /* Remove annotations from every tree in the function.  */
+  FOR_EACH_BB (bb)
+    for (bsi = bsi_start (bb); !bsi_end_p (bsi); bsi_next (&bsi))
+      {
+	tree stmt = bsi_stmt (bsi);
+	ggc_free (stmt->base.ann);
+	stmt->base.ann = NULL;
+      }
   label_to_block_map = NULL;
 }
 
@@ -2678,16 +2681,6 @@ last_stmt (basic_block bb)
 {
   block_stmt_iterator b = bsi_last (bb);
   return !bsi_end_p (b) ? bsi_stmt (b) : NULL_TREE;
-}
-
-
-/* Return a pointer to the last statement in block BB.  */
-
-tree *
-last_stmt_ptr (basic_block bb)
-{
-  block_stmt_iterator last = bsi_last (bb);
-  return !bsi_end_p (last) ? bsi_stmt_ptr (last) : NULL;
 }
 
 
@@ -2756,14 +2749,10 @@ set_bb_for_stmt (tree t, basic_block bb)
 	      LABEL_DECL_UID (t) = uid = cfun->last_label_uid++;
 	      if (old_len <= (unsigned) uid)
 		{
-		  basic_block *addr;
 		  unsigned new_len = 3 * uid / 2;
 
-		  VEC_safe_grow (basic_block, gc, label_to_block_map,
-				 new_len);
-		  addr = VEC_address (basic_block, label_to_block_map);
-		  memset (&addr[old_len],
-			  0, sizeof (basic_block) * (new_len - old_len));
+		  VEC_safe_grow_cleared (basic_block, gc, label_to_block_map,
+					 new_len);
 		}
 	    }
 	  else
@@ -2808,6 +2797,8 @@ bsi_for_stmt (tree stmt)
 static inline void
 update_modified_stmts (tree t)
 {
+  if (!ssa_operands_active ())
+    return;
   if (TREE_CODE (t) == STATEMENT_LIST)
     {
       tree_stmt_iterator i;
@@ -2867,7 +2858,10 @@ bsi_remove (block_stmt_iterator *i, bool remove_eh_info)
   tsi_delink (&i->tsi);
   mark_stmt_modified (t);
   if (remove_eh_info)
-    remove_stmt_from_eh_region (t);
+    {
+      remove_stmt_from_eh_region (t);
+      gimple_remove_stmt_histograms (cfun, t);
+    }
 }
 
 
@@ -2930,6 +2924,8 @@ bsi_replace (const block_stmt_iterator *bsi, tree stmt, bool update_eh_info)
 	{
 	  remove_stmt_from_eh_region (orig_stmt);
 	  add_stmt_to_eh_region (stmt, eh_region);
+	  gimple_duplicate_stmt_histograms (cfun, stmt, cfun, orig_stmt);
+          gimple_remove_stmt_histograms (cfun, orig_stmt);
 	}
     }
 
@@ -3527,8 +3523,7 @@ tree_node_can_be_shared (tree t)
 static tree
 verify_node_sharing (tree * tp, int *walk_subtrees, void *data)
 {
-  htab_t htab = (htab_t) data;
-  void **slot;
+  struct pointer_set_t *visited = (struct pointer_set_t *) data;
 
   if (tree_node_can_be_shared (*tp))
     {
@@ -3536,10 +3531,8 @@ verify_node_sharing (tree * tp, int *walk_subtrees, void *data)
       return NULL;
     }
 
-  slot = htab_find_slot (htab, *tp, INSERT);
-  if (*slot)
-    return (tree) *slot;
-  *slot = *tp;
+  if (pointer_set_insert (visited, *tp))
+    return *tp;
 
   return NULL;
 }
@@ -3574,6 +3567,22 @@ verify_gimple_tuples (tree t)
   return walk_tree (&t, verify_gimple_tuples_1, NULL, NULL) != NULL;
 }
 
+static bool eh_error_found;
+static int
+verify_eh_throw_stmt_node (void **slot, void *data)
+{
+  struct throw_stmt_node *node = (struct throw_stmt_node *)*slot;
+  struct pointer_set_t *visited = (struct pointer_set_t *) data;
+
+  if (!pointer_set_contains (visited, node->stmt))
+    {
+      error ("Dead STMT in EH table");
+      debug_generic_stmt (node->stmt);
+      eh_error_found = true;
+    }
+  return 0;
+}
+
 /* Verify the GIMPLE statement chain.  */
 
 void
@@ -3582,11 +3591,12 @@ verify_stmts (void)
   basic_block bb;
   block_stmt_iterator bsi;
   bool err = false;
-  htab_t htab;
+  struct pointer_set_t *visited, *visited_stmts;
   tree addr;
 
   timevar_push (TV_TREE_STMT_VERIFY);
-  htab = htab_create (37, htab_hash_pointer, htab_eq_pointer, NULL);
+  visited = pointer_set_create ();
+  visited_stmts = pointer_set_create ();
 
   FOR_EACH_BB (bb)
     {
@@ -3597,6 +3607,7 @@ verify_stmts (void)
 	{
 	  int phi_num_args = PHI_NUM_ARGS (phi);
 
+	  pointer_set_insert (visited_stmts, phi);
 	  if (bb_for_stmt (phi) != bb)
 	    {
 	      error ("bb_for_stmt (phi) is set to a wrong basic block");
@@ -3627,7 +3638,7 @@ verify_stmts (void)
 		  err |= true;
 		}
 
-	      addr = walk_tree (&t, verify_node_sharing, htab, NULL);
+	      addr = walk_tree (&t, verify_node_sharing, visited, NULL);
 	      if (addr)
 		{
 		  error ("incorrect sharing of tree nodes");
@@ -3642,6 +3653,7 @@ verify_stmts (void)
 	{
 	  tree stmt = bsi_stmt (bsi);
 
+	  pointer_set_insert (visited_stmts, stmt);
 	  err |= verify_gimple_tuples (stmt);
 
 	  if (bb_for_stmt (stmt) != bb)
@@ -3652,7 +3664,7 @@ verify_stmts (void)
 
 	  bsi_next (&bsi);
 	  err |= verify_stmt (stmt, bsi_end_p (bsi));
-	  addr = walk_tree (&stmt, verify_node_sharing, htab, NULL);
+	  addr = walk_tree (&stmt, verify_node_sharing, visited, NULL);
 	  if (addr)
 	    {
 	      error ("incorrect sharing of tree nodes");
@@ -3662,11 +3674,18 @@ verify_stmts (void)
 	    }
 	}
     }
+  eh_error_found = false;
+  if (get_eh_throw_stmt_table (cfun))
+    htab_traverse (get_eh_throw_stmt_table (cfun),
+		   verify_eh_throw_stmt_node,
+		   visited_stmts);
 
-  if (err)
+  if (err | eh_error_found)
     internal_error ("verify_stmts failed");
 
-  htab_delete (htab);
+  pointer_set_destroy (visited);
+  pointer_set_destroy (visited_stmts);
+  verify_histograms ();
   timevar_pop (TV_TREE_STMT_VERIFY);
 }
 
@@ -3999,7 +4018,7 @@ tree_make_forwarder_block (edge fallthru)
   if (single_pred_p (bb))
     return;
 
-  /* If we redirected a branch we must create new phi nodes at the
+  /* If we redirected a branch we must create new PHI nodes at the
      start of BB.  */
   for (phi = phi_nodes (dummy); phi; phi = PHI_CHAIN (phi))
     {
@@ -4338,6 +4357,7 @@ tree_duplicate_bb (basic_block bb)
       region = lookup_stmt_eh_region (stmt);
       if (region >= 0)
 	add_stmt_to_eh_region (copy, region);
+      gimple_duplicate_stmt_histograms (cfun, copy, cfun, stmt);
 
       /* Create new names for all the definitions created by COPY and
 	 add replacement mappings for each new name.  */
@@ -4690,7 +4710,6 @@ move_block_to_fn (struct function *dest_cfun, basic_block bb,
   block_stmt_iterator si;
   struct move_stmt_d d;
   unsigned old_len, new_len;
-  basic_block *addr;
 
   /* Link BB to the new linked list.  */
   move_block_after (bb, after);
@@ -4717,9 +4736,8 @@ move_block_to_fn (struct function *dest_cfun, basic_block bb,
   if ((unsigned) cfg->x_last_basic_block >= old_len)
     {
       new_len = cfg->x_last_basic_block + (cfg->x_last_basic_block + 3) / 4;
-      VEC_safe_grow (basic_block, gc, cfg->x_basic_block_info, new_len);
-      addr = VEC_address (basic_block, cfg->x_basic_block_info);
-      memset (&addr[old_len], 0, sizeof (basic_block) * (new_len - old_len));
+      VEC_safe_grow_cleared (basic_block, gc, cfg->x_basic_block_info,
+			     new_len);
     }
 
   VEC_replace (basic_block, cfg->x_basic_block_info,
@@ -4755,11 +4773,8 @@ move_block_to_fn (struct function *dest_cfun, basic_block bb,
 	  if (old_len <= (unsigned) uid)
 	    {
 	      new_len = 3 * uid / 2;
-	      VEC_safe_grow (basic_block, gc, cfg->x_label_to_block_map,
-			     new_len);
-	      addr = VEC_address (basic_block, cfg->x_label_to_block_map);
-	      memset (&addr[old_len], 0,
-		      sizeof (basic_block) * (new_len - old_len));
+	      VEC_safe_grow_cleared (basic_block, gc,
+				     cfg->x_label_to_block_map, new_len);
 	    }
 
 	  VEC_replace (basic_block, cfg->x_label_to_block_map, uid, bb);
@@ -4781,6 +4796,8 @@ move_block_to_fn (struct function *dest_cfun, basic_block bb,
 	{
 	  add_stmt_to_eh_region_fn (dest_cfun, stmt, region + eh_offset);
 	  remove_stmt_from_eh_region (stmt);
+	  gimple_duplicate_stmt_histograms (dest_cfun, stmt, cfun, stmt);
+          gimple_remove_stmt_histograms (cfun, stmt);
 	}
     }
 }
@@ -5687,7 +5704,7 @@ gimplify_val (block_stmt_iterator *bsi, tree type, tree exp)
 
   bsi_insert_before (bsi, new_stmt, BSI_SAME_STMT);
   if (gimple_in_ssa_p (cfun))
-    mark_new_vars_to_rename (new_stmt);
+    mark_symbols_for_renaming (new_stmt);
 
   return t;
 }

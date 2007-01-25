@@ -32,6 +32,7 @@ Boston, MA 02110-1301, USA.  */
 #include "tree-dump.h"
 #include "timevar.h"
 #include "diagnostic.h"
+#include "toplev.h"
 #include "cfgloop.h"
 #include "tree-scalar-evolution.h"
 #include "tree-ssa-propagate.h"
@@ -43,6 +44,7 @@ static sbitmap found_in_subgraph;
 
 /* Local functions.  */
 static int compare_values (tree val1, tree val2);
+static void vrp_meet (value_range_t *, value_range_t *);
 
 /* Location information for ASSERT_EXPRs.  Each instance of this
    structure describes an ASSERT_EXPR for an SSA name.  Since a single
@@ -101,6 +103,10 @@ nonnull_arg_p (tree arg)
   unsigned HOST_WIDE_INT arg_num;
 
   gcc_assert (TREE_CODE (arg) == PARM_DECL && POINTER_TYPE_P (TREE_TYPE (arg)));
+
+  /* The static chain decl is always non null.  */
+  if (arg == cfun->static_chain_decl)
+    return true;
 
   fntype = TREE_TYPE (current_function_decl);
   attrs = lookup_attribute ("nonnull", TYPE_ATTRIBUTES (fntype));
@@ -232,6 +238,20 @@ set_value_range_to_varying (value_range_t *vr)
 }
 
 
+/* Set value range VR to a range of a truthvalue of type TYPE.  */
+
+static inline void
+set_value_range_to_truthvalue (value_range_t *vr, tree type)
+{
+  if (TYPE_PRECISION (type) == 1)
+    set_value_range_to_varying (vr);
+  else
+    set_value_range (vr, VR_RANGE,
+		     build_int_cst (type, 0), build_int_cst (type, 1),
+		     vr->equiv);
+}
+
+
 /* Set value range VR to VR_UNDEFINED.  */
 
 static inline void
@@ -273,7 +293,7 @@ get_value_range (tree var)
   /* If VAR is a default definition, the variable can take any value
      in VAR's type.  */
   sym = SSA_NAME_VAR (var);
-  if (var == gimple_default_def (cfun, sym))
+  if (SSA_NAME_IS_DEFAULT_DEF (var))
     {
       /* Try to use the "nonnull" attribute to create ~[0, 0]
 	 anti-ranges for pointers.  Note that this is only valid with
@@ -442,6 +462,29 @@ valid_value_p (tree expr)
   return is_gimple_min_invariant (expr);
 }
 
+/* Return 
+   1 if VAL < VAL2
+   0 if !(VAL < VAL2)
+   -2 if those are incomparable.  */
+static inline int
+operand_less_p (tree val, tree val2)
+{
+  tree tcmp;
+  /* LT is folded faster than GE and others.  Inline the common case.  */
+  if (TREE_CODE (val) == INTEGER_CST && TREE_CODE (val2) == INTEGER_CST)
+    {
+      if (TYPE_UNSIGNED (TREE_TYPE (val)))
+	return INT_CST_LT_UNSIGNED (val, val2);
+      else
+	return INT_CST_LT (val, val2);
+    }
+  else
+    tcmp = fold_binary_to_constant (LT_EXPR, boolean_type_node, val, val2);
+  if (!tcmp)
+    return -2;
+  return !integer_zerop (tcmp);
+}
+
 /* Compare two values VAL1 and VAL2.  Return
    
    	-2 if VAL1 and VAL2 cannot be compared at compile-time,
@@ -590,19 +633,24 @@ compare_values (tree val1, tree val2)
 	return 0;
       
       /* If VAL1 is a lower address than VAL2, return -1.  */
-      t = fold_binary (LT_EXPR, boolean_type_node, val1, val2);
-      if (t == boolean_true_node)
+      if (operand_less_p (val1, val2) == 1)
 	return -1;
 
       /* If VAL1 is a higher address than VAL2, return +1.  */
-      t = fold_binary (GT_EXPR, boolean_type_node, val1, val2);
-      if (t == boolean_true_node)
+      if (operand_less_p (val2, val1) == 1)
 	return 1;
 
-      /* If VAL1 is different than VAL2, return +2.  */
-      t = fold_binary (NE_EXPR, boolean_type_node, val1, val2);
-      if (t == boolean_true_node)
-	return 2;
+      /* If VAL1 is different than VAL2, return +2.
+	 For integer constants we either have already returned -1 or 1
+	 or they are equivalent.  We still might succeed in proving
+	 something about non-trivial operands.  */
+      if (TREE_CODE (val1) != INTEGER_CST
+	  || TREE_CODE (val2) != INTEGER_CST)
+	{
+          t = fold_binary_to_constant (NE_EXPR, boolean_type_node, val1, val2);
+	  if (t && tree_expr_nonzero_p (t))
+	    return 2;
+	}
 
       return -2;
     }
@@ -627,35 +675,48 @@ compare_values (tree val1, tree val2)
 	  This also applies to value_ranges_intersect_p and
 	  range_includes_zero_p.  The semantics of VR_RANGE and
 	  VR_ANTI_RANGE should be encoded here, but that also means
-	  adapting the users of these functions to the new semantics.  */
+	  adapting the users of these functions to the new semantics.  
+
+   Benchmark compile/20001226-1.c compilation time after changing this
+   function.  */
 
 static inline int
-value_inside_range (tree val, value_range_t *vr)
+value_inside_range (tree val, value_range_t * vr)
 {
-  tree cmp1, cmp2;
+  int cmp1, cmp2;
 
-  cmp1 = fold_binary_to_constant (GE_EXPR, boolean_type_node, val, vr->min);
-  if (!cmp1)
+  cmp1 = operand_less_p (val, vr->min);
+  if (cmp1 == -2)
+    return -2;
+  if (cmp1 == 1)
+    return 0;
+
+  cmp2 = operand_less_p (vr->max, val);
+  if (cmp2 == -2)
     return -2;
 
-  cmp2 = fold_binary_to_constant (LE_EXPR, boolean_type_node, val, vr->max);
-  if (!cmp2)
-    return -2;
-
-  return cmp1 == boolean_true_node && cmp2 == boolean_true_node;
+  return !cmp2;
 }
 
 
 /* Return true if value ranges VR0 and VR1 have a non-empty
-   intersection.  */
+   intersection.  
+   
+   Benchmark compile/20001226-1.c compilation time after changing this
+   function.
+   */
 
 static inline bool
 value_ranges_intersect_p (value_range_t *vr0, value_range_t *vr1)
 {
-  return (value_inside_range (vr1->min, vr0) == 1
-	  || value_inside_range (vr1->max, vr0) == 1
-	  || value_inside_range (vr0->min, vr1) == 1
-	  || value_inside_range (vr0->max, vr1) == 1);
+  /* The value ranges do not intersect if the maximum of the first range is
+     less than the minimum of the second range or vice versa.
+     When those relations are unknown, we can't do any better.  */
+  if (operand_less_p (vr0->max, vr1->min) != 0)
+    return false;
+  if (operand_less_p (vr1->max, vr0->min) != 0)
+    return false;
+  return true;
 }
 
 
@@ -1021,6 +1082,7 @@ extract_range_from_assert (value_range_t *vr_p, tree expr)
       else
 	{
 	  tree min, max, anti_min, anti_max, real_min, real_max;
+	  int cmp;
 
 	  /* We want to compute the logical AND of the two ranges;
 	     there are three cases to consider.
@@ -1085,8 +1147,8 @@ extract_range_from_assert (value_range_t *vr_p, tree expr)
 	  /* Case 3a, the anti-range extends into the low
 	     part of the real range.  Thus creating a new
 	     low for the real range.  */
-	  else if ((compare_values (anti_max, real_min) == 1
-		    || compare_values (anti_max, real_min) == 0)
+	  else if (((cmp = compare_values (anti_max, real_min)) == 1
+		    || cmp == 0)
 		   && compare_values (anti_max, real_max) == -1)
 	    {
 	      min = fold_build2 (PLUS_EXPR, TREE_TYPE (var_vr->min),
@@ -1099,8 +1161,8 @@ extract_range_from_assert (value_range_t *vr_p, tree expr)
 	     part of the real range.  Thus creating a new
 	     higher for the real range.  */
 	  else if (compare_values (anti_min, real_min) == 1
-		   && (compare_values (anti_min, real_max) == -1
-		       || compare_values (anti_min, real_max) == 0))
+		   && ((cmp = compare_values (anti_min, real_max)) == -1
+		       || cmp == 0))
 	    {
 	      max = fold_build2 (MINUS_EXPR, TREE_TYPE (var_vr->min),
 				 anti_min,
@@ -1393,7 +1455,8 @@ extract_range_from_binary_expr (value_range_t *vr, tree expr)
 	}
       else
 	{
-	  set_value_range_to_varying (vr);
+	  /* The result of a TRUTH_*_EXPR is always true or false.  */
+	  set_value_range_to_truthvalue (vr, TREE_TYPE (expr));
 	  return;
 	}
     }
@@ -1689,8 +1752,8 @@ extract_range_from_unary_expr (value_range_t *vr, tree expr)
 	      && is_gimple_val (new_max)
 	      && tree_int_cst_equal (new_min, orig_min)
 	      && tree_int_cst_equal (new_max, orig_max)
-	      && compare_values (new_min, new_max) <= 0
-	      && compare_values (new_min, new_max) >= -1)
+	      && (cmp = compare_values (new_min, new_max)) <= 0
+	      && cmp >= -1)
 	    {
 	      set_value_range (vr, VR_RANGE, new_min, new_max, vr->equiv);
 	      return;
@@ -1858,6 +1921,40 @@ extract_range_from_unary_expr (value_range_t *vr, tree expr)
 }
 
 
+/* Extract range information from a conditional expression EXPR based on
+   the ranges of each of its operands and the expression code.  */
+
+static void
+extract_range_from_cond_expr (value_range_t *vr, tree expr)
+{
+  tree op0, op1;
+  value_range_t vr0 = { VR_UNDEFINED, NULL_TREE, NULL_TREE, NULL };
+  value_range_t vr1 = { VR_UNDEFINED, NULL_TREE, NULL_TREE, NULL };
+
+  /* Get value ranges for each operand.  For constant operands, create
+     a new value range with the operand to simplify processing.  */
+  op0 = COND_EXPR_THEN (expr);
+  if (TREE_CODE (op0) == SSA_NAME)
+    vr0 = *(get_value_range (op0));
+  else if (is_gimple_min_invariant (op0))
+    set_value_range (&vr0, VR_RANGE, op0, op0, NULL);
+  else
+    set_value_range_to_varying (&vr0);
+
+  op1 = COND_EXPR_ELSE (expr);
+  if (TREE_CODE (op1) == SSA_NAME)
+    vr1 = *(get_value_range (op1));
+  else if (is_gimple_min_invariant (op1))
+    set_value_range (&vr1, VR_RANGE, op1, op1, NULL);
+  else
+    set_value_range_to_varying (&vr1);
+
+  /* The resulting value range is the union of the operand ranges */
+  vrp_meet (&vr0, &vr1);
+  copy_value_range (vr, &vr0);
+}
+
+
 /* Extract range information from a comparison expression EXPR based
    on the range of its operand and the expression code.  */
 
@@ -1874,7 +1971,8 @@ extract_range_from_comparison (value_range_t *vr, tree expr)
       set_value_range (vr, VR_RANGE, val, val, vr->equiv);
     }
   else
-    set_value_range_to_varying (vr);
+    /* The result of a comparison is always true or false.  */
+    set_value_range_to_truthvalue (vr, TREE_TYPE (expr));
 }
 
 
@@ -1899,6 +1997,8 @@ extract_range_from_expr (value_range_t *vr, tree expr)
     extract_range_from_binary_expr (vr, expr);
   else if (TREE_CODE_CLASS (code) == tcc_unary)
     extract_range_from_unary_expr (vr, expr);
+  else if (code == COND_EXPR)
+    extract_range_from_cond_expr (vr, expr);
   else if (TREE_CODE_CLASS (code) == tcc_comparison)
     extract_range_from_comparison (vr, expr);
   else if (is_gimple_min_invariant (expr))
@@ -1957,8 +2057,7 @@ adjust_range_with_scev (value_range_t *vr, struct loop *loop, tree stmt,
 	 or decreases,  ... */
       dir == EV_DIR_UNKNOWN
       /* ... or if it may wrap.  */
-      || scev_probably_wraps_p (init, step, stmt,
-				current_loops->parray[CHREC_VARIABLE (chrec)],
+      || scev_probably_wraps_p (init, step, stmt, get_chrec_loop (chrec),
 				true))
     return;
 
@@ -3380,6 +3479,171 @@ insert_range_assertions (void)
   BITMAP_FREE (need_assert_for);
 }
 
+/* Checks one ARRAY_REF in REF, located at LOCUS. Ignores flexible arrays
+   and "struct" hacks. If VRP can determine that the
+   array subscript is a contant, check if it is outside valid
+   range. If the array subscript is a RANGE, warn if it is
+   non-overlapping with valid range.
+   IGNORE_OFF_BY_ONE is true if the ARRAY_REF is inside a ADDR_EXPR.  */
+
+static void
+check_array_ref (tree ref, location_t* locus, bool ignore_off_by_one)
+{
+  value_range_t* vr = NULL;
+  tree low_sub, up_sub;
+  tree low_bound, up_bound = array_ref_up_bound (ref);
+
+  low_sub = up_sub = TREE_OPERAND (ref, 1);
+
+  if (!up_bound || !locus || TREE_NO_WARNING (ref)
+      || TREE_CODE (up_bound) != INTEGER_CST
+      /* Can not check flexible arrays.  */
+      || (TYPE_SIZE (TREE_TYPE (ref)) == NULL_TREE
+          && TYPE_DOMAIN (TREE_TYPE (ref)) != NULL_TREE
+          && TYPE_MAX_VALUE (TYPE_DOMAIN (TREE_TYPE (ref))) == NULL_TREE)
+      /* Accesses after the end of arrays of size 0 (gcc
+         extension) and 1 are likely intentional ("struct
+         hack").  */
+      || compare_tree_int (up_bound, 1) <= 0)
+    return;
+
+  low_bound = array_ref_low_bound (ref);
+
+  if (TREE_CODE (low_sub) == SSA_NAME)
+    {
+      vr = get_value_range (low_sub);
+      if (vr->type == VR_RANGE || vr->type == VR_ANTI_RANGE)
+        {
+          low_sub = vr->type == VR_RANGE ? vr->max : vr->min;
+          up_sub = vr->type == VR_RANGE ? vr->min : vr->max;
+        }
+    }
+
+  if (vr && vr->type == VR_ANTI_RANGE)
+    {
+      if (TREE_CODE (up_sub) == INTEGER_CST
+          && tree_int_cst_lt (up_bound, up_sub)
+          && TREE_CODE (low_sub) == INTEGER_CST
+          && tree_int_cst_lt (low_sub, low_bound))
+        {
+          warning (OPT_Warray_bounds,
+                   "%Harray subscript is outside array bounds", locus);
+          TREE_NO_WARNING (ref) = 1;
+        }
+    }
+  else if (TREE_CODE (up_sub) == INTEGER_CST
+           && tree_int_cst_lt (up_bound, up_sub)
+           && !tree_int_cst_equal (up_bound, up_sub)
+           && (!ignore_off_by_one
+               || !tree_int_cst_equal (int_const_binop (PLUS_EXPR,
+                                                        up_bound,
+                                                        integer_one_node,
+                                                        0),
+                                       up_sub)))
+    {
+      warning (OPT_Warray_bounds, "%Harray subscript is above array bounds",
+               locus);
+      TREE_NO_WARNING (ref) = 1;
+    }
+  else if (TREE_CODE (low_sub) == INTEGER_CST
+           && tree_int_cst_lt (low_sub, low_bound))
+    {
+      warning (OPT_Warray_bounds, "%Harray subscript is below array bounds",
+               locus);
+      TREE_NO_WARNING (ref) = 1;
+    }
+}
+
+/* walk_tree() callback that checks if *TP is
+   an ARRAY_REF inside an ADDR_EXPR (in which an array
+   subscript one outside the valid range is allowed). Call
+   check_array_ref for each ARRAY_REF found. The location is 
+   passed in DATA.  */
+
+static tree
+check_array_bounds (tree *tp, int *walk_subtree, void *data)
+{
+  tree t = *tp;
+  tree stmt = (tree)data;
+  location_t *location = EXPR_LOCUS (stmt);
+
+  *walk_subtree = TRUE;
+
+  if (TREE_CODE (t) == ARRAY_REF)
+    check_array_ref (t, location, false /*ignore_off_by_one*/);
+  else if (TREE_CODE (t) == ADDR_EXPR)
+    {
+       use_operand_p op;
+       tree use_stmt;
+       t = TREE_OPERAND (t, 0);
+
+       /* Don't warn on statements like
+
+          ssa_name = 500 + &array[-200]
+
+          or
+
+          ssa_name = &array[-200]
+          other_name = ssa_name + 300;
+
+          which are sometimes
+          produced by other optimizing passes.  */
+
+       if (TREE_CODE (stmt) == GIMPLE_MODIFY_STMT
+           && BINARY_CLASS_P (GIMPLE_STMT_OPERAND (stmt, 1)))
+         *walk_subtree = FALSE;
+
+       if (TREE_CODE (stmt) == GIMPLE_MODIFY_STMT
+           && TREE_CODE (GIMPLE_STMT_OPERAND (stmt, 0)) == SSA_NAME
+           && single_imm_use (GIMPLE_STMT_OPERAND (stmt, 0), &op, &use_stmt)
+           && TREE_CODE (use_stmt) == GIMPLE_MODIFY_STMT
+           && BINARY_CLASS_P (GIMPLE_STMT_OPERAND (use_stmt, 1)))
+         *walk_subtree = FALSE;
+
+       while (*walk_subtree && handled_component_p (t))
+         {
+           if (TREE_CODE (t) == ARRAY_REF)
+             check_array_ref (t, location, true /*ignore_off_by_one*/);
+           t = TREE_OPERAND (t, 0);
+         }
+       *walk_subtree = FALSE;
+    }
+
+  return NULL_TREE;
+}
+
+/* Walk over all statements of all reachable BBs and call check_array_bounds
+   on them.  */
+
+static void
+check_all_array_refs (void)
+{
+  basic_block bb;
+  block_stmt_iterator si;
+
+  FOR_EACH_BB (bb)
+    {
+      /* Skip bb's that are clearly unreachable.  */
+      if (single_pred_p (bb))
+      {
+	basic_block pred_bb = EDGE_PRED (bb, 0)->src;
+	tree ls = NULL_TREE;
+
+	if (!bsi_end_p (bsi_last (pred_bb)))
+	  ls = bsi_stmt (bsi_last (pred_bb));
+
+	if (ls && TREE_CODE (ls) == COND_EXPR
+	    && ((COND_EXPR_COND (ls) == boolean_false_node
+		 && (EDGE_PRED (bb, 0)->flags & EDGE_TRUE_VALUE))
+		|| (COND_EXPR_COND (ls) == boolean_true_node
+		    && (EDGE_PRED (bb, 0)->flags & EDGE_FALSE_VALUE))))
+	  continue;
+      }
+      for (si = bsi_start (bb); !bsi_end_p (si); bsi_next (&si))
+	walk_tree (bsi_stmt_ptr (si), check_array_bounds,
+		   bsi_stmt (si), NULL);
+    }
+}
 
 /* Convert range assertion expressions into the implied copies and
    copy propagate away the copies.  Doing the trivial copy propagation
@@ -3442,6 +3706,7 @@ remove_range_assertions (void)
 
 	    /* And finally, remove the copy, it is not needed.  */
 	    bsi_remove (&si, true);
+	    release_defs (stmt); 
 	  }
 	else
 	  bsi_next (&si);
@@ -4137,6 +4402,7 @@ vrp_visit_phi_node (tree phi)
   tree lhs = PHI_RESULT (phi);
   value_range_t *lhs_vr = get_value_range (lhs);
   value_range_t vr_result = { VR_UNDEFINED, NULL_TREE, NULL_TREE, NULL };
+  bool all_const = true;
 
   copy_value_range (&vr_result, lhs_vr);
 
@@ -4164,7 +4430,10 @@ vrp_visit_phi_node (tree phi)
 	  value_range_t vr_arg;
 
 	  if (TREE_CODE (arg) == SSA_NAME)
-	    vr_arg = *(get_value_range (arg));
+	    {
+	      vr_arg = *(get_value_range (arg));
+	      all_const = false;
+	    }
 	  else
 	    {
 	      vr_arg.type = VR_RANGE;
@@ -4195,7 +4464,8 @@ vrp_visit_phi_node (tree phi)
   /* To prevent infinite iterations in the algorithm, derive ranges
      when the new value is slightly bigger or smaller than the
      previous one.  */
-  if (lhs_vr->type == VR_RANGE && vr_result.type == VR_RANGE)
+  if (lhs_vr->type == VR_RANGE && vr_result.type == VR_RANGE
+      && !all_const)
     {
       if (!POINTER_TYPE_P (TREE_TYPE (lhs)))
 	{
@@ -4641,13 +4911,9 @@ finalize_jump_threads (void)
   cfg_altered = thread_through_all_blocks ();
 
   /* If we threaded jumps, then we need to recompute the dominance
-     information, to safely do that we must clean up the CFG first.  */
+     information.  */
   if (cfg_altered)
-    {
-      free_dominance_info (CDI_DOMINATORS);
-      cleanup_tree_cfg ();
-      calculate_dominance_info (CDI_DOMINATORS);
-    }
+    free_dominance_info (CDI_DOMINATORS);
   VEC_free (tree, heap, stack);
 }
 
@@ -4692,6 +4958,9 @@ vrp_finalize (void)
     }
 
   substitute_and_fold (single_val_range, true);
+
+  if (warn_array_bounds)
+      check_all_array_refs();
 
   /* We must identify jump threading opportunities before we release
      the datastructures built by VRP.  */

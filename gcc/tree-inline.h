@@ -88,6 +88,9 @@ typedef struct copy_body_data
   /* True if lang_hooks.decls.insert_block should be invoked when
      duplicating BLOCK nodes.  */
   bool transform_lang_insert_block;
+
+  /* Statements that might be possibly folded.  */
+  struct pointer_set_t *statements_to_fold;
 } copy_body_data;
 
 /* Function prototypes.  */
@@ -95,7 +98,7 @@ typedef struct copy_body_data
 extern tree copy_body_r (tree *, int *, void *);
 extern void insert_decl_map (copy_body_data *, tree, tree);
 
-void optimize_inline_calls (tree);
+unsigned int optimize_inline_calls (tree);
 bool tree_inlinable_function_p (tree);
 tree copy_tree_r (tree *, int *, void *);
 void clone_body (tree, tree, void *);

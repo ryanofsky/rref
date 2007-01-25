@@ -45,6 +45,10 @@ Wampersand
 Fortran
 Warn about missing ampersand in continued character constants
 
+Wcharacter-truncation
+Fortran
+Warn about truncated character expressions
+
 Wconversion
 Fortran
 Warn about implicit conversion
@@ -76,6 +80,10 @@ Warn about underflow of numerical constant expressions
 fall-intrinsics
 Fortran RejectNegative
 All intrinsics procedures are available regardless of selected standard
+
+fallow-leading-underscore
+Fortran Undocumented
+; For internal use only: allow the first character of symbol names to be an underscore
 
 fautomatic
 Fortran
@@ -132,6 +140,10 @@ Set the default real kind to an 8 byte wide type
 fdollar-ok
 Fortran
 Allow dollar signs in entity names
+
+fdump-core
+Fortran
+Dump a core file when a runtime error occurs
 
 fdump-parse-tree
 Fortran

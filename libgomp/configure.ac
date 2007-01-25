@@ -21,6 +21,20 @@ LIBGOMP_ENABLE(linux-futex, default, ,
   permit yes|no|default)
 AC_MSG_RESULT($enable_linux_futex)
 
+# We would like our source tree to be readonly. However when releases or
+# pre-releases are generated, the flex/bison generated files as well as the
+# various formats of manuals need to be included along with the rest of the
+# sources.  Therefore we have --enable-generated-files-in-srcdir to do 
+# just that.
+AC_MSG_CHECKING([for --enable-generated-files-in-srcdir])
+LIBGOMP_ENABLE(generated-files-in-srcdir, no, ,
+   [put copies of generated files in source dir intended for creating source 
+    tarballs for users without texinfo bison or flex.],
+   permit yes|no)
+AC_MSG_RESULT($enable_generated_files_in_srcdir)
+AM_CONDITIONAL(GENINSRC, test "$enable_generated_files_in_srcdir" = yes)
+
+
 # -------
 # -------
 
@@ -50,7 +64,6 @@ target_alias=${target_alias-$host_alias}
 #              we can do about that; they come from AC_INIT).
 #  foreign:  we don't follow the normal rules for GNU packages (no COPYING
 #            file in the top srcdir, etc, etc), so stop complaining.
-#  no-dependencies:  turns off auto dependency generation (just for now)
 #  -Wall:  turns on all automake warnings...
 #  -Wno-portability:  ...except this one, since GNU make is required.
 #  -Wno-override: ... and this one, since we do want this in testsuite.

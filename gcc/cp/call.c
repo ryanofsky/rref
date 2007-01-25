@@ -1,6 +1,7 @@
 /* Functions related to invoking methods and overloaded functions.
    Copyright (C) 1987, 1992, 1993, 1994, 1995, 1996, 1997, 1998,
-   1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006 Free Software Foundation, Inc.
+   1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007
+   Free Software Foundation, Inc.
    Contributed by Michael Tiemann (tiemann@cygnus.com) and
    modified by Brendan Kehoe (brendan@cygnus.com).
 
@@ -436,7 +437,7 @@ null_ptr_cst_p (tree t)
   if (CP_INTEGRAL_TYPE_P (TREE_TYPE (t)) && integer_zerop (t))
     {
       STRIP_NOPS (t);
-      if (!TREE_CONSTANT_OVERFLOW (t))
+      if (!TREE_OVERFLOW (t))
 	return true;
     }
   return false;
@@ -846,7 +847,7 @@ standard_conversion (tree to, tree from, tree expr, bool c_cast_p,
 	conv->rank = cr_promotion;
     }
   else if (fcode == VECTOR_TYPE && tcode == VECTOR_TYPE
-	   && vector_types_convertible_p (from, to))
+	   && vector_types_convertible_p (from, to, false))
     return build_conv (ck_std, to, conv);
   else if (!(flags & LOOKUP_CONSTRUCTOR_CALLABLE)
 	   && IS_AGGR_TYPE (to) && IS_AGGR_TYPE (from)

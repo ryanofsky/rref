@@ -396,6 +396,7 @@ c_common_handle_option (size_t scode, const char *arg, int value)
       warn_strict_aliasing = value;
       warn_string_literal_comparison = value;
       warn_always_true = value;
+      warn_array_bounds = value;
 
       /* Only warn about unknown pragmas that are not in system
 	 headers.  */
@@ -416,6 +417,7 @@ c_common_handle_option (size_t scode, const char *arg, int value)
 	  /* C++-specific warnings.  */
 	  warn_reorder = value;
 	  warn_nontemplate_friend = value;
+          warn_cxx0x_compat = value;
           if (value > 0)
             warn_write_strings = true;
 	}
@@ -703,6 +705,10 @@ c_common_handle_option (size_t scode, const char *arg, int value)
 
     case OPT_fimplicit_templates:
       flag_implicit_templates = value;
+      break;
+
+    case OPT_flax_vector_conversions:
+      flag_lax_vector_conversions = value;
       break;
 
     case OPT_fms_extensions:
@@ -1025,12 +1031,22 @@ c_common_post_options (const char **pfilename)
   if (flag_objc_exceptions && !flag_objc_sjlj_exceptions)
     flag_exceptions = 1;
 
-  /* -Wextra implies -Wsign-compare, -Wmissing-field-initializers and
-     -Woverride-init, but not if explicitly overridden.  */
+  /* -Wextra implies -Wclobbered, -Wempty-body, -Wsign-compare, 
+     -Wmissing-field-initializers, -Wmissing-parameter-type
+     -Wold-style-declaration, and -Woverride-init, 
+     but not if explicitly overridden.  */
+  if (warn_clobbered == -1)
+    warn_clobbered = extra_warnings;
+  if (warn_empty_body == -1)
+    warn_empty_body = extra_warnings;
   if (warn_sign_compare == -1)
     warn_sign_compare = extra_warnings;
   if (warn_missing_field_initializers == -1)
     warn_missing_field_initializers = extra_warnings;
+  if (warn_missing_parameter_type == -1)
+    warn_missing_parameter_type = extra_warnings;
+  if (warn_old_style_declaration == -1)
+    warn_old_style_declaration = extra_warnings;
   if (warn_override_init == -1)
     warn_override_init = extra_warnings;
 
@@ -1163,14 +1179,26 @@ c_common_parse_file (int set_yydebug)
 {
   unsigned int i;
 
-  /* Enable parser debugging, if requested and we can.  If requested
-     and we can't, notify the user.  */
-#if YYDEBUG != 0
-  yydebug = set_yydebug;
-#else
   if (set_yydebug)
-    warning (0, "YYDEBUG was not defined at build time, -dy ignored");
-#endif
+    switch (c_language)
+      {
+      case clk_c:
+	warning(0, "The C parser does not support -dy, option ignored");
+	break;
+      case clk_objc:
+	warning(0,
+		"The Objective-C parser does not support -dy, option ignored");
+	break;
+      case clk_cxx:
+	warning(0, "The C++ parser does not support -dy, option ignored");
+	break;
+      case clk_objcxx:
+	warning(0,
+	    "The Objective-C++ parser does not support -dy, option ignored");
+	break;
+      default:
+	gcc_unreachable ();
+    }
 
   i = 0;
   for (;;)

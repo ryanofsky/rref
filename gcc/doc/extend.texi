@@ -1,5 +1,5 @@
 @c Copyright (C) 1988, 1989, 1992, 1993, 1994, 1996, 1998, 1999, 2000,
-@c 2001, 2002, 2003, 2004, 2005, 2006 Free Software Foundation, Inc.
+@c 2001, 2002, 2003, 2004, 2005, 2006, 2007 Free Software Foundation, Inc.
 
 @c This is part of the GCC manual.
 @c For copying conditions, see the file gcc.texi.
@@ -1965,6 +1965,9 @@ void f () __attribute__ ((interrupt ("IRQ")));
 
 Permissible values for this parameter are: IRQ, FIQ, SWI, ABORT and UNDEF@.
 
+On ARMv7-M the interrupt type is ignored, and the attribute means the function
+may be called with a word aligned stack pointer.
+
 @item interrupt_handler
 @cindex interrupt handler functions on the Blackfin, m68k, H8/300 and SH processors
 Use this attribute on the Blackfin, m68k, H8/300, H8/300H, H8S, and SH to
@@ -2221,14 +2224,6 @@ safe since the loaders there save all registers.  (Lazy binding can be
 disabled with the linker or the loader if desired, to avoid the
 problem.)
 
-@item x87regparm
-@cindex @code{x87regparm} attribute
-On the Intel x86 with 80387 @code{x87regparm} attribute causes the
-compiler to pass up to 3 floating point arguments in 80387 registers
-instead of on the stack.  Functions that take a variable number of
-arguments will continue to pass all of their floating point arguments
-on the stack.
-
 @item sseregparm
 @cindex @code{sseregparm} attribute
 On the Intel 386 with SSE support, the @code{sseregparm} attribute
@@ -2370,6 +2365,19 @@ This attribute, attached to a function, means that code must be emitted
 for the function even if it appears that the function is not referenced.
 This is useful, for example, when the function is referenced only in
 inline assembly.
+
+@item version_id
+@cindex @code{version_id} attribute on IA64 HP-UX
+This attribute, attached to a global variable or function, renames a
+symbol to contain a version string, thus allowing for function level
+versioning.  HP-UX system header files may use version level functioning
+for some system calls.
+
+@smallexample
+extern int foo () __attribute__((version_id ("20040821")));
+@end smallexample
+
+Calls to @var{foo} will be mapped to calls to @var{foo@{20040821@}}.
 
 @item visibility ("@var{visibility_type}")
 @cindex @code{visibility} attribute
