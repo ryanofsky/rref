@@ -1,5 +1,5 @@
 /* If-conversion support.
-   Copyright (C) 2000, 2001, 2002, 2003, 2004, 2005, 2006
+   Copyright (C) 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007
    Free Software Foundation, Inc.
 
    This file is part of GCC.
@@ -722,7 +722,7 @@ noce_emit_move_insn (rtx x, rtx y)
 	     ? emit_move_insn (x, y)
 	     : emit_insn (gen_rtx_SET (VOIDmode, x, y));
       seq = get_insns ();
-      end_sequence();
+      end_sequence ();
 
       if (recog_memoized (insn) <= 0)
 	{
@@ -3908,18 +3908,13 @@ if_convert (int x_life_data_ok)
   num_true_changes = 0;
   life_data_ok = (x_life_data_ok != 0);
 
-  if ((! targetm.cannot_modify_jumps_p ())
-      && (!flag_reorder_blocks_and_partition || !no_new_pseudos
-	  || !targetm.have_named_sections))
+  loop_optimizer_init (AVOID_CFG_MODIFICATIONS);
+  if (current_loops)
     {
-      loop_optimizer_init (0);
-      if (current_loops)
-	{
-	  mark_loop_exit_edges ();
-	  loop_optimizer_finalize ();
-	}
-      free_dominance_info (CDI_DOMINATORS);
+      mark_loop_exit_edges ();
+      loop_optimizer_finalize ();
     }
+  free_dominance_info (CDI_DOMINATORS);
 
   /* Compute postdominators if we think we'll use them.  */
   if (HAVE_conditional_execution || life_data_ok)

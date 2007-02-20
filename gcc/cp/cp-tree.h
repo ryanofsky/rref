@@ -345,7 +345,7 @@ struct tree_overload GTY(())
    requested.  */
 #define BASELINK_OPTYPE(NODE) \
   (TREE_CHAIN (BASELINK_CHECK (NODE)))
-/* Non-zero if this baselink was from a qualified lookup.  */
+/* Nonzero if this baselink was from a qualified lookup.  */
 #define BASELINK_QUALIFIED_P(NODE) \
   TREE_LANG_FLAG_0 (BASELINK_CHECK (NODE))
 
@@ -2109,7 +2109,7 @@ extern void decl_shadowed_for_var_insert (tree, tree);
 
 /* If non-NULL for a VAR_DECL, FUNCTION_DECL, TYPE_DECL or
    TEMPLATE_DECL, the entity is either a template specialization (if
-   DECL_USE_TEMPLATE is non-zero) or the abstract instance of the
+   DECL_USE_TEMPLATE is nonzero) or the abstract instance of the
    template itself.
 
    In either case, DECL_TEMPLATE_INFO is a TREE_LIST, whose
@@ -2330,6 +2330,85 @@ extern void decl_shadowed_for_var_insert (tree, tree);
    constructor call, rather than an ordinary function call.  */
 #define AGGR_INIT_VIA_CTOR_P(NODE) \
   TREE_LANG_FLAG_0 (AGGR_INIT_EXPR_CHECK (NODE))
+
+/* AGGR_INIT_EXPR accessors.  These are equivalent to the CALL_EXPR
+   accessors, except for AGGR_INIT_EXPR_SLOT (which takes the place of
+   CALL_EXPR_STATIC_CHAIN).  */
+
+#define AGGR_INIT_EXPR_FN(NODE) TREE_OPERAND (AGGR_INIT_EXPR_CHECK (NODE), 1)
+#define AGGR_INIT_EXPR_SLOT(NODE) \
+  TREE_OPERAND (AGGR_INIT_EXPR_CHECK (NODE), 2)
+#define AGGR_INIT_EXPR_ARG(NODE, I) \
+  TREE_OPERAND (AGGR_INIT_EXPR_CHECK (NODE), (I) + 3)
+#define aggr_init_expr_nargs(NODE) (VL_EXP_OPERAND_LENGTH(NODE) - 3)
+
+/* AGGR_INIT_EXPR_ARGP returns a pointer to the argument vector for NODE.
+   We can't use &AGGR_INIT_EXPR_ARG (NODE, 0) because that will complain if
+   the argument count is zero when checking is enabled.  Instead, do
+   the pointer arithmetic to advance past the 3 fixed operands in a
+   AGGR_INIT_EXPR.  That produces a valid pointer to just past the end of
+   the operand array, even if it's not valid to dereference it.  */
+#define AGGR_INIT_EXPR_ARGP(NODE) \
+  (&(TREE_OPERAND (AGGR_INIT_EXPR_CHECK (NODE), 0)) + 3)
+
+/* Abstract iterators for AGGR_INIT_EXPRs.  */
+
+/* Structure containing iterator state.  */
+typedef struct aggr_init_expr_arg_iterator_d GTY (())
+{
+  tree t;	/* the aggr_init_expr */
+  int n;	/* argument count */
+  int i;	/* next argument index */
+} aggr_init_expr_arg_iterator;
+
+/* Initialize the abstract argument list iterator object ITER with the
+   arguments from AGGR_INIT_EXPR node EXP.  */
+static inline void
+init_aggr_init_expr_arg_iterator (tree exp,
+				       aggr_init_expr_arg_iterator *iter)
+{
+  iter->t = exp;
+  iter->n = aggr_init_expr_nargs (exp);
+  iter->i = 0;
+}
+
+/* Return the next argument from abstract argument list iterator object ITER,
+   and advance its state.  Return NULL_TREE if there are no more arguments.  */
+static inline tree
+next_aggr_init_expr_arg (aggr_init_expr_arg_iterator *iter)
+{
+  tree result;
+  if (iter->i >= iter->n)
+    return NULL_TREE;
+  result = AGGR_INIT_EXPR_ARG (iter->t, iter->i);
+  iter->i++;
+  return result;
+}
+
+/* Initialize the abstract argument list iterator object ITER, then advance
+   past and return the first argument.  Useful in for expressions, e.g.
+     for (arg = first_aggr_init_expr_arg (exp, &iter); arg;
+          arg = next_aggr_init_expr_arg (&iter))   */
+static inline tree
+first_aggr_init_expr_arg (tree exp, aggr_init_expr_arg_iterator *iter)
+{
+  init_aggr_init_expr_arg_iterator (exp, iter);
+  return next_aggr_init_expr_arg (iter);
+}
+
+/* Test whether there are more arguments in abstract argument list iterator
+   ITER, without changing its state.  */
+static inline bool
+more_aggr_init_expr_args_p (const aggr_init_expr_arg_iterator *iter)
+{
+  return (iter->i < iter->n);
+}
+
+/* Iterate through each argument ARG of AGGR_INIT_EXPR CALL, using variable
+   ITER (of type aggr_init_expr_arg_iterator) to hold the iteration state.  */
+#define FOR_EACH_AGGR_INIT_EXPR_ARG(arg, iter, call)			\
+  for ((arg) = first_aggr_init_expr_arg ((call), &(iter)); (arg);	\
+       (arg) = next_aggr_init_expr_arg (&(iter)))
 
 /* The TYPE_MAIN_DECL for a class template type is a TYPE_DECL, not a
    TEMPLATE_DECL.  This macro determines whether or not a given class
@@ -2868,7 +2947,7 @@ extern void decl_shadowed_for_var_insert (tree, tree);
 /* Returns nonzero if NODE is a primary template.  */
 #define PRIMARY_TEMPLATE_P(NODE) (DECL_PRIMARY_TEMPLATE (NODE) == (NODE))
 
-/* Non-zero iff NODE is a specialization of a template.  The value
+/* Nonzero iff NODE is a specialization of a template.  The value
    indicates the type of specializations:
 
      1=implicit instantiation
@@ -2892,7 +2971,7 @@ extern void decl_shadowed_for_var_insert (tree, tree);
     
    both O<int>::f and O<int>::I will be marked as instantiations.
 
-   If DECL_USE_TEMPLATE is non-zero, then DECL_TEMPLATE_INFO will also
+   If DECL_USE_TEMPLATE is nonzero, then DECL_TEMPLATE_INFO will also
    be non-NULL.  */
 #define DECL_USE_TEMPLATE(NODE) (DECL_LANG_SPECIFIC (NODE)->decl_flags.use_template)
 
@@ -3040,13 +3119,9 @@ extern void decl_shadowed_for_var_insert (tree, tree);
   (TREE_LANG_FLAG_0 (SCOPE_REF_CHECK (NODE)))
 
 /* True for an OMP_ATOMIC that has dependent parameters.  These are stored
-   as bare LHS/RHS, and not as ADDR/RHS, as in the generic statement.  */
+   as an expr in operand 1, and integer_zero_node in operand 0.  */
 #define OMP_ATOMIC_DEPENDENT_P(NODE) \
-  (TREE_LANG_FLAG_0 (OMP_ATOMIC_CHECK (NODE)))
-
-/* Used to store the operation code when OMP_ATOMIC_DEPENDENT_P is set.  */
-#define OMP_ATOMIC_CODE(NODE) \
-  (OMP_ATOMIC_CHECK (NODE)->exp.complexity)
+  (TREE_CODE (TREE_OPERAND (OMP_ATOMIC_CHECK (NODE), 0)) == INTEGER_CST)
 
 /* Used while gimplifying continue statements bound to OMP_FOR nodes.  */
 #define OMP_FOR_GIMPLIFYING_P(NODE) \
@@ -4379,6 +4454,7 @@ extern void lang_check_failed			(const char *, int,
 						 const char *) ATTRIBUTE_NORETURN;
 extern tree stabilize_expr			(tree, tree *);
 extern void stabilize_call			(tree, tree *);
+extern void stabilize_aggr_init			(tree, tree *);
 extern bool stabilize_init			(tree, tree *);
 extern tree add_stmt_to_compound		(tree, tree);
 extern tree cxx_maybe_build_cleanup		(tree);
@@ -4394,6 +4470,7 @@ extern bool builtin_valid_in_constant_expr_p    (tree);
 extern tree build_min				(enum tree_code, tree, ...);
 extern tree build_min_nt			(enum tree_code, ...);
 extern tree build_min_non_dep			(enum tree_code, tree, ...);
+extern tree build_min_non_dep_call_list		(tree, tree, tree);
 extern tree build_cplus_new			(tree, tree);
 extern tree get_target_expr			(tree);
 extern tree build_cplus_array_type		(tree, tree);
@@ -4573,7 +4650,7 @@ extern void cp_genericize			(tree);
 
 /* -- end of C++ */
 
-/* In order for the format checking to accept the C++ frontend
+/* In order for the format checking to accept the C++ front end
    diagnostic framework extensions, you must include this file before
    toplev.h, not after.  We override the definition of GCC_DIAG_STYLE
    in c-common.h.  */

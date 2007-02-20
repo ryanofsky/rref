@@ -160,8 +160,9 @@ in the following sections.
 @table @emph
 @item Overall Options
 @xref{Overall Options,,Options Controlling the Kind of Output}.
-@gccoptlist{-c  -S  -E  -o @var{file}  -combine -pipe  -pass-exit-codes  @gol
--x @var{language}  -v  -###  --help  --target-help  --version @@@var{file}}
+@gccoptlist{-c  -S  -E  -o @var{file}  -combine  -pipe  -pass-exit-codes  @gol
+-x @var{language}  -v  -###  --help@r{[}=@var{class}@r{]}  --target-help  @gol 
+--version @@@var{file}}
 
 @item C Language Options
 @xref{C Dialect Options,,Options Controlling C Dialect}.
@@ -222,13 +223,13 @@ Objective-C and Objective-C++ Dialects}.
 @item Warning Options
 @xref{Warning Options,,Options to Request or Suppress Warnings}.
 @gccoptlist{-fsyntax-only  -pedantic  -pedantic-errors @gol
--w  -Wextra  -Wall  -Waggregate-return -Walways-true -Warray-bounds @gol
+-w  -Wextra  -Wall  -Waddress  -Waggregate-return -Warray-bounds @gol
 -Wno-attributes -Wc++-compat -Wc++0x-compat -Wcast-align  -Wcast-qual  @gol
 -Wchar-subscripts -Wclobbered  -Wcomment @gol
 -Wconversion -Wcoverage-mismatch -Wno-deprecated-declarations @gol
 -Wdisabled-optimization  -Wno-div-by-zero  @gol
 -Wempty-body  -Wno-endif-labels @gol
--Werror  -Werror-* -Werror-implicit-function-declaration @gol
+-Werror  -Werror=* @gol
 -Wfatal-errors  -Wfloat-equal  -Wformat  -Wformat=2 @gol
 -Wno-format-extra-args -Wformat-nonliteral @gol
 -Wformat-security  -Wformat-y2k @gol
@@ -247,7 +248,7 @@ Objective-C and Objective-C++ Dialects}.
 -Wreturn-type  -Wsequence-point  -Wshadow @gol
 -Wsign-compare  -Wstack-protector @gol
 -Wstrict-aliasing -Wstrict-aliasing=2 @gol
--Wstring-literal-comparison @gol
+-Wstrict-overflow -Wstrict-overflow=@var{n} @gol
 -Wswitch  -Wswitch-default  -Wswitch-enum @gol
 -Wsystem-headers  -Wtrigraphs  -Wundef  -Wuninitialized @gol
 -Wunknown-pragmas  -Wno-pragmas -Wunreachable-code @gol
@@ -340,15 +341,15 @@ Objective-C and Objective-C++ Dialects}.
 -fsched2-use-superblocks @gol
 -fsched2-use-traces -fsee -freschedule-modulo-scheduled-loops @gol
 -fsection-anchors  -fsignaling-nans  -fsingle-precision-constant @gol
--fstack-protector  -fstack-protector-all @gol
--fstrict-aliasing  -ftracer  -fthread-jumps @gol
+-fno-split-wide-types -fstack-protector  -fstack-protector-all @gol
+-fstrict-aliasing  -fstrict-overflow  -ftracer  -fthread-jumps @gol
 -funroll-all-loops  -funroll-loops  -fpeel-loops @gol
 -fsplit-ivs-in-unroller -funswitch-loops @gol
 -fvariable-expansion-in-unroller @gol
 -ftree-pre  -ftree-ccp  -ftree-dce -ftree-loop-optimize @gol
 -ftree-loop-linear -ftree-loop-im -ftree-loop-ivcanon -fivopts @gol
 -ftree-dominator-opts -ftree-dse -ftree-copyrename -ftree-sink @gol
--ftree-ch -ftree-sra -ftree-ter -ftree-lrs -ftree-fre -ftree-vectorize @gol
+-ftree-ch -ftree-sra -ftree-ter -ftree-fre -ftree-vectorize @gol
 -ftree-vect-loop-version -ftree-salias -fipa-pta -fweb @gol
 -ftree-copy-prop -ftree-store-ccp -ftree-store-copy-prop -fwhole-program @gol
 --param @var{name}=@var{value}
@@ -538,7 +539,7 @@ Objective-C and Objective-C++ Dialects}.
 -mno-fp-ret-in-387  -msoft-float  -msvr3-shlib @gol
 -mno-wide-multiply  -mrtd  -malign-double @gol
 -mpreferred-stack-boundary=@var{num} @gol
--mmmx  -msse  -msse2 -msse3 -mssse3 -m3dnow @gol
+-mmmx  -msse  -msse2 -msse3 -mssse3 -msse4a -m3dnow -mpopcnt -mabm @gol
 -mthreads  -mno-align-stringops  -minline-all-stringops @gol
 -mpush-args  -maccumulate-outgoing-args  -m128bit-long-double @gol
 -m96bit-long-double  -mregparm=@var{num}  -msseregparm @gol
@@ -1078,14 +1079,122 @@ Print (on the standard output) a description of the command line options
 understood by @command{gcc}.  If the @option{-v} option is also specified
 then @option{--help} will also be passed on to the various processes
 invoked by @command{gcc}, so that they can display the command line options
-they accept.  If the @option{-Wextra} option is also specified then command
-line options which have no documentation associated with them will also
-be displayed.
+they accept.  If the @option{-Wextra} option has also been specified
+(prior to the @option{--help} option), then command line options which
+have no documentation associated with them will also be displayed.
 
 @item --target-help
 @opindex target-help
-Print (on the standard output) a description of target specific command
+Print (on the standard output) a description of target-specific command
 line options for each tool.
+
+@item --help=@var{class}@r{[},@var{qualifier}@r{]}
+Print (on the standard output) a description of the command line
+options understood by the compiler that fit into a specific class.
+The class can be one of @var{optimizers}, @var{warnings}, @var{target}
+or @var{params}:
+
+@table @gcctabopt
+@item @var{optimizers}
+This will display all of the optimization options supported by the
+compiler.
+
+@item @var{warnings}
+This will display all of the options controlling warning messages
+produced by the compiler.
+
+@item @var{target}
+This will display target-specific options.  Unlike the
+@option{--target-help} option however, target-specific options of the
+linker and assembler will not be displayed.  This is because those
+tools do not currently support the extended @option{--help=} syntax.
+
+@item @var{params}
+This will display the values recognized by the @option{--param}
+option.
+@end table
+
+It is possible to further refine the output of the @option{--help=}
+option by adding a comma separated list of qualifiers after the
+class.  These can be any from the following list:
+
+@table @gcctabopt
+@item undocumented
+Display only those options which are undocumented.
+
+@item joined
+Display options which take an argument that appears after an equal
+sign in the same continuous piece of text, such as:
+@samp{--help=target}.
+
+@item separate
+Display options which take an argument that appears as a separate word
+following the original option, such as: @samp{-o output-file}.
+@end table
+
+Thus for example to display all the undocumented target-specific
+switches supported by the compiler the following can be used:
+
+@smallexample
+--help=target,undocumented
+@end smallexample
+
+The sense of a qualifier can be inverted by prefixing it with the
+@var{^} character, so for example to display all binary warning
+options (i.e. ones that are either on or off and that do not take an
+argument), which have a description the following can be used:
+
+@smallexample
+--help=warnings,^joined,^undocumented
+@end smallexample
+
+A class can also be used as a qualifier, although this usually
+restricts the output by so much that there is nothing to display.  One
+case where it does work however is when one of the classes is
+@var{target}.  So for example to display all the target-specific
+optimization options the following can be used:
+
+@smallexample
+--help=target,optimizers
+@end smallexample
+
+The @option{--help=} option can be repeated on the command line.  Each
+successive use will display its requested class of options, skipping
+those that have already been displayed.
+
+If the @option{-Q} option appears on the command line before the
+@option{--help=} option, then the descriptive text displayed by
+@option{--help=} is changed.  Instead of describing the displayed
+options, an indication is given as to whether the option is enabled,
+disabled or set to a specific value (assuming that the compiler
+knows this at the point where the @option{--help=} option is used).
+
+Here is a truncated example from the ARM port of @command{gcc}:
+
+@smallexample
+  % gcc -Q -mabi=2 --help=target -c
+  The following options are target specific:
+  -mabi=                                2
+  -mabort-on-noreturn                   [disabled]
+  -mapcs                                [disabled]
+@end smallexample
+
+The output is sensitive to the effects of previous command line
+options, so for example it is possible to find out which optimizations
+are enabled at @option{-O2} by using:
+
+@smallexample
+-O2 --help=optimizers
+@end smallexample
+
+Alternatively you can discover which binary optimizations are enabled
+by @option{-O3} by using:
+
+@smallexample
+gcc -c -Q -O3 --help=optimizers > /tmp/O3-opts
+gcc -c -Q -O2 --help=optimizers > /tmp/O2-opts
+diff /tmp/O2-opts /tmp/O3-opts | grep enabled
+@end smallexample
 
 @item --version
 @opindex version
@@ -1658,7 +1767,7 @@ when used within the DSO@.  Enabling this option can have a dramatic effect
 on load and link times of a DSO as it massively reduces the size of the
 dynamic export table when the library makes heavy use of templates.
 
-The behaviour of this switch is not quite the same as marking the
+The behavior of this switch is not quite the same as marking the
 methods as hidden directly, because it does not affect static variables
 local to the function or cause the compiler to deduce that
 the function is defined in only one shared object.
@@ -2293,7 +2402,7 @@ information.  By default, GCC emits an error message in this case.
 The option @option{-Wcoverage-mismatch} emits a warning instead of an
 error.  GCC does not use appropriate feedback profiles, so using this
 option can result in poorly optimized code.  This option is useful
-only in the case of very minor changes such as bugfixes to an
+only in the case of very minor changes such as bug fixes to an
 existing code-base.
 
 @end table
@@ -2516,13 +2625,13 @@ Warn when a declaration does not specify a type.
 This warning is enabled by @option{-Wall}.
 
 @item -Wimplicit-function-declaration
-@itemx -Werror-implicit-function-declaration
 @opindex Wimplicit-function-declaration
-@opindex Werror-implicit-function-declaration
-Give a warning (or error) whenever a function is used before being
-declared.  The form @option{-Wno-error-implicit-function-declaration}
-is not supported.
-This warning is enabled by @option{-Wall} (as a warning, not an error).
+@opindex Wno-implicit-function-declaration
+Give a warning whenever a function is used before being declared. In
+C99 mode (@option{-std=c99} or @option{-std=gnu99}), this warning is
+enabled by default and it is made into an error by
+@option{-pedantic-errors}. This warning is also enabled by
+@option{-Wall}.
 
 @item -Wimplicit
 @opindex Wimplicit
@@ -2657,11 +2766,13 @@ Warn whenever a function is defined with a return-type that defaults to
 @code{int}.  Also warn about any @code{return} statement with no
 return-value in a function whose return-type is not @code{void}.
 
-For C, also warn if the return type of a function has a type qualifier
-such as @code{const}.  Such a type qualifier has no effect, since the
-value returned by a function is not an lvalue.  ISO C prohibits
-qualified @code{void} return types on function definitions, so such
-return types always receive a warning even without this option.
+Also warn if the return type of a function has a type qualifier
+such as @code{const}.  For ISO C such a type qualifier has no effect,
+since the value returned by a function is not an lvalue.
+For C++, the warning is only emitted for scalar types or @code{void}.
+ISO C prohibits qualified @code{void} return types on function
+definitions, so such return types always receive a warning
+even without this option.
 
 For C++, a function without return type always produces a diagnostic
 message, even when @option{-Wno-return-type} is specified.  The only
@@ -2728,10 +2839,14 @@ To suppress this warning use the @samp{unused} attribute
 
 @item -Wunused-value
 @opindex Wunused-value
-Warn whenever a statement computes a result that is explicitly not used.
-This warning is enabled by @option{-Wall}.
+Warn whenever a statement computes a result that is explicitly not
+used. To suppress this warning cast the unused expression to
+@samp{void}. This includes an expression-statement or the left-hand
+side of a comma expression that contains no side effects. For example,
+an expression such as @samp{x[i,j]} will cause a warning, while
+@samp{x[(void)i,j]} will not.
 
-To suppress this warning cast the expression to @samp{void}.
+This warning is enabled by @option{-Wall}.
 
 @item -Wunused
 @opindex Wunused
@@ -2748,7 +2863,7 @@ if a variable may be clobbered by a @code{setjmp} call.
 
 These warnings are possible only in optimizing compilation,
 because they require data flow information that is computed only
-when optimizing.  If you do not specify @option{-O}, you will not get 
+when optimizing.  If you do not specify @option{-O}, you will not get
 these warnings. Instead, GCC will issue a warning about @option{-Wuninitialized}
 requiring @option{-O}.
 
@@ -2857,6 +2972,56 @@ compiler is using for optimization.  This warning catches more cases than
 @option{-Wstrict-aliasing}, but it will also give a warning for some ambiguous
 cases that are safe.
 
+@item -Wstrict-overflow
+@item -Wstrict-overflow=@var{n}
+@opindex -Wstrict-overflow
+This option is only active when @option{-fstrict-overflow} is active.
+It warns about cases where the compiler optimizes based on the
+assumption that signed overflow does not occur.  Note that it does not
+warn about all cases where the code might overflow: it only warns
+about cases where the compiler implements some optimization.  Thus
+this warning depends on the optimization level.
+
+An optimization which assumes that signed overflow does not occur is
+perfectly safe if the values of the variables involved are such that
+overflow never does, in fact, occur.  Therefore this warning can
+easily give a false positive: a warning about code which is not
+actually a problem.  To help focus on important issues, several
+warning levels are defined.
+
+@table @option
+@item -Wstrict-overflow=1
+Warn about cases which are both questionable and easy to avoid.  For
+example: @code{x + 1 > x}; with @option{-fstrict-overflow}, the
+compiler will simplify this to @code{1}.  @option{-Wstrict-overflow}
+(with no level) is the same as @option{-Wstrict-overflow=1}.  This
+level of @option{-Wstrict-overflow} is enabled by @option{-Wall};
+higher levels are not, and must be explicitly requested.
+
+@item -Wstrict-overflow=2
+Also warn about other cases where a comparison is simplified to a
+constant.  For example: @code{abs (x) >= 0}.  This can only be
+simplified when @option{-fstrict-overflow} is in effect, because
+@code{abs (INT_MIN)} overflows to @code{INT_MIN}, which is less than
+zero.
+
+@item -Wstrict-overflow=3
+Also warn about other cases where a comparison is simplified.  For
+example: @code{x + 1 > 1} will be simplified to @code{x > 0}.
+
+@item -Wstrict-overflow=4
+Also warn about other simplifications not covered by the above cases.
+For example: @code{(x * 10) / 5} will be simplified to @code{x * 2}.
+
+@item -Wstrict-overflow=5
+Also warn about cases where the compiler reduces the magnitude of a
+constant involved in a comparison.  For example: @code{x + 2 > y} will
+be simplified to @code{x + 1 >= y}.  This is reported only at the
+highest warning level because this simplification applies to many
+comparisons, so this warning level will give a very large number of
+false positives.
+@end table
+
 @item -Warray-bounds
 @opindex Wno-array-bounds
 @opindex Warray-bounds
@@ -2907,13 +3072,6 @@ foo (a)
 @end smallexample
 
 @item
-An expression-statement or the left-hand side of a comma expression
-contains no side effects.
-To suppress the warning, cast the unused expression to void.
-For example, an expression such as @samp{x[i,j]} will cause a warning,
-but @samp{x[(void)i,j]} will not.
-
-@item
 An unsigned value is compared against zero with @samp{<} or @samp{>=}.
 
 @item @r{(C only)}
@@ -2958,10 +3116,6 @@ A pointer is compared against integer zero with @samp{<}, @samp{<=},
 @item
 A variable might be changed by @samp{longjmp} or @samp{vfork}.
 This warning can be independently controlled by @option{-Wclobbered}.
-
-@item
-Any of several floating-point events that often indicate errors, such as
-overflow, underflow, loss of precision, etc.
 
 @item @r{(C++ only)}
 An enumerator and a non-enumerator both appear in a conditional expression.
@@ -3151,7 +3305,8 @@ such assumptions.
 Warn about anything that depends on the ``size of'' a function type or
 of @code{void}.  GNU C assigns these types a size of 1, for
 convenience in calculations with @code{void *} pointers and pointers
-to functions.
+to functions.  In C++, warn also when an arithmetic operation involves
+@code{NULL}.  This warning is also enabled by @option{-pedantic}.
 
 @item -Wbad-function-cast @r{(C only)}
 @opindex Wbad-function-cast
@@ -3225,17 +3380,26 @@ an incorrect result when the signed value is converted to unsigned.
 This warning is also enabled by @option{-Wextra}; to get the other warnings
 of @option{-Wextra} without this warning, use @samp{-Wextra -Wno-sign-compare}.
 
+@item -Waddress
+@opindex Waddress
+@opindex Wno-address
+Warn about suspicious uses of memory addresses. These include using
+the address of a function in a conditional expression, such as
+@code{void func(void); if (func)}, and comparisons against the memory
+address of a string literal, such as @code{if (x == "abc")}.  Such
+uses typically indicate a programmer error: the address of a function
+always evaluates to true, so their use in a conditional usually
+indicate that the programmer forgot the parentheses in a function
+call; and comparisons against string literals result in unspecified
+behavior and are not portable in C, so they usually indicate that the
+programmer intended to use @code{strcmp}.  This warning is enabled by
+@option{-Wall}.
+
 @item -Waggregate-return
 @opindex Waggregate-return
 Warn if any functions that return structures or unions are defined or
 called.  (In languages where you can return an array, this also elicits
 a warning.)
-
-@item -Walways-true
-@opindex Walways-true
-Warn about comparisons which are always true such as testing if
-unsigned values are greater than or equal to zero.  This warning is
-enabled by @option{-Wall}.
 
 @item -Wno-attributes
 @opindex Wno-attributes
@@ -3585,15 +3749,6 @@ imply anything.
 @opindex Wstack-protector
 This option is only active when @option{-fstack-protector} is active.  It
 warns about functions that will not be protected against stack smashing.
-
-@item -Wstring-literal-comparison
-@opindex Wstring-literal-comparison
-Warn about suspicious comparisons to string literal constants.  In C,
-direct comparisons against the memory address of a string literal, such
-as @code{if (x == "abc")}, typically indicate a programmer error, and
-even when intentional, result in unspecified behavior and are not portable.
-Usually these warnings alert that the programmer intended to use
-@code{strcmp}.  This warning is enabled by @option{-Wall}.
 
 @item -Woverlength-strings
 @opindex Woverlength-strings
@@ -4597,12 +4752,12 @@ compilation time.
 -fcprop-registers @gol
 -fif-conversion @gol
 -fif-conversion2 @gol
+-fsplit-wide-types @gol
 -ftree-ccp @gol
 -ftree-dce @gol
 -ftree-dominator-opts @gol
 -ftree-dse @gol
 -ftree-ter @gol
--ftree-lrs @gol
 -ftree-sra @gol
 -ftree-copyrename @gol
 -ftree-fre @gol
@@ -4635,7 +4790,7 @@ also turns on the following optimization flags:
 -fschedule-insns  -fschedule-insns2 @gol
 -fsched-interblock  -fsched-spec @gol
 -fregmove @gol
--fstrict-aliasing @gol
+-fstrict-aliasing -fstrict-overflow @gol
 -fdelete-null-pointer-checks @gol
 -freorder-blocks  -freorder-functions @gol
 -falign-functions  -falign-jumps @gol
@@ -4934,6 +5089,16 @@ second branch or a point immediately following it, depending on whether
 the condition is known to be true or false.
 
 Enabled at levels @option{-O2}, @option{-O3}, @option{-Os}.
+
+@item -fsplit-wide-types
+@opindex -fsplit-wide-types
+When using a type that occupies multiple registers, such as @code{long
+long} on a 32-bit system, split the registers apart and allocate them
+independently.  This normally generates better code for those types,
+but may make debugging more difficult.
+
+Enabled at levels @option{-O}, @option{-O2}, @option{-O3},
+@option{-Os}.
 
 @item -fcse-follow-jumps
 @opindex fcse-follow-jumps
@@ -5288,11 +5453,6 @@ defining expression.  This results in non-GIMPLE code, but gives the expanders
 much more complex trees to work on resulting in better RTL generation.  This is
 enabled by default at @option{-O} and higher.
 
-@item -ftree-lrs
-Perform live range splitting during the SSA->normal phase.  Distinct live
-ranges of a variable are split into unique variables, allowing for better
-optimization later.  This is enabled by default at @option{-O} and higher.
-
 @item -ftree-vectorize
 Perform loop vectorization on trees.
 
@@ -5464,6 +5624,32 @@ int f() @{
 @end smallexample
 
 Enabled at levels @option{-O2}, @option{-O3}, @option{-Os}.
+
+@item -fstrict-overflow
+@opindex fstrict-overflow
+Allow the compiler to assume strict signed overflow rules, depending
+on the language being compiled.  For C (and C++) this means that
+overflow when doing arithmetic with signed numbers is undefined, which
+means that the compiler may assume that it will not happen.  This
+permits various optimizations.  For example, the compiler will assume
+that an expression like @code{i + 10 > i} will always be true for
+signed @code{i}.  This assumption is only valid if signed overflow is
+undefined, as the expression is false if @code{i + 10} overflows when
+using twos complement arithmetic.  When this option is in effect any
+attempt to determine whether an operation on signed numbers will
+overflow must be written carefully to not actually involve overflow.
+
+See also the @option{-fwrapv} option.  Using @option{-fwrapv} means
+that signed overflow is fully defined: it wraps.  When
+@option{-fwrapv} is used, there is no difference between
+@option{-fstrict-overflow} and @option{-fno-strict-overflow}.  With
+@option{-fwrapv} certain types of overflow are permitted.  For
+example, if the compiler gets an overflow when doing arithmetic on
+constants, the overflowed value can still be used with
+@option{-fwrapv}, but not otherwise.
+
+The @option{-fstrict-overflow} option is enabled at levels
+@option{-O2}, @option{-O3}, @option{-Os}.
 
 @item -falign-functions
 @itemx -falign-functions=@var{n}
@@ -6119,7 +6305,7 @@ before applying @option{--param inline-unit-growth}.  The default is 10000
 @item inline-unit-growth
 Specifies maximal overall growth of the compilation unit caused by inlining.
 This parameter is ignored when @option{-funit-at-a-time} is not used.
-The default value is 60 which limits unit growth to 1.6 times the original
+The default value is 30 which limits unit growth to 1.3 times the original
 size.
 
 @item large-stack-frame
@@ -9461,6 +9647,10 @@ instruction set support.
 @item k8, opteron, athlon64, athlon-fx
 AMD K8 core based CPUs with x86-64 instruction set support.  (This supersets
 MMX, SSE, SSE2, 3dNOW!, enhanced 3dNOW! and 64-bit instruction set extensions.)
+@item amdfam10
+AMD Family 10 core based CPUs with x86-64 instruction set support.  (This
+supersets MMX, SSE, SSE2, SSE3, SSE4A, 3dNOW!, enhanced 3dNOW!, ABM and 64-bit
+instruction set extensions.)
 @item winchip-c6
 IDT Winchip C6 CPU, dealt in same way as i486 with additional MMX instruction
 set support.
@@ -9755,8 +9945,14 @@ preferred alignment to @option{-mpreferred-stack-boundary=2}.
 @itemx -mno-sse3
 @item -mssse3
 @itemx -mno-ssse3
+@item -msse4a
+@item -mno-sse4a
 @item -m3dnow
 @itemx -mno-3dnow
+@item -mpopcnt
+@itemx -mno-popcnt
+@item -mabm
+@itemx -mno-abm
 @opindex mmmx
 @opindex mno-mmx
 @opindex msse
@@ -9764,7 +9960,7 @@ preferred alignment to @option{-mpreferred-stack-boundary=2}.
 @opindex m3dnow
 @opindex mno-3dnow
 These switches enable or disable the use of instructions in the MMX,
-SSE, SSE2, SSE3, SSSE3 or 3DNow! extended instruction sets.
+SSE, SSE2, SSE3, SSSE3, SSE4A, ABM or 3DNow! extended instruction sets.
 These extensions are also available as built-in functions: see
 @ref{X86 Built-in Functions}, for details of the functions enabled and
 disabled by these switches.

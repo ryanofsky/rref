@@ -1,5 +1,5 @@
 /* Support routines for Value Range Propagation (VRP).
-   Copyright (C) 2005, 2006 Free Software Foundation, Inc.
+   Copyright (C) 2005, 2006, 2007 Free Software Foundation, Inc.
    Contributed by Diego Novillo <dnovillo@redhat.com>.
 
 This file is part of GCC.
@@ -414,7 +414,10 @@ symbolic_range_p (value_range_t *vr)
 static bool
 vrp_expr_computes_nonnegative (tree expr)
 {
-  return tree_expr_nonnegative_p (expr);
+  bool ovf;
+
+  /* FIXME: May need to record overflow information here.  */
+  return tree_expr_nonnegative_warnv_p (expr, &ovf);
 }
 
 /* Like tree_expr_nonzero_p, but this function uses value ranges
@@ -423,7 +426,10 @@ vrp_expr_computes_nonnegative (tree expr)
 static bool
 vrp_expr_computes_nonzero (tree expr)
 {
-  if (tree_expr_nonzero_p (expr))
+  bool ovf;
+
+  /* FIXME: May need to record overflow information here.  */
+  if (tree_expr_nonzero_warnv_p (expr, &ovf))
     return true;
 
   /* If we have an expression of the form &X->a, then the expression
@@ -570,8 +576,7 @@ compare_values (tree val1, tree val2)
 	return 0;
 
       /* If overflow is defined we cannot simplify more.  */
-      if (TYPE_UNSIGNED (TREE_TYPE (val1))
-	  || flag_wrapv)
+      if (!TYPE_OVERFLOW_UNDEFINED (TREE_TYPE (val1)))
 	return -2;
 
       if (code1 == SSA_NAME)
@@ -1215,8 +1220,7 @@ vrp_int_const_binop (enum tree_code code, tree val1, tree val2)
 
   /* If we are not using wrapping arithmetic, operate symbolically
      on -INF and +INF.  */
-  if (TYPE_UNSIGNED (TREE_TYPE (val1))
-      || flag_wrapv)
+  if (TYPE_OVERFLOW_WRAPS (TREE_TYPE (val1)))
     {
       int checkz = compare_values (res, val1);
       bool overflow = false;
@@ -1503,7 +1507,7 @@ extract_range_from_binary_expr (value_range_t *vr, tree expr)
 	 point.  */
       if (code == MULT_EXPR
 	  && vr0.type == VR_ANTI_RANGE
-	  && (flag_wrapv || TYPE_UNSIGNED (TREE_TYPE (op0))))
+	  && !TYPE_OVERFLOW_UNDEFINED (TREE_TYPE (op0)))
 	{
 	  set_value_range_to_varying (vr);
 	  return;
@@ -1699,7 +1703,10 @@ extract_range_from_unary_expr (value_range_t *vr, tree expr)
      determining if it evaluates to NULL [0, 0] or non-NULL (~[0, 0]).  */
   if (POINTER_TYPE_P (TREE_TYPE (expr)) || POINTER_TYPE_P (TREE_TYPE (op0)))
     {
-      if (range_is_nonnull (&vr0) || tree_expr_nonzero_p (expr))
+      bool ovf;
+
+      /* FIXME: May need to record overflow information here.  */
+      if (range_is_nonnull (&vr0) || tree_expr_nonzero_warnv_p (expr, &ovf))
 	set_value_range_to_nonnull (vr, TREE_TYPE (expr));
       else if (range_is_null (&vr0))
 	set_value_range_to_null (vr, TREE_TYPE (expr));
@@ -1799,11 +1806,12 @@ extract_range_from_unary_expr (value_range_t *vr, tree expr)
 	    ? TYPE_MIN_VALUE (TREE_TYPE (expr))
 	    : fold_unary_to_constant (code, TREE_TYPE (expr), vr0.max);
 
-      max = vr0.min == TYPE_MIN_VALUE (TREE_TYPE (expr))
-	    ? (vr0.type == VR_ANTI_RANGE || flag_wrapv
-	       ? TYPE_MIN_VALUE (TREE_TYPE (expr))
-	       : TYPE_MAX_VALUE (TREE_TYPE (expr)))
-	    : fold_unary_to_constant (code, TREE_TYPE (expr), vr0.min);
+      max = (vr0.min == TYPE_MIN_VALUE (TREE_TYPE (expr))
+	     ? ((vr0.type == VR_ANTI_RANGE
+		 || TYPE_OVERFLOW_WRAPS (TREE_TYPE (expr)))
+		? TYPE_MIN_VALUE (TREE_TYPE (expr))
+		: TYPE_MAX_VALUE (TREE_TYPE (expr)))
+	     : fold_unary_to_constant (code, TREE_TYPE (expr), vr0.min));
 
     }
   else if (code == NEGATE_EXPR
@@ -1828,7 +1836,7 @@ extract_range_from_unary_expr (value_range_t *vr, tree expr)
     {
       /* -TYPE_MIN_VALUE = TYPE_MIN_VALUE with flag_wrapv so we can't get a
          useful range.  */
-      if (flag_wrapv
+      if (!TYPE_OVERFLOW_UNDEFINED (TREE_TYPE (expr))
 	  && ((vr0.type == VR_RANGE
 	       && vr0.min == TYPE_MIN_VALUE (TREE_TYPE (expr)))
 	      || (vr0.type == VR_ANTI_RANGE
@@ -1865,7 +1873,8 @@ extract_range_from_unary_expr (value_range_t *vr, tree expr)
 	         or ~[-INF + 1, min (abs(MIN), abs(MAX))] when
 		 flag_wrapv is set and the original anti-range doesn't include
 	         TYPE_MIN_VALUE, remember -TYPE_MIN_VALUE = TYPE_MIN_VALUE.  */
-	      min = (flag_wrapv && vr0.min != type_min_value
+	      min = ((TYPE_OVERFLOW_WRAPS (TREE_TYPE (expr))
+		      && vr0.min != type_min_value)
 		     ? int_const_binop (PLUS_EXPR,
 					type_min_value,
 					integer_one_node, 0)
@@ -3481,7 +3490,7 @@ insert_range_assertions (void)
 
 /* Checks one ARRAY_REF in REF, located at LOCUS. Ignores flexible arrays
    and "struct" hacks. If VRP can determine that the
-   array subscript is a contant, check if it is outside valid
+   array subscript is a constant, check if it is outside valid
    range. If the array subscript is a RANGE, warn if it is
    non-overlapping with valid range.
    IGNORE_OFF_BY_ONE is true if the ARRAY_REF is inside a ADDR_EXPR.  */
@@ -3738,9 +3747,9 @@ stmt_interesting_for_vrp (tree stmt)
 	  && (INTEGRAL_TYPE_P (TREE_TYPE (lhs))
 	      || POINTER_TYPE_P (TREE_TYPE (lhs)))
 	  && ((TREE_CODE (rhs) == CALL_EXPR
-	       && TREE_CODE (TREE_OPERAND (rhs, 0)) == ADDR_EXPR
-	       && DECL_P (TREE_OPERAND (TREE_OPERAND (rhs, 0), 0))
-	       && DECL_IS_BUILTIN (TREE_OPERAND (TREE_OPERAND (rhs, 0), 0)))
+	       && TREE_CODE (CALL_EXPR_FN (rhs)) == ADDR_EXPR
+	       && DECL_P (TREE_OPERAND (CALL_EXPR_FN (rhs), 0))
+	       && DECL_IS_BUILTIN (TREE_OPERAND (CALL_EXPR_FN (rhs), 0)))
 	      || ZERO_SSA_OPERANDS (stmt, SSA_OP_ALL_VIRTUALS)))
 	return true;
     }
@@ -4233,9 +4242,9 @@ vrp_visit_stmt (tree stmt, edge *taken_edge_p, tree *output_p)
 	 for deriving ranges, with the obvious exception of calls to
 	 builtin functions.  */
       if ((TREE_CODE (rhs) == CALL_EXPR
-	   && TREE_CODE (TREE_OPERAND (rhs, 0)) == ADDR_EXPR
-	   && DECL_P (TREE_OPERAND (TREE_OPERAND (rhs, 0), 0))
-	   && DECL_IS_BUILTIN (TREE_OPERAND (TREE_OPERAND (rhs, 0), 0)))
+	   && TREE_CODE (CALL_EXPR_FN (rhs)) == ADDR_EXPR
+	   && DECL_P (TREE_OPERAND (CALL_EXPR_FN (rhs), 0))
+	   && DECL_IS_BUILTIN (TREE_OPERAND (CALL_EXPR_FN (rhs), 0)))
 	  || ZERO_SSA_OPERANDS (stmt, SSA_OP_ALL_VIRTUALS))
 	return vrp_visit_assignment (stmt, output_p);
     }
@@ -4960,7 +4969,7 @@ vrp_finalize (void)
   substitute_and_fold (single_val_range, true);
 
   if (warn_array_bounds)
-      check_all_array_refs();
+      check_all_array_refs ();
 
   /* We must identify jump threading opportunities before we release
      the datastructures built by VRP.  */

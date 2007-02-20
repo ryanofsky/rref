@@ -100,8 +100,7 @@ gfc_init_options (unsigned int argc ATTRIBUTE_UNUSED,
   gfc_option.allow_std = GFC_STD_F95_OBS | GFC_STD_F95_DEL
     | GFC_STD_F2003 | GFC_STD_F95 | GFC_STD_F77 | GFC_STD_GNU
     | GFC_STD_LEGACY;
-  gfc_option.warn_std = GFC_STD_F95_OBS | GFC_STD_F95_DEL
-    | GFC_STD_LEGACY;
+  gfc_option.warn_std = GFC_STD_F95_DEL | GFC_STD_LEGACY;
 
   gfc_option.warn_nonstd_intrinsics = 0;
 
@@ -134,6 +133,9 @@ form_from_filename (const char *filename)
     ,
     {
     ".f95", FORM_FREE}
+    ,
+    {
+    ".f03", FORM_FREE}
     ,
     {
     ".f", FORM_FIXED}
@@ -286,7 +288,10 @@ gfc_post_options (const char **pfilename)
     gfc_option.flag_max_stack_var_size = 0;
   
   if (pedantic)
-    gfc_option.warn_ampersand = 1;
+    { 
+      gfc_option.warn_ampersand = 1;
+      gfc_option.warn_tabs = 0;
+    }
 
   if (gfc_option.flag_all_intrinsics)
     gfc_option.warn_nonstd_intrinsics = 0;
@@ -298,26 +303,27 @@ gfc_post_options (const char **pfilename)
 /* Set the options for -Wall.  */
 
 static void
-set_Wall (void)
+set_Wall (int setting)
 {
-  gfc_option.warn_aliasing = 1;
-  gfc_option.warn_ampersand = 1;
-  gfc_option.warn_line_truncation = 1;
-  gfc_option.warn_nonstd_intrinsics = 1;
-  gfc_option.warn_surprising = 1;
-  gfc_option.warn_tabs = 0;
-  gfc_option.warn_underflow = 1;
-  gfc_option.warn_character_truncation = 1;
+  gfc_option.warn_aliasing = setting;
+  gfc_option.warn_ampersand = setting;
+  gfc_option.warn_line_truncation = setting;
+  gfc_option.warn_nonstd_intrinsics = setting;
+  gfc_option.warn_surprising = setting;
+  gfc_option.warn_tabs = !setting;
+  gfc_option.warn_underflow = setting;
+  gfc_option.warn_character_truncation = setting;
 
-  set_Wunused (1);
-  warn_return_type = 1;
-  warn_switch = 1;
+  set_Wunused (setting);
+  warn_return_type = setting;
+  warn_switch = setting;
 
   /* We save the value of warn_uninitialized, since if they put
      -Wuninitialized on the command line, we need to generate a
      warning about not using it without also specifying -O.  */
-
-  if (warn_uninitialized != 1)
+  if (setting == 0)
+    warn_uninitialized = 0;
+  else if (warn_uninitialized != 1)
     warn_uninitialized = 2;
 }
 
@@ -404,7 +410,7 @@ gfc_handle_option (size_t scode, const char *arg, int value)
       break;
 
     case OPT_Wall:
-      set_Wall ();
+      set_Wall (value);
       break;
 
     case OPT_Waliasing:
@@ -614,6 +620,7 @@ gfc_handle_option (size_t scode, const char *arg, int value)
       gfc_option.max_continue_free = 255;
       gfc_option.max_identifier_length = 63;
       gfc_option.warn_ampersand = 1;
+      gfc_option.warn_tabs = 0;
       break;
 
     case OPT_std_gnu:

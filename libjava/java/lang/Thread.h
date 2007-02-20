@@ -53,8 +53,10 @@ public:
   Thread(::java::lang::Runnable *, ::java::lang::String *);
   Thread(::java::lang::ThreadGroup *, ::java::lang::Runnable *, ::java::lang::String *);
   Thread(::java::lang::ThreadGroup *, ::java::lang::Runnable *, ::java::lang::String *, jlong);
+public: // actually package-private
+  Thread(::java::lang::String *, jboolean);
 private:
-  Thread(::java::lang::Thread *, ::java::lang::ThreadGroup *, ::java::lang::Runnable *, ::java::lang::String *);
+  Thread(::java::lang::Thread *, ::java::lang::ThreadGroup *, ::java::lang::Runnable *, ::java::lang::String *, jboolean);
 public:
   static jint activeCount();
   virtual void checkAccess();
@@ -144,6 +146,7 @@ public: // actually package-private
   static const jbyte THREAD_PARK_DEAD = 3;
   ::java::lang::Object * accessControlState;
   ::gnu::gcj::RawData * interp_frame;
+  ::gnu::gcj::RawData * frame;
   volatile jint state;
   ::gnu::gcj::RawDataManaged * data;
 public:

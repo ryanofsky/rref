@@ -1,5 +1,5 @@
 /* Tree based points-to analysis
-   Copyright (C) 2005, 2006 Free Software Foundation, Inc.
+   Copyright (C) 2005, 2006, 2007 Free Software Foundation, Inc.
    Contributed by Daniel Berlin <dberlin@dberlin.org>
 
 This file is part of GCC.
@@ -288,7 +288,7 @@ static VEC(varinfo_t,heap) *varmap;
 static inline varinfo_t
 get_varinfo (unsigned int n)
 {
-  return VEC_index(varinfo_t, varmap, n);
+  return VEC_index (varinfo_t, varmap, n);
 }
 
 /* Return the varmap element N, following the collapsed_to link.  */
@@ -296,7 +296,7 @@ get_varinfo (unsigned int n)
 static inline varinfo_t
 get_varinfo_fc (unsigned int n)
 {
-  varinfo_t v = VEC_index(varinfo_t, varmap, n);
+  varinfo_t v = VEC_index (varinfo_t, varmap, n);
 
   if (v->collapsed_to)
     return v->collapsed_to;
@@ -1124,7 +1124,7 @@ scc_visit (constraint_graph_t graph, struct scc_info *si, unsigned int n)
       {
 	unsigned int t = find (w);
 	unsigned int nnode = find (n);
-	gcc_assert(nnode == n);
+	gcc_assert (nnode == n);
 
 	if (si->dfs[t] < si->dfs[nnode])
 	  si->dfs[n] = si->dfs[t];
@@ -1465,7 +1465,7 @@ do_ds_constraint (constraint_t c, bitmap delta)
   EXECUTE_IF_SET_IN_BITMAP (delta, 0, j, bi)
     {
       unsigned HOST_WIDE_INT loff = c->lhs.offset;
-      if (type_safe (j, &loff) && !(get_varinfo(j)->is_special_var))
+      if (type_safe (j, &loff) && !(get_varinfo (j)->is_special_var))
 	{
 	  varinfo_t v;
 	  unsigned int t;
@@ -1527,7 +1527,7 @@ do_complex_constraint (constraint_graph_t graph, constraint_t c, bitmap delta)
       bool flag = false;
       unsigned int t;
 
-      gcc_assert(c->rhs.type == SCALAR && c->lhs.type == SCALAR);
+      gcc_assert (c->rhs.type == SCALAR && c->lhs.type == SCALAR);
       t = find (c->rhs.var);
       solution = get_varinfo (t)->solution;
       t = find (c->lhs.var);
@@ -1538,9 +1538,9 @@ do_complex_constraint (constraint_graph_t graph, constraint_t c, bitmap delta)
       if (flag)
 	{
 	  get_varinfo (t)->solution = tmp;
-	  if (!TEST_BIT (changed, c->lhs.var))
+	  if (!TEST_BIT (changed, t))
 	    {
-	      SET_BIT (changed, c->lhs.var);
+	      SET_BIT (changed, t);
 	      changed_count++;
 	    }
 	}
@@ -1692,7 +1692,7 @@ label_visit (constraint_graph_t graph, struct scc_info *si, unsigned int n)
       {
 	unsigned int t = si->node_mapping[w];
 	unsigned int nnode = si->node_mapping[n];
-	gcc_assert(nnode == n);
+	gcc_assert (nnode == n);
 
 	if (si->dfs[t] < si->dfs[nnode])
 	  si->dfs[n] = si->dfs[t];
@@ -1797,7 +1797,7 @@ perform_var_substitution (constraint_graph_t graph)
 	fprintf (dump_file,
 		 "Equivalence class for %s node id %d:%s is %d\n",
 		 direct_node ? "Direct node" : "Indirect node", i,
-		 get_varinfo(i)->name,
+		 get_varinfo (i)->name,
 		 graph->label[si->node_mapping[i]]);
       }
 
@@ -2051,9 +2051,10 @@ solve_graph (constraint_graph_t graph)
 	  if (find (i) != i)
 	    continue;
 
-	  eliminate_indirect_cycles (i);
-
-	  gcc_assert (find (i) == i);
+	  /* In certain indirect cycle cases, we may merge this
+	     variable to another.  */
+	  if (eliminate_indirect_cycles (i) && find (i) != i)
+	    continue;
 
 	  /* If the node has changed, we need to process the
 	     complex constraints and outgoing edges again.  */
@@ -2064,6 +2065,7 @@ solve_graph (constraint_graph_t graph)
 	      bitmap solution;
 	      VEC(constraint_t,heap) *complex = graph->complex[i];
 	      bool solution_empty;
+
 	      RESET_BIT (changed, i);
 	      changed_count--;
 
@@ -2136,67 +2138,31 @@ solve_graph (constraint_graph_t graph)
 }
 
 /* Map from trees to variable infos.  */
-static htab_t vi_for_tree;
+static struct pointer_map_t *vi_for_tree;
 
-typedef struct tree_vi
-{
-  tree t;
-  varinfo_t vi;
-} *tree_vi_t;
 
-/* Hash a tree id structure.  */
-
-static hashval_t
-tree_vi_hash (const void *p)
-{
-  const tree_vi_t ta = (tree_vi_t) p;
-  return htab_hash_pointer (ta->t);
-}
-
-/* Return true if the tree in P1 and the tree in P2 are the same.  */
-
-static int
-tree_vi_eq (const void *p1, const void *p2)
-{
-  const tree_vi_t ta1 = (tree_vi_t) p1;
-  const tree_vi_t ta2 = (tree_vi_t) p2;
-  return ta1->t == ta2->t;
-}
-
-/* Insert ID as the variable id for tree T in the hashtable.  */
+/* Insert ID as the variable id for tree T in the vi_for_tree map.  */
 
 static void
 insert_vi_for_tree (tree t, varinfo_t vi)
 {
-  void **slot;
-  struct tree_vi finder;
-  tree_vi_t new_pair;
-
-  finder.t = t;
-  slot = htab_find_slot (vi_for_tree, &finder, INSERT);
+  void **slot = pointer_map_insert (vi_for_tree, t);
+  gcc_assert (vi);
   gcc_assert (*slot == NULL);
-  new_pair = XNEW (struct tree_vi);
-  new_pair->t = t;
-  new_pair->vi = vi;
-  *slot = (void *)new_pair;
+  *slot = vi;
 }
 
 /* Find the variable info for tree T in VI_FOR_TREE.  If T does not
-   exist in the hash table, return false, otherwise, return true and
-   set *VI to the varinfo we found.  */
+   exist in the map, return NULL, otherwise, return the varinfo we found.  */
 
-static bool
-lookup_vi_for_tree (tree t, varinfo_t *vi)
+static varinfo_t
+lookup_vi_for_tree (tree t)
 {
-  tree_vi_t pair;
-  struct tree_vi finder;
+  void **slot = pointer_map_contains (vi_for_tree, t);
+  if (slot == NULL)
+    return NULL;
 
-  finder.t = t;
-  pair = htab_find (vi_for_tree,  &finder);
-  if (pair == NULL)
-    return false;
-  *vi = pair->vi;
-  return true;
+  return (varinfo_t) *slot;
 }
 
 /* Return a printable name for DECL  */
@@ -2233,21 +2199,17 @@ alias_get_name (tree decl)
   return res;
 }
 
-/* Find the variable id for tree T in the hashtable.
-   If T doesn't exist in the hash table, create an entry for it.  */
+/* Find the variable id for tree T in the map.
+   If T doesn't exist in the map, create an entry for it and return it.  */
 
 static varinfo_t
 get_vi_for_tree (tree t)
 {
-  tree_vi_t pair;
-  struct tree_vi finder;
-
-  finder.t = t;
-  pair = htab_find (vi_for_tree,  &finder);
-  if (pair == NULL)
+  void **slot = pointer_map_contains (vi_for_tree, t);
+  if (slot == NULL)
     return get_varinfo (create_variable_info_for (t, alias_get_name (t)));
 
-  return pair->vi;
+  return (varinfo_t) *slot;
 }
 
 /* Get a constraint expression from an SSA_VAR_P node.  */
@@ -2550,6 +2512,7 @@ get_constraint_for (tree t, VEC (ce_s, heap) **results)
   switch (TREE_CODE_CLASS (TREE_CODE (t)))
     {
     case tcc_expression:
+    case tcc_vl_exp:
       {
 	switch (TREE_CODE (t))
 	  {
@@ -3377,7 +3340,8 @@ find_func_aliases (tree origt)
     {
       tree lhsop;
       tree rhsop;
-      tree arglist;
+      tree arg;
+      call_expr_arg_iterator iter;
       varinfo_t fi;
       int i = 1;
       tree decl;
@@ -3402,17 +3366,15 @@ find_func_aliases (tree origt)
 	}
       else
 	{
-	  decl = TREE_OPERAND (rhsop, 0);
+	  decl = CALL_EXPR_FN (rhsop);
 	  fi = get_vi_for_tree (decl);
 	}
 
       /* Assign all the passed arguments to the appropriate incoming
 	 parameters of the function.  */
-      arglist = TREE_OPERAND (rhsop, 1);
 
-      for (;arglist; arglist = TREE_CHAIN (arglist))
-	{
-	  tree arg = TREE_VALUE (arglist);
+      FOR_EACH_CALL_EXPR_ARG (arg, iter, rhsop)
+ 	{
 	  struct constraint_expr lhs ;
 	  struct constraint_expr *rhsp;
 
@@ -3493,6 +3455,7 @@ find_func_aliases (tree origt)
 		  case tcc_constant:
 		  case tcc_exceptional:
 		  case tcc_expression:
+		  case tcc_vl_exp:
 		  case tcc_unary:
 		      {
 			unsigned int j;
@@ -3526,7 +3489,7 @@ find_func_aliases (tree origt)
 		     to process expressions other than simple operands
 		     (e.g. INDIRECT_REF, ADDR_EXPR, CALL_EXPR).  */
 		  default:
-		    for (i = 0; i < TREE_CODE_LENGTH (TREE_CODE (rhsop)); i++)
+		    for (i = 0; i < TREE_OPERAND_LENGTH (rhsop); i++)
 		      {
 			tree op = TREE_OPERAND (rhsop, i);
 			unsigned int j;
@@ -4324,7 +4287,7 @@ merge_smts_into (tree p, varinfo_t vi)
   unsigned int i;
   bitmap_iterator bi;
   tree smt;
-  VEC(tree, gc) *aliases;
+  bitmap aliases;
   tree var = p;
 
   if (TREE_CODE (p) == SSA_NAME)
@@ -4348,15 +4311,9 @@ merge_smts_into (tree p, varinfo_t vi)
 	    bitmap_set_bit (vi->finished_solution, i);
 	}
 
-      aliases = var_ann (smt)->may_aliases;
+      aliases = MTAG_ALIASES (smt);
       if (aliases)
-	{
-	  size_t k;
-	  tree al;
-	  for (k = 0; VEC_iterate (tree, aliases, k, al); k++)
-	    bitmap_set_bit (vi->finished_solution,
-			    DECL_UID (al));
-	}
+        bitmap_ior_into (vi->finished_solution, aliases);
     }
 }
 
@@ -4387,9 +4344,9 @@ find_what_p_points_to (tree p)
       && SSA_NAME_IS_DEFAULT_DEF (p))
     lookup_p = SSA_NAME_VAR (p);
 
-  if (lookup_vi_for_tree (lookup_p, &vi))
+  vi = lookup_vi_for_tree (lookup_p);
+  if (vi)
     {
-
       if (vi->is_artificial_var)
 	return false;
 
@@ -4637,7 +4594,7 @@ init_alias_vars (void)
 					  sizeof (struct variable_info), 30);
   constraints = VEC_alloc (constraint_t, heap, 8);
   varmap = VEC_alloc (varinfo_t, heap, 8);
-  vi_for_tree = htab_create (10, tree_vi_hash, tree_vi_eq, free);
+  vi_for_tree = pointer_map_create ();
 
   memset (&stats, 0, sizeof (stats));
 
@@ -4707,6 +4664,7 @@ compute_points_to_sets (struct alias_info *ai)
 	  if (is_gimple_reg (PHI_RESULT (phi)))
 	    {
 	      find_func_aliases (phi);
+
 	      /* Update various related attributes like escaped
 		 addresses, pointer dereferences for loads and stores.
 		 This is used when creating name tags and alias
@@ -4778,7 +4736,7 @@ delete_points_to_sets (void)
     fprintf (dump_file, "Points to sets created:%d\n",
 	     stats.points_to_sets_created);
 
-  htab_delete (vi_for_tree);
+  pointer_map_destroy (vi_for_tree);
   bitmap_obstack_release (&pta_obstack);
   VEC_free (constraint_t, heap, constraints);
 

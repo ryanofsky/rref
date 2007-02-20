@@ -542,6 +542,9 @@ typedef struct
   /* The symbol is a derived type with allocatable components, possibly nested.
    */
   unsigned alloc_comp:1;
+
+  /* The namespace where the VOLATILE attribute has been set.  */
+  struct gfc_namespace *volatile_ns;
 }
 symbol_attribute;
 
@@ -1969,9 +1972,6 @@ gfc_intrinsic_sym *gfc_find_function (const char *);
 
 match gfc_intrinsic_func_interface (gfc_expr *, int);
 match gfc_intrinsic_sub_interface (gfc_code *, int);
-
-/* simplify.c */
-void gfc_simplify_init_1 (void);
 
 /* match.c -- FIXME */
 void gfc_free_iterator (gfc_iterator *, int);

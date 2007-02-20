@@ -3360,7 +3360,7 @@ frv_legitimate_address_p (enum machine_mode mode,
       break;
 
     case CONST_INT:
-      /* 12 bit immediate */
+      /* 12-bit immediate */
       if (condexec_p)
 	ret = FALSE;
       else
@@ -3411,7 +3411,7 @@ frv_legitimate_address_p (enum machine_mode mode,
 	  break;
 
 	case CONST_INT:
-          /* 12 bit immediate */
+          /* 12-bit immediate */
 	  if (condexec_p)
 	    ret = FALSE;
 	  else
@@ -9216,8 +9216,9 @@ frv_expand_builtin (tree exp,
                     enum machine_mode mode ATTRIBUTE_UNUSED,
                     int ignore ATTRIBUTE_UNUSED)
 {
-  tree arglist = TREE_OPERAND (exp, 1);
-  tree fndecl = TREE_OPERAND (TREE_OPERAND (exp, 0), 0);
+  /* FIXME:  Pass the CALL_EXPR directly instead of consing up an arglist.  */
+  tree arglist = CALL_EXPR_ARGS (exp);
+  tree fndecl = TREE_OPERAND (CALL_EXPR_FN (exp), 0);
   unsigned fcode = (unsigned)DECL_FUNCTION_CODE (fndecl);
   unsigned i;
   struct builtin_description *d;
@@ -9482,7 +9483,7 @@ frv_rtx_costs (rtx x,
   switch (code)
     {
     case CONST_INT:
-      /* Make 12 bit integers really cheap.  */
+      /* Make 12-bit integers really cheap.  */
       if (IN_RANGE_P (INTVAL (x), -2048, 2047))
 	{
 	  *total = 0;

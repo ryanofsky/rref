@@ -333,11 +333,6 @@ int flag_dump_rtl_in_asm = 0;
    the support provided depends on the backend.  */
 rtx stack_limit_rtx;
 
-/* If one, renumber instruction UIDs to reduce the number of
-   unused UIDs if there are a lot of instructions.  If greater than
-   one, unconditionally renumber instruction UIDs.  */
-int flag_renumber_insns = 1;
-
 /* Nonzero if we should track variables.  When
    flag_var_tracking == AUTODETECT_VALUE it will be set according
    to optimize, debug_info_level and debug_hooks in process_options ().  */
@@ -1053,11 +1048,14 @@ compile_file (void)
   if (flag_mudflap)
     mudflap_finish_file ();
 
+  /* Likewise for emulated thread-local storage.  */
+  if (!targetm.have_tls)
+    emutls_finish ();
+
   output_shared_constant_pool ();
   output_object_blocks ();
 
   /* Write out any pending weak symbol declarations.  */
-
   weak_finish ();
 
   /* Do dbx symbols.  */
@@ -1949,6 +1947,7 @@ backend_init (void)
   init_regs ();
   init_fake_stack_mems ();
   init_alias_once ();
+  init_inline_once ();
   init_reload ();
   init_varasm_once ();
 
@@ -1991,6 +1990,11 @@ lang_dependent_init (const char *name)
      provide a dummy function context for them.  */
   init_dummy_function_start ();
   init_expr_once ();
+
+  /* Although the actions of init_set_costs are language-independent,
+     it uses optabs, so we cannot call it from backend_init.  */
+  init_set_costs ();
+
   expand_dummy_function_end ();
 
   /* If dbx symbol table desired, initialize writing it and output the
