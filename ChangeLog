@@ -1,4 +1,5 @@
 2006-02-20  Russell Yanofsky <russ@yanofsky.org>
+            Doug Gregor <doug.gregor@gmail.com>
 
 	Add support for rvalue references to G++ under --std=c++0x mode
 	* gcc/cp/call.c (conversion): new "valuedness_matches_p" member
@@ -13,11 +14,14 @@
 	(compare_ics): add logic to use "valuedness_matches_p" values to
 	determine preferred conversion sequences
 	* gcc/cp/cp-tree.h (declarator): new "rvalue_ref" flag
+	(LOOKUP_PREFER_RVALUE): new lookup flag
 	* gcc/cp/decl.c (grokdeclarator): implement reference collapsing
 	(copy_fn_p): don't consider constructors taking rvalue references
 	to be copy constructors
 	* gcc/cp/error.c (dump_type_prefix): format rvalue reference types
 	correctly in error messages
+	* gcc/cp/except.c (build_throw): In C++0x mode, move from certain
+	lvalues when throwing.
 	* gcc/cp/mangle.c (write_type): mangle rvalue references differently
 	than regular references
 	* gcc/cp/parser.c (make_reference_declarator): new boolean parameter
@@ -39,6 +43,8 @@
 	* gcc/cp/tree.c (lvalue_p_1): handle rvalue reference types
 	* gcc/cp/typeck.c (comptypes): don't consider rvalue and lvalue
 	reference types to be equivalent
+        (check_return_expr): In C++0x mode, move from certain
+        lvalues when returning them.
 	* gcc/tree.h
 	(TYPE_REF_IS_RVALUE): new macro for REFERENCE_TYPE nodes
 	(build_rval_reference_type_for_mode): new function

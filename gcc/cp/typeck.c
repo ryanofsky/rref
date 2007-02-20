@@ -6741,18 +6741,40 @@ check_return_expr (tree retval, bool *no_warning)
     {
       /* The type the function is declared to return.  */
       tree functype = TREE_TYPE (TREE_TYPE (current_function_decl));
+      int flags = LOOKUP_NORMAL | LOOKUP_ONLYCONVERTING;
 
       /* The functype's return type will have been set to void, if it
 	 was an incomplete type.  Just treat this as 'return;' */
       if (VOID_TYPE_P (functype))
 	return error_mark_node;
 
+      /* In C++0x, a return can sometimes be treated as an rvalue to
+         enable move construction.  */
+      if (flag_cpp0x
+          /* Must be a local, automatic variable.  */
+	  && TREE_CODE (retval) == VAR_DECL
+	  && DECL_CONTEXT (retval) == current_function_decl
+	  && ! TREE_STATIC (retval)
+	  && (DECL_ALIGN (retval)
+	      >= DECL_ALIGN (DECL_RESULT (current_function_decl)))
+          /* The variable much not have the `volatile' qualifier.  */
+          && !(cp_type_quals (TREE_TYPE (retval)) & TYPE_QUAL_VOLATILE)
+          /* The return type must be a class type.  */
+          && CLASS_TYPE_P (TREE_TYPE (TREE_TYPE (current_function_decl)))
+          /* The cv-unqualified type of the returned value must be the
+             same as the cv-unqualified return type of the
+             function.  */
+	  && same_type_p ((TYPE_MAIN_VARIANT
+			   (TREE_TYPE (retval))),
+			  (TYPE_MAIN_VARIANT
+			   (TREE_TYPE (TREE_TYPE (current_function_decl))))))
+        flags = flags | LOOKUP_PREFER_RVALUE;
+      
       /* First convert the value to the function's return type, then
 	 to the type of return value's location to handle the
 	 case that functype is smaller than the valtype.  */
       retval = convert_for_initialization
-	(NULL_TREE, functype, retval, LOOKUP_NORMAL|LOOKUP_ONLYCONVERTING,
-	 "return", NULL_TREE, 0);
+	(NULL_TREE, functype, retval, flags, "return", NULL_TREE, 0);
       retval = convert (valtype, retval);
 
       /* If the conversion failed, treat this just like `return;'.  */

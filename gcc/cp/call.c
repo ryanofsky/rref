@@ -1120,6 +1120,10 @@ reference_binding (tree rto, tree rfrom, tree expr, int flags)
       lvalue_p = clk_ordinary;
       from = TREE_TYPE (from);
     }
+  else if (flags & LOOKUP_PREFER_RVALUE)
+    /* The top-level caller requested that we pretend that the lvalue
+       be treated as an rvalue.  */
+    lvalue_p = clk_none;
   else if (expr)
     lvalue_p = real_lvalue_p (expr);
 
