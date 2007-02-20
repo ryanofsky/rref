@@ -512,7 +512,7 @@ pa_init_builtins (void)
   implicit_built_in_decls[(int) BUILT_IN_FPUTC_UNLOCKED]
     = implicit_built_in_decls[(int) BUILT_IN_PUTC_UNLOCKED];
 #endif
-#if TARGET_HPUX
+#if TARGET_HPUX_11
   if (built_in_decls [BUILT_IN_FINITE])
     set_user_assembler_name (built_in_decls [BUILT_IN_FINITE], "_Isfinite");
   if (built_in_decls [BUILT_IN_FINITEF])
@@ -576,7 +576,7 @@ adddi3_operand (rtx op, enum machine_mode mode)
 }
 
 /* True iff zdepi can be used to generate this CONST_INT.
-   zdepi first sign extends a 5 bit signed number to a given field
+   zdepi first sign extends a 5-bit signed number to a given field
    length, then places this field anywhere in a zero.  */
 int
 zdepi_cint_p (unsigned HOST_WIDE_INT x)

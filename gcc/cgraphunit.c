@@ -297,7 +297,8 @@ cgraph_process_new_functions (void)
 	  push_cfun (DECL_STRUCT_FUNCTION (fndecl));
 	  current_function_decl = fndecl;
 	  node->local.inlinable = tree_inlinable_function_p (fndecl);
-	  node->local.self_insns = estimate_num_insns (fndecl);
+	  node->local.self_insns = estimate_num_insns (fndecl,
+						       &eni_inlining_weights);
 	  node->local.disregard_inline_limits
 	    = lang_hooks.tree_inlining.disregard_inline_limits (fndecl);
 	  /* Inlining characteristics are maintained by the
@@ -518,6 +519,16 @@ verify_cgraph_node (struct cgraph_node *node)
 	  error ("caller edge count is negative");
 	  error_found = true;
 	}
+      if (e->frequency < 0)
+	{
+	  error ("caller edge frequency is negative");
+	  error_found = true;
+	}
+      if (e->frequency > CGRAPH_FREQ_MAX)
+	{
+	  error ("caller edge frequency is too large");
+	  error_found = true;
+	}
       if (!e->inline_failed)
 	{
 	  if (node->global.inlined_to
@@ -677,7 +688,7 @@ cgraph_analyze_function (struct cgraph_node *node)
   node->global.stack_frame_offset = 0;
   node->local.inlinable = tree_inlinable_function_p (decl);
   if (!flag_unit_at_a_time)
-    node->local.self_insns = estimate_num_insns (decl);
+    node->local.self_insns = estimate_num_insns (decl, &eni_inlining_weights);
   if (node->local.inlinable)
     node->local.disregard_inline_limits
       = lang_hooks.tree_inlining.disregard_inline_limits (decl);
@@ -782,7 +793,7 @@ process_function_and_variable_attributes (struct cgraph_node *first,
 /* Process CGRAPH_NODES_NEEDED queue, analyze each function (and transitively
    each reachable functions) and build cgraph.
    The function can be called multiple times after inserting new nodes
-   into beggining of queue.  Just the new part of queue is re-scanned then.  */
+   into beginning of queue.  Just the new part of queue is re-scanned then.  */
 
 static void
 cgraph_analyze_functions (void)
@@ -973,6 +984,8 @@ cgraph_mark_functions_to_output (void)
 static void
 cgraph_expand_function (struct cgraph_node *node)
 {
+  enum debug_info_type save_write_symbols = NO_DEBUG;
+  const struct gcc_debug_hooks *save_debug_hooks = NULL;
   tree decl = node->decl;
 
   /* We ought to not compile any inline clones.  */
@@ -983,12 +996,26 @@ cgraph_expand_function (struct cgraph_node *node)
 
   gcc_assert (node->lowered);
 
+  if (DECL_IGNORED_P (decl))
+    {
+      save_write_symbols = write_symbols;
+      write_symbols = NO_DEBUG;
+      save_debug_hooks = debug_hooks;
+      debug_hooks = &do_nothing_debug_hooks;
+    }
+
   /* Generate RTL for the body of DECL.  */
   lang_hooks.callgraph.expand_function (decl);
 
   /* Make sure that BE didn't give up on compiling.  */
   /* ??? Can happen with nested function of extern inline.  */
   gcc_assert (TREE_ASM_WRITTEN (node->decl));
+
+  if (DECL_IGNORED_P (decl))
+    {
+      write_symbols = save_write_symbols;
+      debug_hooks = save_debug_hooks;
+    }
 
   current_function_decl = NULL;
   if (!cgraph_preserve_function_body_p (node->decl))
@@ -1375,7 +1402,7 @@ update_call_expr (struct cgraph_node *new_version)
   for (e = new_version->callers; e; e = e->next_caller)
     /* Update the call expr on the edges
        to call the new version.  */
-    TREE_OPERAND (TREE_OPERAND (get_call_expr_in (e->call_stmt), 0), 0) = new_version->decl;
+    TREE_OPERAND (CALL_EXPR_FN (get_call_expr_in (e->call_stmt)), 0) = new_version->decl;
 }
 
 
@@ -1411,7 +1438,8 @@ cgraph_copy_node_for_versioning (struct cgraph_node *old_version,
       also cloned.  */
    for (e = old_version->callees;e; e=e->next_callee)
      {
-       new_e = cgraph_clone_edge (e, new_version, e->call_stmt, 0, e->loop_nest, true);
+       new_e = cgraph_clone_edge (e, new_version, e->call_stmt, 0, e->frequency,
+				  e->loop_nest, true);
        new_e->count = e->count;
      }
    /* Fix recursive calls.
@@ -1510,7 +1538,8 @@ save_inline_function_body (struct cgraph_node *node)
     {
       struct cgraph_edge *e;
 
-      first_clone = cgraph_clone_node (node, node->count, 0, false);
+      first_clone = cgraph_clone_node (node, node->count, 0, CGRAPH_FREQ_BASE,
+				       false);
       first_clone->needed = 0;
       first_clone->reachable = 1;
       /* Recursively clone all bodies.  */

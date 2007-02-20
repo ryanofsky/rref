@@ -521,9 +521,9 @@ struct tree_opt_pass pass_cse_reciprocals =
   0				        /* letter */
 };
 
-/* Records an occurance at statement USE_STMT in the vector of trees
+/* Records an occurrence at statement USE_STMT in the vector of trees
    STMTS if it is dominated by *TOP_BB or dominates it or this basic block
-   is not yet initialized.  Returns true if the occurance was pushed on
+   is not yet initialized.  Returns true if the occurrence was pushed on
    the vector.  Adjusts *TOP_BB to be the basic block dominating all
    statements in the vector.  */
 
@@ -606,7 +606,7 @@ execute_cse_sincos_1 (tree name)
   if (!fndecl)
     return;
   res = make_rename_temp (TREE_TYPE (TREE_TYPE (fndecl)), "sincostmp");
-  call = build_function_call_expr (fndecl, build_tree_list (NULL_TREE, name));
+  call = build_call_expr (fndecl, 1, name);
   stmt = build2 (GIMPLE_MODIFY_STMT, NULL_TREE, res, call);
   def_stmt = SSA_NAME_DEF_STMT (name);
   if (bb_for_stmt (def_stmt) == top_bb
@@ -684,7 +684,7 @@ execute_cse_sincos (void)
 		CASE_FLT_FN (BUILT_IN_SIN):
 		CASE_FLT_FN (BUILT_IN_CEXPI):
 		  arg = GIMPLE_STMT_OPERAND (stmt, 1);
-		  arg = TREE_VALUE (TREE_OPERAND (arg, 1));
+		  arg = CALL_EXPR_ARG (arg, 0);
 		  if (TREE_CODE (arg) == SSA_NAME)
 		    execute_cse_sincos_1 (arg);
 		  break;

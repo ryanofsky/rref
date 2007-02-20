@@ -228,9 +228,6 @@ struct var_ann_d GTY(())
   /* Used when building base variable structures in a var_map.  */
   unsigned base_var_processed : 1;
 
-  /* Nonzero if this variable is in the alias set of another variable.  */
-  unsigned is_aliased : 1;
-
   /* Nonzero if this variable was used after SSA optimizations were
      applied.  We set this when translating out of SSA form.  */
   unsigned used : 1;
@@ -265,11 +262,6 @@ struct var_ann_d GTY(())
      FIXME, do we really need this here?  How much slower would it be
      to convert to hash table?  */
   tree symbol_mem_tag;
-
-  /* Variables that may alias this variable.  This may only be set on
-     memory tags (NAME_MEMORY_TAG or TYPE_MEMORY_TAG).  FIXME, move to
-     struct tree_memory_tag.  */
-  VEC(tree, gc) *may_aliases;
 
   /* Used when going out of SSA form to indicate which partition this
      variable represents storage for.  */
@@ -431,7 +423,7 @@ extern void set_bb_for_stmt (tree, basic_block);
 static inline bool noreturn_call_p (tree);
 static inline void update_stmt (tree);
 static inline bool stmt_modified_p (tree);
-static inline VEC(tree, gc) *may_aliases (tree);
+static inline bitmap may_aliases (tree);
 static inline int get_lineno (tree);
 static inline const char *get_filename (tree);
 static inline bool is_exec_stmt (tree);

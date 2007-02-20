@@ -1436,33 +1436,6 @@ determine_specialization (tree template_id,
 	  tree decl_arg_types;
 	  tree fn_arg_types;
 
-	  /* DECL might be a specialization of FN.  */
-
-	  /* Adjust the type of DECL in case FN is a static member.  */
-	  decl_arg_types = TYPE_ARG_TYPES (TREE_TYPE (decl));
-	  if (DECL_STATIC_FUNCTION_P (fn)
-	      && DECL_NONSTATIC_MEMBER_FUNCTION_P (decl))
-	    decl_arg_types = TREE_CHAIN (decl_arg_types);
-
-	  /* Check that the number of function parameters matches.
-	     For example,
-	       template <class T> void f(int i = 0);
-	       template <> void f<int>();
-	     The specialization f<int> is invalid but is not caught
-	     by get_bindings below.  */
-
-	  fn_arg_types = TYPE_ARG_TYPES (TREE_TYPE (fn));
-	  if (list_length (fn_arg_types) != list_length (decl_arg_types))
-	    continue;
-
-	  /* For a non-static member function, we need to make sure that
-	     the const qualification is the same. This can be done by
-	     checking the 'this' in the argument list.  */
-	  if (DECL_NONSTATIC_MEMBER_FUNCTION_P (fn)
-	      && !same_type_p (TREE_VALUE (fn_arg_types),
-			       TREE_VALUE (decl_arg_types)))
-	    continue;
-
 	  /* In case of explicit specialization, we need to check if
 	     the number of template headers appearing in the specialization
 	     is correct. This is usually done in check_explicit_specialization,
@@ -1501,14 +1474,44 @@ determine_specialization (tree template_id,
 				      (current_template_parms))))
 	    continue;
 
+	  /* DECL might be a specialization of FN.  */
+	  decl_arg_types = TYPE_ARG_TYPES (TREE_TYPE (decl));
+	  fn_arg_types = TYPE_ARG_TYPES (TREE_TYPE (fn));
+
+	  /* For a non-static member function, we need to make sure
+	     that the const qualification is the same.  Since
+	     get_bindings does not try to merge the "this" parameter,
+	     we must do the comparison explicitly.  */
+	  if (DECL_NONSTATIC_MEMBER_FUNCTION_P (fn)
+	      && !same_type_p (TREE_VALUE (fn_arg_types),
+			       TREE_VALUE (decl_arg_types)))
+	    continue;
+
+	  /* Skip the "this" parameter and, for constructors of
+	     classes with virtual bases, the VTT parameter.  A
+	     full specialization of a constructor will have a VTT
+	     parameter, but a template never will.  */ 
+	  decl_arg_types 
+	    = skip_artificial_parms_for (decl, decl_arg_types);
+	  fn_arg_types 
+	    = skip_artificial_parms_for (fn, fn_arg_types);
+
+	  /* Check that the number of function parameters matches.
+	     For example,
+	       template <class T> void f(int i = 0);
+	       template <> void f<int>();
+	     The specialization f<int> is invalid but is not caught
+	     by get_bindings below.  */
+	  if (list_length (fn_arg_types) != list_length (decl_arg_types))
+	    continue;
+
 	  /* Function templates cannot be specializations; there are
 	     no partial specializations of functions.  Therefore, if
 	     the type of DECL does not match FN, there is no
 	     match.  */
 	  if (tsk == tsk_template)
 	    {
-	      if (compparms (TYPE_ARG_TYPES (TREE_TYPE (fn)),
-			     decl_arg_types))
+	      if (compparms (fn_arg_types, decl_arg_types))
 		candidates = tree_cons (NULL_TREE, fn, candidates);
 	      continue;
 	    }
@@ -1608,7 +1611,7 @@ determine_specialization (tree template_id,
 	 This extension can only serve to make invalid programs valid,
 	 so it's safe.  And, there is strong anecdotal evidence that
 	 the committee intended the partial ordering rules to apply;
-	 the EDG front-end has that behavior, and John Spicer claims
+	 the EDG front end has that behavior, and John Spicer claims
 	 that the committee simply forgot to delete the wording in
 	 [temp.expl.spec].  */
       tree tmpl = most_specialized_instantiation (templates);
@@ -8351,12 +8354,15 @@ tsubst_copy (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 	 NULL_TREE, NULL_TREE);
 
     case CALL_EXPR:
-      return build_nt (code,
-		       tsubst_copy (TREE_OPERAND (t, 0), args,
-				    complain, in_decl),
-		       tsubst_copy (TREE_OPERAND (t, 1), args, complain,
-				    in_decl),
-		       NULL_TREE);
+      {
+	int n = VL_EXP_OPERAND_LENGTH (t);
+	tree result = build_vl_exp (CALL_EXPR, n);
+	int i;
+	for (i = 0; i < n; i++)
+	  TREE_OPERAND (t, i) = tsubst_copy (TREE_OPERAND (t, i), args,
+					     complain, in_decl);
+	return result;
+      }
 
     case COND_EXPR:
     case MODOP_EXPR:
@@ -8921,12 +8927,13 @@ tsubst_expr (tree t, tree args, tsubst_flags_t complain, tree in_decl,
       break;
 
     case OMP_ATOMIC:
-      {
-	tree op0, op1;
-	op0 = RECUR (TREE_OPERAND (t, 0));
-	op1 = RECUR (TREE_OPERAND (t, 1));
-	finish_omp_atomic (OMP_ATOMIC_CODE (t), op0, op1);
-      }
+      if (OMP_ATOMIC_DEPENDENT_P (t))
+        {
+	  tree op1 = TREE_OPERAND (t, 1);
+	  tree lhs = RECUR (TREE_OPERAND (op1, 0));
+	  tree rhs = RECUR (TREE_OPERAND (op1, 1));
+	  finish_omp_atomic (TREE_CODE (op1), lhs, rhs);
+        }
       break;
 
     default:
@@ -9271,7 +9278,7 @@ tsubst_copy_and_build (tree t,
 	bool qualified_p;
 	bool koenig_p;
 
-	function = TREE_OPERAND (t, 0);
+	function = CALL_EXPR_FN (t);
 	/* When we parsed the expression,  we determined whether or
 	   not Koenig lookup should be performed.  */
 	koenig_p = KOENIG_LOOKUP_P (t);
@@ -9304,7 +9311,8 @@ tsubst_copy_and_build (tree t,
 	      qualified_p = true;
 	  }
 
-	call_args = RECUR (TREE_OPERAND (t, 1));
+	/* FIXME:  Rewrite this so as not to construct an arglist.  */
+	call_args = RECUR (CALL_EXPR_ARGS (t));
 
 	/* We do not perform argument-dependent lookup if normal
 	   lookup finds a non-function, in accordance with the
@@ -9846,10 +9854,8 @@ fn_type_unification (tree fn,
 	TREE_VEC_ELT (targs, i) = TREE_VEC_ELT (converted_args, i);
     }
 
-  parms = TYPE_ARG_TYPES (fntype);
   /* Never do unification on the 'this' parameter.  */
-  if (DECL_NONSTATIC_MEMBER_FUNCTION_P (fn))
-    parms = TREE_CHAIN (parms);
+  parms = skip_artificial_parms_for (fn, TYPE_ARG_TYPES (fntype));
 
   if (return_type)
     {
@@ -11415,10 +11421,9 @@ get_bindings (tree fn, tree decl, tree explicit_args, bool check_rettype)
 	return NULL_TREE;
     }
 
-  decl_arg_types = TYPE_ARG_TYPES (decl_type);
   /* Never do unification on the 'this' parameter.  */
-  if (DECL_NONSTATIC_MEMBER_FUNCTION_P (decl))
-    decl_arg_types = TREE_CHAIN (decl_arg_types);
+  decl_arg_types = skip_artificial_parms_for (decl, 
+					      TYPE_ARG_TYPES (decl_type));
 
   if (fn_type_unification (fn, explicit_args, targs,
 			   decl_arg_types,
@@ -11747,6 +11752,13 @@ do_decl_instantiation (tree decl, tree storage)
       if (!result || TREE_CODE (result) != VAR_DECL)
 	{
 	  error ("no matching template for %qD found", decl);
+	  return;
+	}
+      if (!same_type_p (TREE_TYPE (result), TREE_TYPE (decl)))
+	{
+	  error ("type %qT for explicit instantiation %qD does not match "
+		 "declared type %qT", TREE_TYPE (result), decl,
+		 TREE_TYPE (decl));
 	  return;
 	}
     }
@@ -13078,9 +13090,10 @@ value_dependent_expression_p (tree expression)
 		      (TREE_OPERAND (expression, 1))));
 
 	case tcc_expression:
+	case tcc_vl_exp:
 	  {
 	    int i;
-	    for (i = 0; i < TREE_CODE_LENGTH (TREE_CODE (expression)); ++i)
+	    for (i = 0; i < TREE_OPERAND_LENGTH (expression); ++i)
 	      /* In some cases, some of the operands may be missing.
 		 (For example, in the case of PREDECREMENT_EXPR, the
 		 amount to increment by may be missing.)  That doesn't

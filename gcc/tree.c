@@ -66,7 +66,9 @@ const char *const tree_code_class_strings[] =
   "unary",
   "binary",
   "statement",
+  "vl_exp",
   "expression",
+  "gimple_stmt"
 };
 
 /* obstack.[ch] explicitly declined to prototype this.  */
@@ -150,14 +152,6 @@ static GTY ((if_marked ("tree_int_map_marked_p"), param_is (struct tree_int_map)
 static GTY ((if_marked ("tree_map_marked_p"), param_is (struct tree_map)))
   htab_t restrict_base_for_decl;
 
-struct tree_int_map GTY(())
-{
-  tree from;
-  unsigned short to;
-};
-static unsigned int tree_int_map_hash (const void *);
-static int tree_int_map_eq (const void *, const void *);
-static int tree_int_map_marked_p (const void *);
 static void set_type_quals (tree, int);
 static int type_hash_eq (const void *, const void *);
 static hashval_t type_hash_hash (const void *);
@@ -345,8 +339,8 @@ decl_assembler_name_equal (tree decl, tree asmname)
 }
 
 /* Compute the number of bytes occupied by a tree with code CODE.
-   This function cannot be used for TREE_VEC, PHI_NODE, or STRING_CST
-   codes, which are of variable length.  */
+   This function cannot be used for nodes that have variable sizes,
+   including TREE_VEC, PHI_NODE, STRING_CST, and CALL_EXPR.  */
 size_t
 tree_code_size (enum tree_code code)
 {
@@ -394,7 +388,7 @@ tree_code_size (enum tree_code code)
     case tcc_unary:       /* a unary arithmetic expression */
     case tcc_binary:      /* a binary arithmetic expression */
       return (sizeof (struct tree_exp)
-	      + (TREE_CODE_LENGTH (code) - 1) * sizeof (char *));
+	      + (TREE_CODE_LENGTH (code) - 1) * sizeof (tree));
 
     case tcc_gimple_stmt:
       return (sizeof (struct gimple_stmt)
@@ -442,7 +436,7 @@ tree_code_size (enum tree_code code)
 }
 
 /* Compute the number of bytes occupied by NODE.  This routine only
-   looks at TREE_CODE, except for PHI_NODE and TREE_VEC nodes.  */
+   looks at TREE_CODE, except for those nodes that have variable sizes.  */
 size_t
 tree_size (tree node)
 {
@@ -459,7 +453,7 @@ tree_size (tree node)
 
     case TREE_VEC:
       return (sizeof (struct tree_vec)
-	      + (TREE_VEC_LENGTH (node) - 1) * sizeof(char *));
+	      + (TREE_VEC_LENGTH (node) - 1) * sizeof (tree));
 
     case STRING_CST:
       return TREE_STRING_LENGTH (node) + offsetof (struct tree_string, str) + 1;
@@ -470,7 +464,11 @@ tree_size (tree node)
 	        * sizeof (tree));
 
     default:
-      return tree_code_size (code);
+      if (TREE_CODE_CLASS (code) == tcc_vl_exp)
+	return (sizeof (struct tree_exp)
+		+ (VL_EXP_OPERAND_LENGTH (node) - 1) * sizeof (tree));
+      else
+	return tree_code_size (code);
     }
 }
 
@@ -1898,14 +1896,11 @@ expr_align (tree t)
       align1 = TYPE_ALIGN (TREE_TYPE (t));
       return MAX (align0, align1);
 
-    case MODIFY_EXPR:
-      /* FIXME tuples: It is unclear to me if this function, which
-         is only called from ADA, is called on gimple or non gimple
-         trees.  Let's assume it's from gimple trees unless we hit
-         this abort.  */
+    case GIMPLE_MODIFY_STMT:
+      /* We should never ask for the alignment of a gimple statement.  */
       gcc_unreachable ();
 
-    case SAVE_EXPR:         case COMPOUND_EXPR:       case GIMPLE_MODIFY_STMT:
+    case SAVE_EXPR:         case COMPOUND_EXPR:       case MODIFY_EXPR:
     case INIT_EXPR:         case TARGET_EXPR:         case WITH_CLEANUP_EXPR:
     case CLEANUP_POINT_EXPR:
       /* These don't change the alignment of an object.  */
@@ -2174,6 +2169,7 @@ tree_node_structure (tree t)
     case tcc_binary:
     case tcc_expression:
     case tcc_statement:
+    case tcc_vl_exp:
       return TS_EXP;
     case tcc_gimple_stmt:
       return TS_GIMPLE_STATEMENT;
@@ -2255,9 +2251,6 @@ contains_placeholder_p (tree exp)
 		  || CONTAINS_PLACEHOLDER_P (TREE_OPERAND (exp, 1))
 		  || CONTAINS_PLACEHOLDER_P (TREE_OPERAND (exp, 2)));
 
-	case CALL_EXPR:
-	  return CONTAINS_PLACEHOLDER_P (TREE_OPERAND (exp, 1));
-
 	default:
 	  break;
 	}
@@ -2269,6 +2262,22 @@ contains_placeholder_p (tree exp)
 	case 2:
 	  return (CONTAINS_PLACEHOLDER_P (TREE_OPERAND (exp, 0))
 		  || CONTAINS_PLACEHOLDER_P (TREE_OPERAND (exp, 1)));
+	default:
+	  return 0;
+	}
+
+    case tcc_vl_exp:
+      switch (code)
+	{
+	case CALL_EXPR:
+	  {
+	    tree arg;
+	    call_expr_arg_iterator iter;
+	    FOR_EACH_CALL_EXPR_ARG (arg, iter, exp)
+	      if (CONTAINS_PLACEHOLDER_P (arg))
+		return 1;
+	    return 0;
+	  }
 	default:
 	  return 0;
 	}
@@ -2480,6 +2489,27 @@ substitute_in_expr (tree exp, tree f, tree r)
 	  }
 	break;
 
+      case tcc_vl_exp:
+	{
+	  tree copy = NULL_TREE;
+	  int i;
+	  int n = TREE_OPERAND_LENGTH (exp);
+	  for (i = 1; i < n; i++)
+	    {
+	      tree op = TREE_OPERAND (exp, i);
+	      tree newop = SUBSTITUTE_IN_EXPR (op, f, r);
+	      if (newop != op)
+		{
+		  copy = copy_node (exp);
+		  TREE_OPERAND (copy, i) = newop;
+		}
+	    }
+	  if (copy)
+	    new = fold (copy);
+	  else
+	    return exp;
+	}
+
       default:
 	gcc_unreachable ();
       }
@@ -2511,6 +2541,7 @@ substitute_placeholder_in_expr (tree exp, tree obj)
 		  : (REFERENCE_CLASS_P (elt)
 		     || UNARY_CLASS_P (elt)
 		     || BINARY_CLASS_P (elt)
+		     || VL_EXP_CLASS_P (elt)
 		     || EXPRESSION_CLASS_P (elt))
 		  ? TREE_OPERAND (elt, 0) : 0))
 	if (TYPE_MAIN_VARIANT (TREE_TYPE (elt)) == need_type)
@@ -2523,6 +2554,7 @@ substitute_placeholder_in_expr (tree exp, tree obj)
 		  : (REFERENCE_CLASS_P (elt)
 		     || UNARY_CLASS_P (elt)
 		     || BINARY_CLASS_P (elt)
+		     || VL_EXP_CLASS_P (elt)
 		     || EXPRESSION_CLASS_P (elt))
 		  ? TREE_OPERAND (elt, 0) : 0))
 	if (POINTER_TYPE_P (TREE_TYPE (elt))
@@ -2609,6 +2641,28 @@ substitute_placeholder_in_expr (tree exp, tree obj)
 	    gcc_unreachable ();
 	  }
 	break;
+
+      case tcc_vl_exp:
+	{
+	  tree copy = NULL_TREE;
+	  int i;
+	  int n = TREE_OPERAND_LENGTH (exp);
+	  for (i = 1; i < n; i++)
+	    {
+	      tree op = TREE_OPERAND (exp, i);
+	      tree newop = SUBSTITUTE_PLACEHOLDER_IN_EXPR (op, obj);
+	      if (newop != op)
+		{
+		  if (!copy)
+		    copy = copy_node (exp);
+		  TREE_OPERAND (copy, i) = newop;
+		}
+	    }
+	  if (copy)
+	    return fold (copy);
+	  else
+	    return exp;
+	}
 
       default:
 	gcc_unreachable ();
@@ -2735,6 +2789,7 @@ stabilize_reference_1 (tree e)
     case tcc_statement:
     case tcc_expression:
     case tcc_reference:
+    case tcc_vl_exp:
       /* If the expression has side-effects, then encase it in a SAVE_EXPR
 	 so that it will only be evaluated once.  */
       /* The reference (r) and comparison (<) classes could be handled as
@@ -2931,7 +2986,6 @@ build1_stat (enum tree_code code, tree type, tree node MEM_STAT_DECL)
 #else
   SET_EXPR_LOCUS (t, NULL);
 #endif
-  TREE_COMPLEXITY (t) = 0;
   TREE_OPERAND (t, 0) = node;
   TREE_BLOCK (t) = NULL_TREE;
   if (node && !TYPE_P (node))
@@ -3005,16 +3059,14 @@ build2_stat (enum tree_code code, tree tt, tree arg0, tree arg1 MEM_STAT_DECL)
 
   gcc_assert (TREE_CODE_LENGTH (code) == 2);
 
-  if (code == MODIFY_EXPR && cfun && cfun->gimplified)
-    {
-      /* We should be talking GIMPLE_MODIFY_STMT by now.  */
-      gcc_unreachable ();
-    }
-
-  /* FIXME tuples: For now let's be lazy; later we must rewrite all
-     build2 calls to build2_gimple calls.  */
-  if (TREE_CODE_CLASS (code) == tcc_gimple_stmt)
-    return build2_gimple (code, arg0, arg1);
+#if 1
+  /* FIXME tuples: Statement's aren't expressions!  */
+  if (code == GIMPLE_MODIFY_STMT)
+    return build_gimple_modify_stmt_stat (arg0, arg1 PASS_MEM_STAT);
+#else
+  /* Must use build_gimple_modify_stmt to construct GIMPLE_MODIFY_STMTs.  */
+  gcc_assert (code != GIMPLE_MODIFY_STMT);
+#endif
 
   t = make_node_stat (code PASS_MEM_STAT);
   TREE_TYPE (t) = tt;
@@ -3047,31 +3099,18 @@ build2_stat (enum tree_code code, tree tt, tree arg0, tree arg1 MEM_STAT_DECL)
 }
 
 
-/* Similar as build2_stat, but for GIMPLE tuples.  For convenience's sake,
-   arguments and return type are trees.  */
+/* Build a GIMPLE_MODIFY_STMT node.  This tree code doesn't have a
+   type, so we can't use build2 (a.k.a. build2_stat).  */
 
 tree
-build2_gimple_stat (enum tree_code code, tree arg0, tree arg1 MEM_STAT_DECL)
+build_gimple_modify_stmt_stat (tree arg0, tree arg1 MEM_STAT_DECL)
 {
-  bool side_effects;
   tree t;
 
-  gcc_assert (TREE_CODE_LENGTH (code) == 2);
-
-  t = make_node_stat (code PASS_MEM_STAT);
-
-  side_effects = TREE_SIDE_EFFECTS (t);
-
+  t = make_node_stat (GIMPLE_MODIFY_STMT PASS_MEM_STAT);
   /* ?? We don't care about setting flags for tuples...  */
   GIMPLE_STMT_OPERAND (t, 0) = arg0;
   GIMPLE_STMT_OPERAND (t, 1) = arg1;
-
-  /* ...except perhaps side_effects and volatility.  ?? */
-  TREE_SIDE_EFFECTS (t) = side_effects;
-  TREE_THIS_VOLATILE (t) = (TREE_CODE_CLASS (code) == tcc_reference
-	             	    && arg0 && TREE_THIS_VOLATILE (arg0));
-
-
   return t;
 }
 
@@ -3083,6 +3122,7 @@ build3_stat (enum tree_code code, tree tt, tree arg0, tree arg1,
   tree t;
 
   gcc_assert (TREE_CODE_LENGTH (code) == 3);
+  gcc_assert (TREE_CODE_CLASS (code) != tcc_vl_exp);
 
   t = make_node_stat (code PASS_MEM_STAT);
   TREE_TYPE (t) = tt;
@@ -3092,26 +3132,6 @@ build3_stat (enum tree_code code, tree tt, tree arg0, tree arg1,
   PROCESS_ARG(0);
   PROCESS_ARG(1);
   PROCESS_ARG(2);
-
-  if (code == CALL_EXPR && !side_effects)
-    {
-      tree node;
-      int i;
-
-      /* Calls have side-effects, except those to const or
-	 pure functions.  */
-      i = call_expr_flags (t);
-      if (!(i & (ECF_CONST | ECF_PURE)))
-	side_effects = 1;
-
-      /* And even those have side-effects if their arguments do.  */
-      else for (node = arg1; node; node = TREE_CHAIN (node))
-	if (TREE_SIDE_EFFECTS (TREE_VALUE (node)))
-	  {
-	    side_effects = 1;
-	    break;
-	  }
-    }
 
   TREE_SIDE_EFFECTS (t) = side_effects;
   TREE_THIS_VOLATILE (t)
@@ -3218,6 +3238,8 @@ build_nt (enum tree_code code, ...)
   int i;
   va_list p;
 
+  gcc_assert (TREE_CODE_CLASS (code) != tcc_vl_exp);
+
   va_start (p, code);
 
   t = make_node (code);
@@ -3227,6 +3249,23 @@ build_nt (enum tree_code code, ...)
     TREE_OPERAND (t, i) = va_arg (p, tree);
 
   va_end (p);
+  return t;
+}
+
+/* Similar to build_nt, but for creating a CALL_EXPR object with
+   ARGLIST passed as a list.  */
+
+tree
+build_nt_call_list (tree fn, tree arglist)
+{
+  tree t;
+  int i;
+
+  t = build_vl_exp (CALL_EXPR, list_length (arglist) + 3);
+  CALL_EXPR_FN (t) = fn;
+  CALL_EXPR_STATIC_CHAIN (t) = NULL_TREE;
+  for (i = 0; arglist; arglist = TREE_CHAIN (arglist), i++)
+    CALL_EXPR_ARG (t, i) = TREE_VALUE (arglist);
   return t;
 }
 
@@ -4184,7 +4223,7 @@ tree_map_marked_p (const void *p)
 
 /* Return true if the trees in the tree_int_map *'s VA and VB are equal.  */
 
-static int
+int
 tree_int_map_eq (const void *va, const void *vb)
 {
   const struct tree_int_map  *a = va, *b = vb;
@@ -4193,7 +4232,7 @@ tree_int_map_eq (const void *va, const void *vb)
 
 /* Hash a from tree in the tree_int_map * ITEM.  */
 
-static unsigned int
+unsigned int
 tree_int_map_hash (const void *item)
 {
   return htab_hash_pointer (((const struct tree_int_map *)item)->from);
@@ -4203,7 +4242,7 @@ tree_int_map_hash (const void *item)
    purposes.  We simply return true if the from tree_int_map *P's from tree is marked, so that this
    structure goes away when the from tree goes away.  */
 
-static int
+int
 tree_int_map_marked_p (const void *p)
 {
   tree from = ((struct tree_int_map *) p)->from;
@@ -4925,11 +4964,26 @@ simple_cst_equal (tree t1, tree t2)
       return simple_cst_equal (TREE_OPERAND (t1, 0), TREE_OPERAND (t2, 0));
 
     case CALL_EXPR:
-      cmp = simple_cst_equal (TREE_OPERAND (t1, 0), TREE_OPERAND (t2, 0));
+      cmp = simple_cst_equal (CALL_EXPR_FN (t1), CALL_EXPR_FN (t2));
       if (cmp <= 0)
 	return cmp;
-      return
-	simple_cst_list_equal (TREE_OPERAND (t1, 1), TREE_OPERAND (t2, 1));
+      if (call_expr_nargs (t1) != call_expr_nargs (t2))
+	return 0;
+      {
+	tree arg1, arg2;
+	call_expr_arg_iterator iter1, iter2;
+	for (arg1 = first_call_expr_arg (t1, &iter1),
+	       arg2 = first_call_expr_arg (t2, &iter2);
+	     arg1 && arg2;
+	     arg1 = next_call_expr_arg (&iter1),
+	       arg2 = next_call_expr_arg (&iter2))
+	  {
+	    cmp = simple_cst_equal (arg1, arg2);
+	    if (cmp <= 0)
+	      return cmp;
+	  }
+	return arg1 == arg2;
+      }
 
     case TARGET_EXPR:
       /* Special case: if either target is an unallocated VAR_DECL,
@@ -5193,7 +5247,7 @@ iterative_hash_expr (tree t, hashval_t val)
 	      val = iterative_hash_hashval_t (two, val);
 	    }
 	  else
-	    for (i = TREE_CODE_LENGTH (code) - 1; i >= 0; --i)
+	    for (i = TREE_OPERAND_LENGTH (t) - 1; i >= 0; --i)
 	      val = iterative_hash_expr (TREE_OPERAND (t, i), val);
 	}
       return val;
@@ -6273,7 +6327,7 @@ get_callee_fndecl (tree call)
 
   /* The first operand to the CALL is the address of the function
      called.  */
-  addr = TREE_OPERAND (call, 0);
+  addr = CALL_EXPR_FN (call);
 
   STRIP_NOPS (addr);
 
@@ -6692,15 +6746,16 @@ phi_node_elt_check_failed (int idx, int len, const char *file, int line,
 }
 
 /* Similar to above, except that the check is for the bounds of the operand
-   vector of an expression node.  */
+   vector of an expression node EXP.  */
 
 void
-tree_operand_check_failed (int idx, enum tree_code code, const char *file,
+tree_operand_check_failed (int idx, tree exp, const char *file,
 			   int line, const char *function)
 {
+  int code = TREE_CODE (exp);
   internal_error
     ("tree check: accessed operand %d of %s with %d operands in %s, at %s:%d",
-     idx + 1, tree_code_name[code], TREE_CODE_LENGTH (code),
+     idx + 1, tree_code_name[code], TREE_OPERAND_LENGTH (exp),
      function, trim_filename (file), line);
 }
 
@@ -7332,6 +7387,149 @@ build_omp_clause (enum omp_clause_code code)
   return t;
 }
 
+/* Set various status flags when building a CALL_EXPR object T.  */
+
+static void
+process_call_operands (tree t)
+{
+  bool side_effects;
+
+  side_effects = TREE_SIDE_EFFECTS (t);
+  if (!side_effects)
+    {
+      int i, n;
+      n = TREE_OPERAND_LENGTH (t);
+      for (i = 1; i < n; i++)
+	{
+	  tree op = TREE_OPERAND (t, i);
+	  if (op && TREE_SIDE_EFFECTS (op))
+	    {
+	      side_effects = 1;
+	      break;
+	    }
+	}
+    }
+  if (!side_effects)
+    {
+      int i;
+
+      /* Calls have side-effects, except those to const or
+	 pure functions.  */
+      i = call_expr_flags (t);
+      if (!(i & (ECF_CONST | ECF_PURE)))
+	side_effects = 1;
+    }
+  TREE_SIDE_EFFECTS (t) = side_effects;
+}
+
+/* Build a tcc_vl_exp object with code CODE and room for LEN operands.  LEN
+   includes the implicit operand count in TREE_OPERAND 0, and so must be >= 1.
+   Except for the CODE and operand count field, other storage for the
+   object is initialized to zeros.  */
+
+tree
+build_vl_exp_stat (enum tree_code code, int len MEM_STAT_DECL)
+{
+  tree t;
+  int length = (len - 1) * sizeof (tree) + sizeof (struct tree_exp);
+
+  gcc_assert (TREE_CODE_CLASS (code) == tcc_vl_exp);
+  gcc_assert (len >= 1);
+
+#ifdef GATHER_STATISTICS
+  tree_node_counts[(int) e_kind]++;
+  tree_node_sizes[(int) e_kind] += length;
+#endif
+
+  t = ggc_alloc_zone_pass_stat (length, &tree_zone);
+
+  memset (t, 0, length);
+
+  TREE_SET_CODE (t, code);
+
+  /* Can't use TREE_OPERAND to store the length because if checking is
+     enabled, it will try to check the length before we store it.  :-P  */
+  t->exp.operands[0] = build_int_cst (sizetype, len);
+
+  return t;
+}
+
+
+/* Build a CALL_EXPR of class tcc_vl_exp with the indicated RETURN_TYPE
+   and FN and a null static chain slot.  ARGLIST is a TREE_LIST of the
+   arguments.  */
+
+tree
+build_call_list (tree return_type, tree fn, tree arglist)
+{
+  tree t;
+  int i;
+
+  t = build_vl_exp (CALL_EXPR, list_length (arglist) + 3);
+  TREE_TYPE (t) = return_type;
+  CALL_EXPR_FN (t) = fn;
+  CALL_EXPR_STATIC_CHAIN (t) = NULL_TREE;
+  for (i = 0; arglist; arglist = TREE_CHAIN (arglist), i++)
+    CALL_EXPR_ARG (t, i) = TREE_VALUE (arglist);
+  process_call_operands (t);
+  return t;
+}
+
+/* Build a CALL_EXPR of class tcc_vl_exp with the indicated RETURN_TYPE and
+   FN and a null static chain slot.  NARGS is the number of call arguments
+   which are specified as "..." arguments.  */
+
+tree
+build_call_nary (tree return_type, tree fn, int nargs, ...)
+{
+  tree ret;
+  va_list args;
+  va_start (args, nargs);
+  ret = build_call_valist (return_type, fn, nargs, args);
+  va_end (args);
+  return ret;
+}
+
+/* Build a CALL_EXPR of class tcc_vl_exp with the indicated RETURN_TYPE and
+   FN and a null static chain slot.  NARGS is the number of call arguments
+   which are specified as a va_list ARGS.  */
+
+tree
+build_call_valist (tree return_type, tree fn, int nargs, va_list args)
+{
+  tree t;
+  int i;
+
+  t = build_vl_exp (CALL_EXPR, nargs + 3);
+  TREE_TYPE (t) = return_type;
+  CALL_EXPR_FN (t) = fn;
+  CALL_EXPR_STATIC_CHAIN (t) = NULL_TREE;
+  for (i = 0; i < nargs; i++)
+    CALL_EXPR_ARG (t, i) = va_arg (args, tree);
+  process_call_operands (t);
+  return t;
+}
+
+/* Build a CALL_EXPR of class tcc_vl_exp with the indicated RETURN_TYPE and
+   FN and a null static chain slot.  NARGS is the number of call arguments
+   which are specified as a tree array ARGS.  */
+
+tree
+build_call_array (tree return_type, tree fn, int nargs, tree *args)
+{
+  tree t;
+  int i;
+
+  t = build_vl_exp (CALL_EXPR, nargs + 3);
+  TREE_TYPE (t) = return_type;
+  CALL_EXPR_FN (t) = fn;
+  CALL_EXPR_STATIC_CHAIN (t) = NULL_TREE;
+  for (i = 0; i < nargs; i++)
+    CALL_EXPR_ARG (t, i) = args[i];
+  process_call_operands (t);
+  return t;
+}
+
 
 /* Returns true if it is possible to prove that the index of
    an array access REF (an ARRAY_REF expression) falls into the
@@ -7483,44 +7681,6 @@ int_cst_value (tree x)
   return val;
 }
 
-/* Returns the greatest common divisor of A and B, which must be
-   INTEGER_CSTs.  */
-
-tree
-tree_fold_gcd (tree a, tree b)
-{
-  tree a_mod_b;
-  tree type = TREE_TYPE (a);
-
-  gcc_assert (TREE_CODE (a) == INTEGER_CST);
-  gcc_assert (TREE_CODE (b) == INTEGER_CST);
-
-  if (integer_zerop (a))
-    return b;
-
-  if (integer_zerop (b))
-    return a;
-
-  if (tree_int_cst_sgn (a) == -1)
-    a = fold_build2 (MULT_EXPR, type, a,
-		     build_int_cst (type, -1));
-
-  if (tree_int_cst_sgn (b) == -1)
-    b = fold_build2 (MULT_EXPR, type, b,
-		     build_int_cst (type, -1));
-
-  while (1)
-    {
-      a_mod_b = fold_build2 (FLOOR_MOD_EXPR, type, a, b);
-
-      if (!TREE_INT_CST_LOW (a_mod_b)
-	  && !TREE_INT_CST_HIGH (a_mod_b))
-	return b;
-
-      a = b;
-      b = a_mod_b;
-    }
-}
 
 /* Returns unsigned variant of TYPE.  */
 
@@ -8053,7 +8213,7 @@ walk_tree (tree *tp, walk_tree_fn func, void *data, struct pointer_set_t *pset)
 	  int i, len;
 
 	  /* Walk over all the sub-trees of this operand.  */
-	  len = TREE_CODE_LENGTH (code);
+	  len = TREE_OPERAND_LENGTH (*tp);
 
 	  /* Go through the subtrees.  We need to do this in forward order so
 	     that the scope of a FOR_EXPR is handled properly.  */
@@ -8144,6 +8304,21 @@ generic_tree_type (tree node)
   if (GIMPLE_STMT_P (node))
     return &void_type_node;
   return &TREE_TYPE (node);
+}
+
+/* Build and return a TREE_LIST of arguments in the CALL_EXPR exp.
+   FIXME: don't use this function.  It exists for compatibility with
+   the old representation of CALL_EXPRs where a list was used to hold the
+   arguments.  Places that currently extract the arglist from a CALL_EXPR
+   ought to be rewritten to use the CALL_EXPR itself.  */
+tree
+call_expr_arglist (tree exp)
+{
+  tree arglist = NULL_TREE;
+  int i;
+  for (i = call_expr_nargs (exp) - 1; i >= 0; i--)
+    arglist = tree_cons (NULL_TREE, CALL_EXPR_ARG (exp, i), arglist);
+  return arglist;
 }
 
 #include "gt-tree.h"

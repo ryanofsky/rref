@@ -1433,15 +1433,14 @@ access_can_touch_variable (tree ref, tree alias, HOST_WIDE_INT offset,
    get_expr_operands.  FULL_REF is a tree that contains the entire
    pointer dereference expression, if available, or NULL otherwise.
    OFFSET and SIZE come from the memory access expression that
-   generated this virtual operand.  FOR_CLOBBER is true is this is
-   adding a virtual operand for a call clobber.  */
+   generated this virtual operand.  */
 
 static void 
 add_virtual_operand (tree var, stmt_ann_t s_ann, int flags,
 		     tree full_ref, HOST_WIDE_INT offset,
-		     HOST_WIDE_INT size, bool for_clobber)
+		     HOST_WIDE_INT size)
 {
-  VEC(tree,gc) *aliases;
+  bitmap aliases = NULL;
   tree sym;
   var_ann_t v_ann;
   
@@ -1479,7 +1478,8 @@ add_virtual_operand (tree var, stmt_ann_t s_ann, int flags,
   if (flags & opf_no_vops)
     return;
   
-  aliases = v_ann->may_aliases;
+  if (MTAG_P (var))
+    aliases = MTAG_ALIASES (var);
   if (aliases == NULL)
     {
       if (s_ann && !gimple_aliases_computed_p (cfun))
@@ -1492,19 +1492,20 @@ add_virtual_operand (tree var, stmt_ann_t s_ann, int flags,
     }
   else
     {
-      unsigned i;
+      bitmap_iterator bi;
+      unsigned int i;
       tree al;
       
       /* The variable is aliased.  Add its aliases to the virtual
 	 operands.  */
-      gcc_assert (VEC_length (tree, aliases) != 0);
+      gcc_assert (!bitmap_empty_p (aliases));
       
       if (flags & opf_def)
 	{
 	  bool none_added = true;
-
-	  for (i = 0; VEC_iterate (tree, aliases, i, al); i++)
+	  EXECUTE_IF_SET_IN_BITMAP (aliases, 0, i, bi)
 	    {
+	      al = referenced_var (i);
 	      if (!access_can_touch_variable (full_ref, al, offset, size))
 		continue;
 	      
@@ -1512,39 +1513,32 @@ add_virtual_operand (tree var, stmt_ann_t s_ann, int flags,
 	      append_vdef (al);
 	    }
 
-	  /* If the variable is also an alias tag, add a virtual
-	     operand for it, otherwise we will miss representing
-	     references to the members of the variable's alias set.	     
-	     This fixes the bug in gcc.c-torture/execute/20020503-1.c.
-	     
-	     It is also necessary to add bare defs on clobbers for
-	     SMT's, so that bare SMT uses caused by pruning all the
-	     aliases will link up properly with calls.   In order to
-	     keep the number of these bare defs we add down to the
-	     minimum necessary, we keep track of which SMT's were used
-	     alone in statement vdefs or VUSEs.  */
-	  if (v_ann->is_aliased
-	      || none_added
-	      || (TREE_CODE (var) == SYMBOL_MEMORY_TAG
-		  && for_clobber))
-	    {
-	      append_vdef (var);
-	    }
+	  /* Even if no aliases have been added, we still need to
+	     establish def-use and use-def chains, lest
+	     transformations think that this is not a memory
+	     reference.  For an example of this scenario, see
+	     testsuite/g++.dg/opt/cleanup1.C.  */
+	  if (none_added)
+	    append_vdef (var);
 	}
       else
 	{
 	  bool none_added = true;
-	  for (i = 0; VEC_iterate (tree, aliases, i, al); i++)
+	  EXECUTE_IF_SET_IN_BITMAP (aliases, 0, i, bi)
 	    {
+	      al = referenced_var (i);
 	      if (!access_can_touch_variable (full_ref, al, offset, size))
 		continue;
 	      none_added = false;
 	      append_vuse (al);
 	    }
-
-	  /* Similarly, append a virtual uses for VAR itself, when
-	     it is an alias tag.  */
-	  if (v_ann->is_aliased || none_added)
+	  
+	  /* Even if no aliases have been added, we still need to
+	     establish def-use and use-def chains, lest
+	     transformations think that this is not a memory
+	     reference.  For an example of this scenario, see
+	     testsuite/g++.dg/opt/cleanup1.C.  */
+	  if (none_added)
 	    append_vuse (var);
 	}
     }
@@ -1581,7 +1575,7 @@ add_stmt_operand (tree *var_p, stmt_ann_t s_ann, int flags)
 	append_use (var_p);
     }
   else
-    add_virtual_operand (var, s_ann, flags, NULL_TREE, 0, -1, false);
+    add_virtual_operand (var, s_ann, flags, NULL_TREE, 0, -1);
 }
 
 
@@ -1628,7 +1622,7 @@ get_indirect_ref_operands (tree stmt, tree expr, int flags,
 	{
 	  /* PTR has its own memory tag.  Use it.  */
 	  add_virtual_operand (pi->name_mem_tag, s_ann, flags,
-			       full_ref, offset, size, false);
+			       full_ref, offset, size);
 	}
       else
 	{
@@ -1657,7 +1651,7 @@ get_indirect_ref_operands (tree stmt, tree expr, int flags,
 
 	  if (v_ann->symbol_mem_tag)
 	    add_virtual_operand (v_ann->symbol_mem_tag, s_ann, flags,
-				 full_ref, offset, size, false);
+				 full_ref, offset, size);
           /* Aliasing information is missing; mark statement as volatile so we
              won't optimize it out too actively.  */
           else if (s_ann && !gimple_aliases_computed_p (cfun)
@@ -1815,7 +1809,7 @@ add_call_clobber_ops (tree stmt, tree callee)
 	    clobber_stats.static_read_clobbers_avoided++;
 	}
       else
-	add_virtual_operand (var, s_ann, opf_def, NULL, 0, -1, true);
+	add_virtual_operand (var, s_ann, opf_def, NULL, 0, -1);
     }
 }
 
@@ -1877,8 +1871,8 @@ add_call_read_ops (tree stmt, tree callee)
 static void
 get_call_expr_operands (tree stmt, tree expr)
 {
-  tree op;
   int call_flags = call_expr_flags (expr);
+  int i, nargs;
   stmt_ann_t ann = stmt_ann (stmt);
 
   ann->references_memory = true;
@@ -1900,12 +1894,12 @@ get_call_expr_operands (tree stmt, tree expr)
     }
 
   /* Find uses in the called function.  */
-  get_expr_operands (stmt, &TREE_OPERAND (expr, 0), opf_use);
+  get_expr_operands (stmt, &CALL_EXPR_FN (expr), opf_use);
+  nargs = call_expr_nargs (expr);
+  for (i = 0; i < nargs; i++)
+    get_expr_operands (stmt, &CALL_EXPR_ARG (expr, i), opf_use);
 
-  for (op = TREE_OPERAND (expr, 1); op; op = TREE_CHAIN (op))
-    get_expr_operands (stmt, &TREE_VALUE (op), opf_use);
-
-  get_expr_operands (stmt, &TREE_OPERAND (expr, 2), opf_use);
+  get_expr_operands (stmt, &CALL_EXPR_STATIC_CHAIN (expr), opf_use);
 }
 
 

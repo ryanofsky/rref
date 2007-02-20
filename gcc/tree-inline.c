@@ -107,6 +107,21 @@ int flag_inline_trees = 0;
    o Provide heuristics to clamp inlining of recursive template
      calls?  */
 
+
+/* Weights that estimate_num_insns uses for heuristics in inlining.  */
+
+eni_weights eni_inlining_weights;
+
+/* Weights that estimate_num_insns uses to estimate the size of the
+   produced code.  */
+
+eni_weights eni_size_weights;
+
+/* Weights that estimate_num_insns uses to estimate the time necessary
+   to execute the produced code.  */
+
+eni_weights eni_time_weights;
+
 /* Prototypes.  */
 
 static tree declare_return_variable (copy_body_data *, tree, tree, tree *);
@@ -762,8 +777,13 @@ copy_bb (copy_body_data *id, basic_block bb, int frequency_scale, int count_scal
   copy_basic_block = create_basic_block (NULL, (void *) 0,
                                          (basic_block) bb->prev_bb->aux);
   copy_basic_block->count = bb->count * count_scale / REG_BR_PROB_BASE;
-  copy_basic_block->frequency = (bb->frequency
+
+  /* We are going to rebuild frequencies from scratch.  These values have just
+     small importance to drive canonicalize_loop_headers.  */
+  copy_basic_block->frequency = ((gcov_type)bb->frequency
 				     * frequency_scale / REG_BR_PROB_BASE);
+  if (copy_basic_block->frequency > BB_FREQ_MAX)
+    copy_basic_block->frequency = BB_FREQ_MAX;
   copy_bsi = bsi_start (copy_basic_block);
 
   for (bsi = bsi_start (bb);
@@ -824,7 +844,7 @@ copy_bb (copy_body_data *id, basic_block bb, int frequency_scale, int count_scal
 		      edge = cgraph_edge (id->src_node, orig_stmt);
 		      if (edge)
 			cgraph_clone_edge (edge, id->dst_node, stmt,
-					   REG_BR_PROB_BASE, 1, true);
+					   REG_BR_PROB_BASE, 1, edge->frequency, true);
 		      break;
 
 		    case CB_CGE_MOVE_CLONES:
@@ -1410,10 +1430,10 @@ setup_one_parameter (copy_body_data *id, tree p, tree value, tree fn,
 }
 
 /* Generate code to initialize the parameters of the function at the
-   top of the stack in ID from the ARGS (presented as a TREE_LIST).  */
+   top of the stack in ID from the CALL_EXPR EXP.  */
 
 static void
-initialize_inlined_parameters (copy_body_data *id, tree args, tree static_chain,
+initialize_inlined_parameters (copy_body_data *id, tree exp,
 			       tree fn, basic_block bb)
 {
   tree parms;
@@ -1421,14 +1441,16 @@ initialize_inlined_parameters (copy_body_data *id, tree args, tree static_chain,
   tree p;
   tree vars = NULL_TREE;
   int argnum = 0;
+  call_expr_arg_iterator iter;
+  tree static_chain = CALL_EXPR_STATIC_CHAIN (exp);
 
   /* Figure out what the parameters are.  */
   parms = DECL_ARGUMENTS (fn);
 
   /* Loop through the parameter declarations, replacing each with an
      equivalent VAR_DECL, appropriately initialized.  */
-  for (p = parms, a = args; p;
-       a = a ? TREE_CHAIN (a) : a, p = TREE_CHAIN (p))
+  for (p = parms, a = first_call_expr_arg (exp, &iter); p;
+       a = next_call_expr_arg (&iter), p = TREE_CHAIN (p))
     {
       tree value;
 
@@ -1436,7 +1458,7 @@ initialize_inlined_parameters (copy_body_data *id, tree args, tree static_chain,
 
       /* Find the initializer.  */
       value = lang_hooks.tree_inlining.convert_parm_for_inlining
-	      (p, a ? TREE_VALUE (a) : NULL_TREE, fn, argnum);
+	      (p, a, fn, argnum);
 
       setup_one_parameter (id, p, value, fn, bb, &vars);
     }
@@ -1904,14 +1926,26 @@ estimate_move_cost (tree type)
     return ((size + MOVE_MAX_PIECES - 1) / MOVE_MAX_PIECES);
 }
 
+/* Arguments for estimate_num_insns_1.  */
+
+struct eni_data
+{
+  /* Used to return the number of insns.  */
+  int count;
+
+  /* Weights of various constructs.  */
+  eni_weights *weights;
+};
+
 /* Used by estimate_num_insns.  Estimate number of instructions seen
    by given statement.  */
 
 static tree
 estimate_num_insns_1 (tree *tp, int *walk_subtrees, void *data)
 {
-  int *count = (int *) data;
+  struct eni_data *d = data;
   tree x = *tp;
+  unsigned cost;
 
   if (IS_TYPE_OR_DECL_P (x))
     {
@@ -2026,7 +2060,7 @@ estimate_num_insns_1 (tree *tp, int *walk_subtrees, void *data)
       /* Otherwise it's a store, so fall through to compute the move cost.  */
 
     case CONSTRUCTOR:
-      *count += estimate_move_cost (TREE_TYPE (x));
+      d->count += estimate_move_cost (TREE_TYPE (x));
       break;
 
     /* Assign cost of 1 to usual operations.
@@ -2090,8 +2124,6 @@ estimate_num_insns_1 (tree *tp, int *walk_subtrees, void *data)
     case POSTDECREMENT_EXPR:
     case POSTINCREMENT_EXPR:
 
-    case SWITCH_EXPR:
-
     case ASM_EXPR:
 
     case REALIGN_LOAD_EXPR:
@@ -2116,7 +2148,13 @@ estimate_num_insns_1 (tree *tp, int *walk_subtrees, void *data)
     case VEC_INTERLEAVE_LOW_EXPR:
 
     case RESX_EXPR:
-      *count += 1;
+      d->count += 1;
+      break;
+
+    case SWITCH_EXPR:
+      /* TODO: Cost of a switch should be derived from the number of
+	 branches.  */
+      d->count += d->weights->switch_cost;
       break;
 
     /* Few special cases of expensive operations.  This is useful
@@ -2131,13 +2169,13 @@ estimate_num_insns_1 (tree *tp, int *walk_subtrees, void *data)
     case FLOOR_MOD_EXPR:
     case ROUND_MOD_EXPR:
     case RDIV_EXPR:
-      *count += 10;
+      d->count += d->weights->div_mod_cost;
       break;
     case CALL_EXPR:
       {
 	tree decl = get_callee_fndecl (x);
-	tree arg;
 
+	cost = d->weights->call_cost;
 	if (decl && DECL_BUILT_IN_CLASS (decl) == BUILT_IN_NORMAL)
 	  switch (DECL_FUNCTION_CODE (decl))
 	    {
@@ -2146,6 +2184,10 @@ estimate_num_insns_1 (tree *tp, int *walk_subtrees, void *data)
 	      return NULL_TREE;
 	    case BUILT_IN_EXPECT:
 	      return NULL_TREE;
+	    /* Prefetch instruction is not expensive.  */
+	    case BUILT_IN_PREFETCH:
+	      cost = 1;
+	      break;
 	    default:
 	      break;
 	    }
@@ -2154,16 +2196,19 @@ estimate_num_insns_1 (tree *tp, int *walk_subtrees, void *data)
 	   that does use function declaration to figure out the arguments.  */
 	if (!decl)
 	  {
-	    for (arg = TREE_OPERAND (x, 1); arg; arg = TREE_CHAIN (arg))
-	      *count += estimate_move_cost (TREE_TYPE (TREE_VALUE (arg)));
+	    tree a;
+	    call_expr_arg_iterator iter;
+	    FOR_EACH_CALL_EXPR_ARG (a, iter, x)
+	      d->count += estimate_move_cost (TREE_TYPE (a));
 	  }
 	else
 	  {
+	    tree arg;
 	    for (arg = DECL_ARGUMENTS (decl); arg; arg = TREE_CHAIN (arg))
-	      *count += estimate_move_cost (TREE_TYPE (arg));
+	      d->count += estimate_move_cost (TREE_TYPE (arg));
 	  }
 
-	*count += PARAM_VALUE (PARAM_INLINE_CALL_COST);
+	d->count += cost;
 	break;
       }
 
@@ -2177,7 +2222,7 @@ estimate_num_insns_1 (tree *tp, int *walk_subtrees, void *data)
     case OMP_CRITICAL:
     case OMP_ATOMIC:
       /* OpenMP directives are generally very expensive.  */
-      *count += 40;
+      d->count += d->weights->omp_cost;
       break;
 
     default:
@@ -2186,16 +2231,20 @@ estimate_num_insns_1 (tree *tp, int *walk_subtrees, void *data)
   return NULL;
 }
 
-/* Estimate number of instructions that will be created by expanding EXPR.  */
+/* Estimate number of instructions that will be created by expanding EXPR.
+   WEIGHTS contains weights attributed to various constructs.  */
 
 int
-estimate_num_insns (tree expr)
+estimate_num_insns (tree expr, eni_weights *weights)
 {
-  int num = 0;
   struct pointer_set_t *visited_nodes;
   basic_block bb;
   block_stmt_iterator bsi;
   struct function *my_function;
+  struct eni_data data;
+
+  data.count = 0;
+  data.weights = weights;
 
   /* If we're given an entire function, walk the CFG.  */
   if (TREE_CODE (expr) == FUNCTION_DECL)
@@ -2210,15 +2259,40 @@ estimate_num_insns (tree expr)
 	       bsi_next (&bsi))
 	    {
 	      walk_tree (bsi_stmt_ptr (bsi), estimate_num_insns_1,
-			 &num, visited_nodes);
+			 &data, visited_nodes);
 	    }
 	}
       pointer_set_destroy (visited_nodes);
     }
   else
-    walk_tree_without_duplicates (&expr, estimate_num_insns_1, &num);
+    walk_tree_without_duplicates (&expr, estimate_num_insns_1, &data);
 
-  return num;
+  return data.count;
+}
+
+/* Initializes weights used by estimate_num_insns.  */
+
+void
+init_inline_once (void)
+{
+  eni_inlining_weights.call_cost = PARAM_VALUE (PARAM_INLINE_CALL_COST);
+  eni_inlining_weights.div_mod_cost = 10;
+  eni_inlining_weights.switch_cost = 1;
+  eni_inlining_weights.omp_cost = 40;
+
+  eni_size_weights.call_cost = 1;
+  eni_size_weights.div_mod_cost = 1;
+  eni_size_weights.switch_cost = 10;
+  eni_size_weights.omp_cost = 40;
+
+  /* Estimating time for call is difficult, since we have no idea what the
+     called function does.  In the current uses of eni_time_weights,
+     underestimating the cost does less harm than overestimating it, so
+     we choose a rather small value here.  */
+  eni_time_weights.call_cost = 10;
+  eni_time_weights.div_mod_cost = 10;
+  eni_time_weights.switch_cost = 4;
+  eni_time_weights.omp_cost = 40;
 }
 
 typedef struct function *function_p;
@@ -2267,7 +2341,6 @@ expand_call_inline (basic_block bb, tree stmt, tree *tp, void *data)
   tree use_retvar;
   tree fn;
   splay_tree st;
-  tree args;
   tree return_slot;
   tree modify_dest;
   location_t saved_location;
@@ -2335,8 +2408,14 @@ expand_call_inline (basic_block bb, tree stmt, tree *tp, void *data)
          (incorrect node sharing is most common reason for missing edges.  */
       gcc_assert (dest->needed || !flag_unit_at_a_time);
       cgraph_create_edge (id->dst_node, dest, stmt,
-			  bb->count, bb->loop_depth)->inline_failed
+			  bb->count, CGRAPH_FREQ_BASE,
+			  bb->loop_depth)->inline_failed
 	= N_("originally indirect function call not considered for inlining");
+      if (dump_file)
+	{
+	   fprintf (dump_file, "Created new direct edge to %s",
+		    cgraph_node_name (dest));
+	}
       goto egress;
     }
 
@@ -2419,15 +2498,12 @@ expand_call_inline (basic_block bb, tree stmt, tree *tp, void *data)
   id->decl_map = splay_tree_new (splay_tree_compare_pointers,
 				 NULL, NULL);
 
-  /* Initialize the parameters.  */
-  args = TREE_OPERAND (t, 1);
-
   /* Record the function we are about to inline.  */
   id->src_fn = fn;
   id->src_node = cg_edge->callee;
   id->src_cfun = DECL_STRUCT_FUNCTION (fn);
 
-  initialize_inlined_parameters (id, args, TREE_OPERAND (t, 2), fn, bb);
+  initialize_inlined_parameters (id, t, fn, bb);
 
   if (DECL_INITIAL (fn))
     add_lexical_block (id->block, remap_blocks (DECL_INITIAL (fn), id));
@@ -2611,6 +2687,75 @@ fold_marked_statements (int first, struct pointer_set_t *statements)
       }
 }
 
+/* Return true if BB has at least one abnormal outgoing edge.  */
+
+static inline bool
+has_abnormal_outgoing_edge_p (basic_block bb)
+{
+  edge e;
+  edge_iterator ei;
+
+  FOR_EACH_EDGE (e, ei, bb->succs)
+    if (e->flags & EDGE_ABNORMAL)
+      return true;
+
+  return false;
+}
+
+/* When a block from the inlined function contains a call with side-effects
+   in the middle gets inlined in a function with non-locals labels, the call
+   becomes a potential non-local goto so we need to add appropriate edge.  */
+
+static void
+make_nonlocal_label_edges (void)
+{
+  block_stmt_iterator bsi;
+  basic_block bb;
+
+  FOR_EACH_BB (bb)
+    {
+      for (bsi = bsi_start (bb); !bsi_end_p (bsi); bsi_next (&bsi))
+	{
+	  tree stmt = bsi_stmt (bsi);
+	  if (tree_can_make_abnormal_goto (stmt))
+	    {
+	      if (stmt == bsi_stmt (bsi_last (bb)))
+		{
+		  if (!has_abnormal_outgoing_edge_p (bb))
+		    make_abnormal_goto_edges (bb, true);
+		}
+	      else
+		{
+		  edge e = split_block (bb, stmt);
+		  bb = e->src;
+		  make_abnormal_goto_edges (bb, true);
+		}
+	      break;
+	    }
+
+	  /* Update PHIs on nonlocal goto receivers we (possibly)
+	     just created new edges into.  */
+	  if (TREE_CODE (stmt) == LABEL_EXPR
+	      && gimple_in_ssa_p (cfun))
+	    {
+	      tree target = LABEL_EXPR_LABEL (stmt);
+	      if (DECL_NONLOCAL (target))
+		{
+		  tree phi;
+
+		  for (phi = phi_nodes (bb); phi; phi = PHI_CHAIN (phi))
+		    {
+		      gcc_assert (SSA_NAME_OCCURS_IN_ABNORMAL_PHI
+				  (PHI_RESULT (phi)));
+		      mark_sym_for_renaming
+			(SSA_NAME_VAR (PHI_RESULT (phi)));
+		    }
+		}
+	    }
+	}
+    }
+}
+
 /* Expand calls to inline functions in the body of FN.  */
 
 unsigned int
@@ -2674,10 +2819,6 @@ optimize_inline_calls (tree fn)
 	gcc_assert (e->inline_failed);
     }
 #endif
-  /* We need to rescale frequencies again to peak at REG_BR_PROB_BASE
-     as inlining loops might increase the maximum.  */
-  if (ENTRY_BLOCK_PTR->count)
-    counts_to_freqs ();
 
   /* We are not going to maintain the cgraph edges up to date.
      Kill it so it won't confuse us.  */
@@ -2686,6 +2827,8 @@ optimize_inline_calls (tree fn)
   fold_marked_statements (last, id.statements_to_fold);
   pointer_set_destroy (id.statements_to_fold);
   fold_cond_expr_cond ();
+  if (current_function_has_nonlocal_label)
+    make_nonlocal_label_edges ();
   /* We make no attempts to keep dominance info up-to-date.  */
   free_dominance_info (CDI_DOMINATORS);
   free_dominance_info (CDI_POST_DOMINATORS);
@@ -2694,7 +2837,8 @@ optimize_inline_calls (tree fn)
      throw and they don't care to proactively update local EH info.  This is
      done later in fixup_cfg pass that also execute the verification.  */
   return (TODO_update_ssa | TODO_cleanup_cfg
-	  | (gimple_in_ssa_p (cfun) ? TODO_remove_unused_locals : 0));
+	  | (gimple_in_ssa_p (cfun) ? TODO_remove_unused_locals : 0)
+	  | (profile_status != PROFILE_ABSENT ? TODO_rebuild_frequencies : 0));
 }
 
 /* FN is a function that has a complete body, and CLONE is a function whose

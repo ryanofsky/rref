@@ -462,7 +462,7 @@ override_options (void)
      implementing architecture ARCH.  -mcpu=CPU should override -march
      and should generate code that runs on processor CPU, making free
      use of any instructions that CPU understands.  -mtune=UARCH applies
-     on top of -mcpu or -march and optimises the code for UARCH.  It does
+     on top of -mcpu or -march and optimizes the code for UARCH.  It does
      not change the target architecture.  */
   if (m68k_cpu_entry)
     {
@@ -1957,7 +1957,7 @@ m68k_rtx_costs (rtx x, int code, int outer_code, int *total)
     }
 }
 
-/* Return an instruction to move CONST_INT OPERANDS[1] into data regsiter
+/* Return an instruction to move CONST_INT OPERANDS[1] into data register
    OPERANDS[0].  */
 
 static const char *
@@ -2722,6 +2722,38 @@ emit_move_sequence (rtx *operands, enum machine_mode mode, rtx scratch_reg)
   return 0;
 }
 
+/* Split one or more DImode RTL references into pairs of SImode
+   references.  The RTL can be REG, offsettable MEM, integer constant, or
+   CONST_DOUBLE.  "operands" is a pointer to an array of DImode RTL to
+   split and "num" is its length.  lo_half and hi_half are output arrays
+   that parallel "operands".  */
+
+void
+split_di (rtx operands[], int num, rtx lo_half[], rtx hi_half[])
+{
+  while (num--)
+    {
+      rtx op = operands[num];
+
+      /* simplify_subreg refuses to split volatile memory addresses,
+	 but we still have to handle it.  */
+      if (GET_CODE (op) == MEM)
+	{
+	  lo_half[num] = adjust_address (op, SImode, 4);
+	  hi_half[num] = adjust_address (op, SImode, 0);
+	}
+      else
+	{
+	  lo_half[num] = simplify_gen_subreg (SImode, op,
+					      GET_MODE (op) == VOIDmode
+					      ? DImode : GET_MODE (op), 4);
+	  hi_half[num] = simplify_gen_subreg (SImode, op,
+					      GET_MODE (op) == VOIDmode
+					      ? DImode : GET_MODE (op), 0);
+	}
+    }
+}
+
 /* Return a REG that occurs in ADDR with coefficient 1.
    ADDR can be effectively incremented by incrementing REG.  */
 
@@ -2838,7 +2870,7 @@ notice_update_cc (rtx exp, rtx insn)
 	 codes.  Normal moves _do_ set the condition codes, but not in
 	 a way that is appropriate for comparison with 0, because -0.0
 	 would be treated as a negative nonzero number.  Note that it
-	 isn't appropriate to conditionalize this restiction on
+	 isn't appropriate to conditionalize this restriction on
 	 HONOR_SIGNED_ZEROS because that macro merely indicates whether
 	 we care about the difference between -0.0 and +0.0.  */
       else if (!FP_REG_P (SET_DEST (exp))
