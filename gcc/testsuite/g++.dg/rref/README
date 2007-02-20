@@ -61,3 +61,6 @@ temp-va-arg-bug.C
   These tests are simplified versions of the g++.dg/ext/complit2.C
   and g++.old-deja/g++.other/vaarg2.C testcases, respectively.
 
+elision_weak.C
+  tests that implicit rvalue casts are "weak" and do not prevent returned or
+  thrown lvalues from binding to non-const copy constructors
