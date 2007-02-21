@@ -6748,9 +6748,9 @@ check_return_expr (tree retval, bool *no_warning)
       if (VOID_TYPE_P (functype))
 	return error_mark_node;
 
-      /* A returned lvalue is sometimes treated as an rvalue for the
-	 purposes of overload resolution (under C++0x 12.8p16) to favor
-	 move constructors over copy constructors */
+      /* Under C++0x [12.8/16 class.copy], a returned lvalue is sometimes
+	 treated as an rvalue for the purposes of overload resolution to 
+	 favor move constructors over copy constructors.  */
       if (/* Must be a local, automatic variable.  */
 	  TREE_CODE (retval) == VAR_DECL
 	  && DECL_CONTEXT (retval) == current_function_decl

@@ -1130,8 +1130,10 @@ reference_binding (tree rto, tree rfrom, tree expr, int flags)
   compatible_p = reference_compatible_p (to, from);
 
   /* Directly bind reference when target expression's type is compatible with
-     the reference and expression is an lvalue. In c++0x, also directly bind
-     const and rvalue references to rvalues of compatible class type. */
+     the reference and expression is an lvalue. In C++0x, the wording in 
+     [8.5.3/5 dcl.init.ref] is changed to also allow direct bindings for const
+     and rvalue references to rvalues of compatible class type, as part of
+     DR391. */
   if (compatible_p 
       && (lvalue_p
           || (flag_cpp0x
@@ -1214,8 +1216,9 @@ reference_binding (tree rto, tree rfrom, tree expr, int flags)
 
   /* [dcl.init.ref]
 
-     Otherwise, the reference shall be an rvalue-reference or an
-     lvalue-reference to a non-volatile const type.  */
+     Otherwise, the reference shall be to a non-volatile const type.
+
+     Under C++0x, [8.5.3/5 dcl.init.ref] it may also be an rvalue reference */
   if (!CP_TYPE_CONST_NON_VOLATILE_P (to) && !TYPE_REF_IS_RVALUE (rto))
     return NULL;
 
@@ -6029,26 +6032,17 @@ compare_ics (conversion *ics1, conversion *ics2)
 
   /* [over.ics.rank]
 
+     --S1 and S2 are reference bindings (_dcl.init.ref_) and neither refers
+     to an implicit object parameter, and either S1 binds an lvalue reference
+     to an lvalue and S2 binds an rvalue reference or S1 binds an rvalue
+     reference to an rvalue and S2 binds an lvalue reference
+     (C++0x draft standard, 13.3.3.2)
+
      --S1 and S2 are reference bindings (_dcl.init.ref_), and the
      types to which the references refer are the same type except for
      top-level cv-qualifiers, and the type to which the reference
      initialized by S2 refers is more cv-qualified than the type to
      which the reference initialized by S1 refers */
-
-  /* Before checking the reference types' cv-qualifiers, check for
-     matching lvalue/rvalue references and arguments as proposed
-     in N1377.
-
-       rvalues will prefer rvalue references. lvalues will prefer
-       lvalue references. CV qualification conversions are
-       considered secondary relative to r/l-value conversions. 
-       rvalues can still bind to a const lvalue reference
-       (const A&), but only if there is not a more attractive
-       rvalue reference in the overload set. lvalues can bind to an
-       rvalue reference, but will prefer an lvalue reference if it
-       exists in the overload set. The rule that a more cv-qualified
-       object can not bind to a less cv-qualified reference stands 
-       ... both for lvalue and rvalue references. */
 
   if (ref_conv1 && ref_conv2
       && same_type_ignoring_top_level_qualifiers_p (to_type1, to_type2))

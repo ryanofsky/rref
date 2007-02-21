@@ -711,9 +711,9 @@ build_throw (tree exp)
 	{
           int flags = LOOKUP_NORMAL | LOOKUP_ONLYCONVERTING;
 
-	  /* A thrown lvalue is sometimes treated as an rvalue for the
-	     purposes of overload resolution (under C++0x 12.8p16) to favor
-	     move constructors over copy constructors */
+	  /* Under C++0x [12.8/16 class.copy], a thrown lvalue is sometimes
+	     treated as an rvalue for the purposes of overload resolution
+	     to favor move constructors over copy constructors.  */
 	  if (/* Must be a local, automatic variable.  */
 	      TREE_CODE (exp) == VAR_DECL
 	      && DECL_CONTEXT (exp) == current_function_decl

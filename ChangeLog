@@ -1,5 +1,6 @@
 2006-02-20  Russell Yanofsky <russ@yanofsky.org>
             Doug Gregor <doug.gregor@gmail.com>
+            Howard Hinnant <howard.hinnant@gmail.com>
 
 	Add support for rvalue references to G++ under --std=c++0x mode
 	* gcc/cp/call.c (conversion): new "valuedness_matches_p" member
