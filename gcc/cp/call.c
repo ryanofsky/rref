@@ -1120,10 +1120,6 @@ reference_binding (tree rto, tree rfrom, tree expr, int flags)
       lvalue_p = clk_ordinary;
       from = TREE_TYPE (from);
     }
-  else if (flags & LOOKUP_PREFER_RVALUE)
-    /* The top-level caller requested that we pretend that the lvalue
-       be treated as an rvalue.  */
-    lvalue_p = clk_none;
   else if (expr)
     lvalue_p = real_lvalue_p (expr);
 
@@ -1153,8 +1149,16 @@ reference_binding (tree rto, tree rfrom, tree expr, int flags)
 	 lvalue.  */
       conv = build_identity_conv (from, expr);
       conv = direct_reference_binding (rto, conv);
-      conv->valuedness_matches_p = (lvalue_p && !TYPE_REF_IS_RVALUE(rto))
-                                   || (!lvalue_p && TYPE_REF_IS_RVALUE(rto));
+
+      if (flags & LOOKUP_PREFER_RVALUE)
+        /* The top-level caller requested that we pretend that the lvalue
+           be treated as an rvalue.  */
+        conv->valuedness_matches_p = TYPE_REF_IS_RVALUE (rto);
+      else
+        conv->valuedness_matches_p
+          = ((lvalue_p && !TYPE_REF_IS_RVALUE (rto)))
+             || (!lvalue_p && TYPE_REF_IS_RVALUE (rto));
+
       if ((lvalue_p & clk_bitfield) != 0
 	  || ((lvalue_p & clk_packed) != 0 && !TYPE_PACKED (to)))
 	/* For the purposes of overload resolution, we ignore the fact
