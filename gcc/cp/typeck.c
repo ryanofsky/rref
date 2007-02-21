@@ -6749,7 +6749,7 @@ check_return_expr (tree retval, bool *no_warning)
 	return error_mark_node;
 
       /* Under C++0x [12.8/16 class.copy], a returned lvalue is sometimes
-	 treated as an rvalue for the purposes of overload resolution to 
+	 treated as an rvalue for the purposes of overload resolution to
 	 favor move constructors over copy constructors.  */
       if (/* Must be a local, automatic variable.  */
 	  TREE_CODE (retval) == VAR_DECL

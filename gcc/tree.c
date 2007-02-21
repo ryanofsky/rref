@@ -5325,7 +5325,7 @@ build_pointer_type (tree to_type)
 
 tree
 build_rval_reference_type_for_mode (tree to_type, enum machine_mode mode,
-                                    bool can_alias_all, bool rval)
+				    bool can_alias_all, bool rval)
 {
   tree t;
 
@@ -5345,7 +5345,7 @@ build_rval_reference_type_for_mode (tree to_type, enum machine_mode mode,
      the proper mode, use it.  */
   for (t = TYPE_REFERENCE_TO (to_type); t; t = TYPE_NEXT_REF_TO (t))
     if (TYPE_MODE (t) == mode && TYPE_REF_CAN_ALIAS_ALL (t) == can_alias_all
-        && TYPE_REF_IS_RVALUE(t) == rval)
+	&& TYPE_REF_IS_RVALUE(t) == rval)
       return t;
 
   t = make_node (REFERENCE_TYPE);
@@ -5371,11 +5371,11 @@ build_rval_reference_type_for_mode (tree to_type, enum machine_mode mode,
 
 tree
 build_reference_type_for_mode (tree to_type, enum machine_mode mode,
-                                    bool can_alias_all)
+			       bool can_alias_all)
 {
   return build_rval_reference_type_for_mode (to_type, mode,
-                                             can_alias_all,
-                                             false);
+					     can_alias_all,
+					     false);
 }
 
 /* Build the node for the type of references-to-TO_TYPE by default

@@ -485,7 +485,7 @@ struct gimple_stmt GTY(())
        CALL_FROM_THUNK_P in
            CALL_EXPR
        TYPE_REF_IS_RVALUE in
-         REFERENCE_TYPE
+	 REFERENCE_TYPE
 
    side_effects_flag:
 

@@ -1,4 +1,5 @@
 2006-02-20  Russell Yanofsky <russ@yanofsky.org>
+            Pedro Lamarao <pedro.lamarao@mndfck.org>
             Doug Gregor <doug.gregor@gmail.com>
             Howard Hinnant <howard.hinnant@gmail.com>
 
@@ -21,8 +22,8 @@
 	to be copy constructors
 	* gcc/cp/error.c (dump_type_prefix): format rvalue reference types
 	correctly in error messages
-	* gcc/cp/except.c (build_throw): In C++0x mode, move from certain
-	lvalues when throwing.
+	* gcc/cp/except.c (build_throw): move from certain lvalues when
+	throwing.
 	* gcc/cp/mangle.c (write_type): mangle rvalue references differently
 	than regular references
 	* gcc/cp/parser.c (make_reference_declarator): new boolean parameter
@@ -31,7 +32,7 @@
 	(cp_parser_conversion_declarator_opt): same
 	(cp_parser_declarator): same
 	(cp_parser_ptr_operator): parse "&&" tokens into rvalue reference
-	declarators when --std=c++0x option is present
+	declarators
 	* gcc/cp/pt.c (tsubst): implement reference collapsing
 	(type_unification_real): implement special template parameter
 	deduction rule for rvalue references
@@ -44,8 +45,7 @@
 	* gcc/cp/tree.c (lvalue_p_1): handle rvalue reference types
 	* gcc/cp/typeck.c (comptypes): don't consider rvalue and lvalue
 	reference types to be equivalent
-        (check_return_expr): In C++0x mode, move from certain
-        lvalues when returning them.
+	(check_return_expr): move from certain lvalues when returning them
 	* gcc/tree.h
 	(TYPE_REF_IS_RVALUE): new macro for REFERENCE_TYPE nodes
 	(build_rval_reference_type_for_mode): new function

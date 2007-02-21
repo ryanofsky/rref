@@ -68,9 +68,9 @@ lvalue_p_1 (tree ref,
      INDIRECT_REFs */
   if (TREE_CODE (ref) == INDIRECT_REF
       && TREE_CODE (TREE_TYPE (TREE_OPERAND (ref, 0)))
-         == REFERENCE_TYPE)
+	  == REFERENCE_TYPE)
     return lvalue_p_1(TREE_OPERAND (ref, 0),
-                      treat_class_rvalues_as_lvalues);
+		      treat_class_rvalues_as_lvalues);
 
   if (TREE_CODE (TREE_TYPE (ref)) == REFERENCE_TYPE)
     {

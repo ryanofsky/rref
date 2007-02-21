@@ -7742,7 +7742,7 @@ grokdeclarator (const cp_declarator *declarator,
 	case cdk_pointer:
 	case cdk_reference:
 	case cdk_ptrmem:
-	  /* Filter out pointers-to-references.
+	  /* Filter out pointers-to-references and references-to-references.
 	     We can get these if a TYPE_DECL is used.  */
 
 	  if (TREE_CODE (type) == REFERENCE_TYPE)
@@ -7754,12 +7754,12 @@ grokdeclarator (const cp_declarator *declarator,
 		}
 
 	      /* In C++0x, we allow reference to reference declarations
-                 that occur indirectly through typedefs [7.1.3/8 dcl.typedef]
-                 and template type arguments [14.3.1/4 temp.arg.type]. The
-                 check for direct reference to reference declarations, which
-                 are still forbidden, occurs below. Reasoning behind the change
-                 can be found in DR106, DR540, and the rvalue reference
-                 proposals. */
+		 that occur indirectly through typedefs [7.1.3/8 dcl.typedef]
+		 and template type arguments [14.3.1/4 temp.arg.type]. The
+		 check for direct reference to reference declarations, which
+		 are still forbidden, occurs below. Reasoning behind the change
+		 can be found in DR106, DR540, and the rvalue reference
+		 proposals. */
 	      else if (!flag_cpp0x)
 		{
 		  error ("cannot declare reference to %q#T", type);
@@ -7791,9 +7791,9 @@ grokdeclarator (const cp_declarator *declarator,
 	  if (declarator->kind == cdk_reference)
 	    {
 	      /* In C++0x, the type we are creating a reference to might be
-                 a typedef which is itself a reference type. In that case,
-                 we follow the reference collapsing rules in 
-                 [7.1.3/8 dcl.typedef] to create final reference type. */
+		 a typedef which is itself a reference type. In that case,
+		 we follow the reference collapsing rules in
+		 [7.1.3/8 dcl.typedef] to create the final reference type. */
 	      if (!VOID_TYPE_P (type))
 		type = build_rval_reference_type
 		       ((TREE_CODE (type) == REFERENCE_TYPE
@@ -7803,10 +7803,10 @@ grokdeclarator (const cp_declarator *declarator,
 			     || TYPE_REF_IS_RVALUE (type))));
 
 	      /* In C++0x, we need this check for direct reference to
-                 reference declarations, which are forbidden by 
-                 [8.3.2/5 dcl.ref]. Reference to reference declarations
+		 reference declarations, which are forbidden by
+		 [8.3.2/5 dcl.ref]. Reference to reference declarations
 		 are only allowed indirectly through typedefs and template
-                 type arguments. Example:
+		 type arguments. Example:
 
 		   void foo(int & &);      // invalid ref-to-ref decl
 

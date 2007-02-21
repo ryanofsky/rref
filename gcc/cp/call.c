@@ -98,7 +98,7 @@ struct conversion {
      from a pointer-to-derived to pointer-to-base is being performed.  */
   BOOL_BITFIELD base_p : 1;
   /* If KIND is ck_ref_bind, true when either an lvalue reference is
-     being bound to an lvalue expression or an rvalue reference is 
+     being bound to an lvalue expression or an rvalue reference is
      being bound to an rvalue expression. */
   BOOL_BITFIELD valuedness_matches_p: 1;
   /* The type of the expression resulting from the conversion.  */
@@ -1006,8 +1006,8 @@ convert_class_to_reference (tree reference_type, tree s, tree expr)
 	      cand->second_conv
 		= (direct_reference_binding
 		   (reference_type, identity_conv));
-              cand->second_conv->valuedness_matches_p
-                = TYPE_REF_IS_RVALUE (TREE_TYPE (TREE_TYPE (cand->fn)))
+	      cand->second_conv->valuedness_matches_p
+		= TYPE_REF_IS_RVALUE (TREE_TYPE (TREE_TYPE (cand->fn)))
 		  == TYPE_REF_IS_RVALUE(reference_type);
 	      cand->second_conv->bad_p |= cand->convs[0]->bad_p;
 	    }
@@ -1130,15 +1130,15 @@ reference_binding (tree rto, tree rfrom, tree expr, int flags)
   compatible_p = reference_compatible_p (to, from);
 
   /* Directly bind reference when target expression's type is compatible with
-     the reference and expression is an lvalue. In C++0x, the wording in 
+     the reference and expression is an lvalue. In C++0x, the wording in
      [8.5.3/5 dcl.init.ref] is changed to also allow direct bindings for const
      and rvalue references to rvalues of compatible class type, as part of
      DR391. */
-  if (compatible_p 
+  if (compatible_p
       && (lvalue_p
-          || (flag_cpp0x
-              && (CP_TYPE_CONST_NON_VOLATILE_P (to) || TYPE_REF_IS_RVALUE (rto))
-              && CLASS_TYPE_P (from))))
+	  || (flag_cpp0x
+	      && (CP_TYPE_CONST_NON_VOLATILE_P(to) || TYPE_REF_IS_RVALUE(rto))
+	      && CLASS_TYPE_P (from))))
     {
       /* [dcl.init.ref]
 
@@ -1153,13 +1153,13 @@ reference_binding (tree rto, tree rfrom, tree expr, int flags)
       conv = direct_reference_binding (rto, conv);
 
       if (flags & LOOKUP_PREFER_RVALUE)
-        /* The top-level caller requested that we pretend that the lvalue
-           be treated as an rvalue.  */
-        conv->valuedness_matches_p = TYPE_REF_IS_RVALUE (rto);
+	/* The top-level caller requested that we pretend that the lvalue
+	   be treated as an rvalue.  */
+	conv->valuedness_matches_p = TYPE_REF_IS_RVALUE (rto);
       else
-        conv->valuedness_matches_p
-          = ((lvalue_p && !TYPE_REF_IS_RVALUE (rto)))
-             || (!lvalue_p && TYPE_REF_IS_RVALUE (rto));
+	conv->valuedness_matches_p
+	  = ((lvalue_p && !TYPE_REF_IS_RVALUE (rto)))
+	     || (!lvalue_p && TYPE_REF_IS_RVALUE (rto));
 
       if ((lvalue_p & clk_bitfield) != 0
 	  || ((lvalue_p & clk_packed) != 0 && !TYPE_PACKED (to)))
@@ -4434,14 +4434,14 @@ convert_like_real (conversion *convs, tree expr, tree fn, int argnum,
       {
 	tree ref_type = totype;
 
-	/* If necessary, create a temporary.  
+	/* If necessary, create a temporary.
 
 	   ??? VA_ARG_EXPR and CONSTRUCTOR expressions are special cases
 	   that seem to need temporaries, even when their types are
-	   reference compatible with the type of reference being bound, 
+	   reference compatible with the type of reference being bound,
 	   so the upcoming call to build_unary_op (ADDR_EXPR, expr, ...)
 	   doesn't fail.  */
-	if (convs->need_temporary_p 
+	if (convs->need_temporary_p
 	    || TREE_CODE (expr) == CONSTRUCTOR
 	    || TREE_CODE (expr) == VA_ARG_EXPR)
 	  {
@@ -5685,7 +5685,7 @@ maybe_handle_implicit_object (conversion **ics)
 	t = t->u.next;
       t = build_identity_conv (TREE_TYPE (t->type), NULL_TREE);
       t = direct_reference_binding (reference_type, t);
-      t->valuedness_matches_p = 1; 
+      t->valuedness_matches_p = 1;
       *ics = t;
     }
 }
@@ -5730,8 +5730,8 @@ compare_ics (conversion *ics1, conversion *ics2)
   conversion_rank rank1, rank2;
 
   /* REF_BINDING is nonzero if the result of the conversion sequence
-     is a reference type.   In that case REF_CONV is the 
-     reference binding conversion. */
+     is a reference type.   In that case REF_CONV is the reference
+     binding conversion. */
   conversion *ref_conv1;
   conversion *ref_conv2;
 
@@ -6047,10 +6047,10 @@ compare_ics (conversion *ics1, conversion *ics2)
   if (ref_conv1 && ref_conv2
       && same_type_ignoring_top_level_qualifiers_p (to_type1, to_type2))
     {
-      if (ref_conv1->valuedness_matches_p 
+      if (ref_conv1->valuedness_matches_p
 	  && !ref_conv2->valuedness_matches_p)
 	return 1;
-      else if (!ref_conv1->valuedness_matches_p 
+      else if (!ref_conv1->valuedness_matches_p
 	  && ref_conv2->valuedness_matches_p)
 	return -1;
 

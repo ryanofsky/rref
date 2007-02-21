@@ -709,7 +709,7 @@ build_throw (tree exp)
       /* And initialize the exception object.  */
       if (CLASS_TYPE_P (temp_type))
 	{
-          int flags = LOOKUP_NORMAL | LOOKUP_ONLYCONVERTING;
+	  int flags = LOOKUP_NORMAL | LOOKUP_ONLYCONVERTING;
 
 	  /* Under C++0x [12.8/16 class.copy], a thrown lvalue is sometimes
 	     treated as an rvalue for the purposes of overload resolution

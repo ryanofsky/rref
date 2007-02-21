@@ -7629,7 +7629,7 @@ tsubst (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 	  Under C++0x [14.8.2/2 temp.deduct], as part of the solution to
 	  DR106, creating a reference to a reference type during type
 	  deduction is no longer a cause for failure.   */
-	if ((TREE_CODE (type) == REFERENCE_TYPE 
+	if ((TREE_CODE (type) == REFERENCE_TYPE
 	     && (!flag_cpp0x || code != REFERENCE_TYPE))
 	    || (code == REFERENCE_TYPE && TREE_CODE (type) == VOID_TYPE))
 	  {
@@ -10042,7 +10042,7 @@ type_unification_real (tree tparms,
 
       /* From C++0x [14.8.2.1/3 temp.deduct.call], "If P is an rvalue
 	 reference type and the argument is an lvalue, the type A& is
-	 used in place of A for type deduction."  */ 
+	 used in place of A for type deduction."  */
       deduce_ref = (TREE_CODE (parm) == REFERENCE_TYPE
 		    && TYPE_REF_IS_RVALUE (parm)
 		    && real_lvalue_p (arg));
@@ -10709,7 +10709,7 @@ unify (tree tparms, tree targs, tree parm, tree arg, int strict,
 	    return 1;
 
 	  /* In C++0x, deduce_ref will be true when the template argument
-	     needs to be deduced as a reference to satisfy 
+	     needs to be deduced as a reference to satisfy
 	     [14.8.2.1/3 temp.deduct.call], as quoted above. */
 	  if (deduce_ref && TREE_CODE (parm) == TEMPLATE_TYPE_PARM)
 	    arg = build_reference_type (arg);
@@ -10896,7 +10896,8 @@ unify (tree tparms, tree targs, tree parm, tree arg, int strict,
 				   arg_max,
 				   integer_one_node);
 
-	  if (unify (tparms, targs, parm_max, arg_max, UNIFY_ALLOW_INTEGER, false))
+	  if (unify (tparms, targs, parm_max, arg_max, UNIFY_ALLOW_INTEGER,
+		     false))
 	    return 1;
 	}
       return unify (tparms, targs, TREE_TYPE (parm), TREE_TYPE (arg),

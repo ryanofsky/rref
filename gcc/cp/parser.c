@@ -953,7 +953,7 @@ make_pointer_declarator (cp_cv_quals cv_qualifiers, cp_declarator *target)
 
 cp_declarator *
 make_reference_declarator (cp_cv_quals cv_qualifiers, cp_declarator *target,
-                           bool rvalue_ref)
+			   bool rvalue_ref)
 {
   cp_declarator *declarator;
 
@@ -2626,8 +2626,8 @@ cp_parser_make_typename_type (cp_parser *parser, tree scope, tree id)
    cp_parser_ptr_operator. */
 static cp_declarator *
 cp_parser_make_indirect_declarator (enum tree_code code, tree class_type,
-                                    cp_cv_quals cv_qualifiers,
-                                    cp_declarator *target)
+				    cp_cv_quals cv_qualifiers,
+				    cp_declarator *target)
 {
   if (code == INDIRECT_REF)
     if (class_type == NULL_TREE)
