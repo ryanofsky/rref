@@ -711,16 +711,16 @@ build_throw (tree exp)
 	{
           int flags = LOOKUP_NORMAL | LOOKUP_ONLYCONVERTING;
 
-          /* In C++0x, a throw can sometimes be treated as an rvalue to
-             enable move construction.  */
-          if (flag_cpp0x
-              /* Must be a local, automatic variable.  */
-              && TREE_CODE (exp) == VAR_DECL
-              && DECL_CONTEXT (exp) == current_function_decl
-              && ! TREE_STATIC (exp)
-              /* The variable much not have the `volatile' qualifier.  */
-              && !(cp_type_quals (TREE_TYPE (exp)) & TYPE_QUAL_VOLATILE))
-            flags = flags | LOOKUP_PREFER_RVALUE;
+	  /* A thrown lvalue is sometimes treated as an rvalue for the
+	     purposes of overload resolution (under C++0x 12.8p16) to favor
+	     move constructors over copy constructors */
+	  if (/* Must be a local, automatic variable.  */
+	      TREE_CODE (exp) == VAR_DECL
+	      && DECL_CONTEXT (exp) == current_function_decl
+	      && ! TREE_STATIC (exp)
+	      /* The variable much not have the `volatile' qualifier.  */
+	      && !(cp_type_quals (TREE_TYPE (exp)) & TYPE_QUAL_VOLATILE))
+	    flags = flags | LOOKUP_PREFER_RVALUE;
 
 	  /* Call the copy constructor.  */
 	  exp = (build_special_member_call

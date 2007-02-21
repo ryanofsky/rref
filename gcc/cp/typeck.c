@@ -6748,28 +6748,28 @@ check_return_expr (tree retval, bool *no_warning)
       if (VOID_TYPE_P (functype))
 	return error_mark_node;
 
-      /* In C++0x, a return can sometimes be treated as an rvalue to
-         enable move construction.  */
-      if (flag_cpp0x
-          /* Must be a local, automatic variable.  */
-	  && TREE_CODE (retval) == VAR_DECL
+      /* A returned lvalue is sometimes treated as an rvalue for the
+	 purposes of overload resolution (under C++0x 12.8p16) to favor
+	 move constructors over copy constructors */
+      if (/* Must be a local, automatic variable.  */
+	  TREE_CODE (retval) == VAR_DECL
 	  && DECL_CONTEXT (retval) == current_function_decl
 	  && ! TREE_STATIC (retval)
 	  && (DECL_ALIGN (retval)
 	      >= DECL_ALIGN (DECL_RESULT (current_function_decl)))
-          /* The variable much not have the `volatile' qualifier.  */
-          && !(cp_type_quals (TREE_TYPE (retval)) & TYPE_QUAL_VOLATILE)
-          /* The return type must be a class type.  */
-          && CLASS_TYPE_P (TREE_TYPE (TREE_TYPE (current_function_decl)))
-          /* The cv-unqualified type of the returned value must be the
-             same as the cv-unqualified return type of the
-             function.  */
+	   /* The variable much not have the `volatile' qualifier.  */
+	  && !(cp_type_quals (TREE_TYPE (retval)) & TYPE_QUAL_VOLATILE)
+	  /* The return type must be a class type.  */
+	  && CLASS_TYPE_P (TREE_TYPE (TREE_TYPE (current_function_decl)))
+	  /* The cv-unqualified type of the returned value must be the
+	     same as the cv-unqualified return type of the
+	     function.  */
 	  && same_type_p ((TYPE_MAIN_VARIANT
 			   (TREE_TYPE (retval))),
 			  (TYPE_MAIN_VARIANT
 			   (TREE_TYPE (TREE_TYPE (current_function_decl))))))
-        flags = flags | LOOKUP_PREFER_RVALUE;
-      
+	flags = flags | LOOKUP_PREFER_RVALUE;
+
       /* First convert the value to the function's return type, then
 	 to the type of return value's location to handle the
 	 case that functype is smaller than the valtype.  */

@@ -1,5 +1,4 @@
 // { dg-do compile }
-// { dg-options "--std=c++0x" }
 
 struct S
 {
