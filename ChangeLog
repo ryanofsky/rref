@@ -5,7 +5,7 @@
 
 	Add support for rvalue references to G++ under --std=c++0x mode
 	* gcc/cp/call.c (conversion): new "valuedness_matches_p" member
-	(convert_class_to_reference): require reference type as first 
+	(convert_class_to_reference): require reference type as first
 	parameter instead of base type
 	(reference_binding): add logic to handle rvalue references
 	(implicit_conversion): update inaccurate comment

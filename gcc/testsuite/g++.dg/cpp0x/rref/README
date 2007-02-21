@@ -45,19 +45,19 @@ cast-bug.C
   binding rvalues to references, resulting in an infinite recursion
   on this test case, where one of those temporaries would need to be
   initialized by a copy constructor, which would have a reference
-  parameter, which would require another temporary to bind to the 
-  rvalue, which would need to be initialized by the copy 
+  parameter, which would require another temporary to bind to the
+  rvalue, which would need to be initialized by the copy
   constructor with a reference parameter, and so on...
 
 temp-constructor-bug.C
 temp-va-arg-bug.C
-  tests for two more bugs created by the fix to the cast-bug case, 
+  tests for two more bugs created by the fix to the cast-bug case,
   above. The fix stopped creating temporaries whenever an rvalue
   was bound to a reference, and this broke the handling of va_arg
-  and compound-literal rvalue expressions which need to be put 
+  and compound-literal rvalue expressions which need to be put
   into temporaries before being bound because they aren't
-  addressable, resulting in "invalid lvalue in unary &" errors. 
-  
+  addressable, resulting in "invalid lvalue in unary &" errors.
+
   These tests are simplified versions of the g++.dg/ext/complit2.C
   and g++.old-deja/g++.other/vaarg2.C testcases, respectively.
 
