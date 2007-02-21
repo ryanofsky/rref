@@ -1,0 +1,5 @@
+This directory contains rvalue reference test cases from Howard Hinnant,
+one of the authors of the rvalue reference proposals. They are also
+available from:
+
+  http://home.twcny.rr.com/hinnant/cpp_extensions/rvalue_ref_test/
