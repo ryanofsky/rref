@@ -101,7 +101,7 @@ static int resolve_overloaded_unification (tree, tree, tree, tree,
 					   unification_kind_t, int);
 static int try_one_overload (tree, tree, tree, tree, tree,
 			     unification_kind_t, int, bool);
-static int unify (tree, tree, tree, tree, int, bool);
+static int unify (tree, tree, tree, tree, int);
 static void add_pending_template (tree);
 static int push_tinst_level (tree);
 static void pop_tinst_level (void);
@@ -116,7 +116,8 @@ static void tsubst_enum	(tree, tree, tree);
 static tree add_to_template_args (tree, tree);
 static tree add_outermost_template_args (tree, tree);
 static bool check_instantiated_args (tree, tree, tsubst_flags_t);
-static int maybe_adjust_types_for_deduction (unification_kind_t, tree*, tree*);
+static int maybe_adjust_types_for_deduction (unification_kind_t, tree*, tree*,
+					     tree);
 static int  type_unification_real (tree, tree, tree, tree,
 				   int, unification_kind_t, int);
 static void note_template_header (int);
@@ -9901,12 +9902,14 @@ fn_type_unification (tree fn,
    sections are symmetric.  PARM is the type of a function parameter
    or the return type of the conversion function.  ARG is the type of
    the argument passed to the call, or the type of the value
-   initialized with the result of the conversion function.  */
+   initialized with the result of the conversion function.
+   ARG_EXPR is the original argument expression, which may be null.  */
 
 static int
 maybe_adjust_types_for_deduction (unification_kind_t strict,
 				  tree* parm,
-				  tree* arg)
+				  tree* arg,
+				  tree arg_expr)
 {
   int result = 0;
 
@@ -9960,6 +9963,16 @@ maybe_adjust_types_for_deduction (unification_kind_t strict,
 	*arg = TYPE_MAIN_VARIANT (*arg);
     }
 
+  /* From C++0x [14.8.2.1/3 temp.deduct.call] (after DR606), "If P is
+     of the form T&&, where T is a template parameter, and the argument
+     is an lvalue, T is deduced as A& */
+  if (TREE_CODE (*parm) == REFERENCE_TYPE
+      && TYPE_REF_IS_RVALUE (*parm)
+      && TREE_CODE (TREE_TYPE (*parm)) == TEMPLATE_TYPE_PARM
+      && cp_type_quals (TREE_TYPE (*parm)) == TYPE_UNQUALIFIED
+      && arg_expr && real_lvalue_p (arg_expr))
+    *arg = build_reference_type (*arg);
+
   /* [temp.deduct.call]
 
      If P is a cv-qualified type, the top level cv-qualifiers
@@ -9996,8 +10009,7 @@ type_unification_real (tree tparms,
 		       unification_kind_t strict,
 		       int flags)
 {
-  tree parm, arg;
-  bool deduce_ref;
+  tree parm, arg, arg_expr;
   int i;
   int ntparms = TREE_VEC_LENGTH (tparms);
   int sub_strict;
@@ -10039,15 +10051,7 @@ type_unification_real (tree tparms,
       parms = TREE_CHAIN (parms);
       arg = TREE_VALUE (args);
       args = TREE_CHAIN (args);
-
-      /* From C++0x [14.8.2.1/3 temp.deduct.call] (after DR606), "If P is
-	 of the form T&&, where T is a template parameter, and the argument
-	 is an lvalue, T is deduced as A& */
-      deduce_ref = (TREE_CODE (parm) == REFERENCE_TYPE
-		    && TYPE_REF_IS_RVALUE (parm)
-		    && TREE_CODE (TREE_TYPE (parm)) == TEMPLATE_TYPE_PARM
-		    && cp_type_quals (TREE_TYPE (parm)) == TYPE_UNQUALIFIED
-		    && real_lvalue_p (arg));
+      arg_expr = NULL;
 
       if (arg == error_mark_node)
 	return 1;
@@ -10096,6 +10100,7 @@ type_unification_real (tree tparms,
 		return 1;
 	      continue;
 	    }
+	  arg_expr = arg;
 	  arg = TREE_TYPE (arg);
 	  if (arg == error_mark_node)
 	    return 1;
@@ -10105,9 +10110,10 @@ type_unification_real (tree tparms,
 	int arg_strict = sub_strict;
 
 	if (!subr)
-	  arg_strict |= maybe_adjust_types_for_deduction (strict, &parm, &arg);
+	  arg_strict |= maybe_adjust_types_for_deduction (strict, &parm, &arg,
+							  arg_expr);
 
-	if (unify (tparms, targs, parm, arg, arg_strict, deduce_ref))
+	if (unify (tparms, targs, parm, arg, arg_strict))
 	  return 1;
       }
     }
@@ -10280,7 +10286,7 @@ try_one_overload (tree tparms,
   else if (addr_p)
     arg = build_pointer_type (arg);
 
-  sub_strict |= maybe_adjust_types_for_deduction (strict, &parm, &arg);
+  sub_strict |= maybe_adjust_types_for_deduction (strict, &parm, &arg, NULL);
 
   /* We don't copy orig_targs for this because if we have already deduced
      some template args from previous args, unify would complain when we
@@ -10289,7 +10295,7 @@ try_one_overload (tree tparms,
   nargs = TREE_VEC_LENGTH (targs);
   tempargs = make_tree_vec (nargs);
 
-  if (unify (tparms, tempargs, parm, arg, sub_strict, false) != 0)
+  if (unify (tparms, tempargs, parm, arg, sub_strict) != 0)
     return 0;
 
   /* First make sure we didn't deduce anything that conflicts with
@@ -10370,7 +10376,7 @@ try_class_unification (tree tparms, tree targs, tree parm, tree arg)
 
   /* If unification failed, we're done.  */
   if (unify (tparms, copy_of_targs, CLASSTYPE_TI_ARGS (parm),
-	     CLASSTYPE_TI_ARGS (arg), UNIFY_ALLOW_NONE, false))
+	     CLASSTYPE_TI_ARGS (arg), UNIFY_ALLOW_NONE))
     return NULL_TREE;
 
   return arg;
@@ -10522,14 +10528,10 @@ check_cv_quals_for_unify (int strict, tree arg, tree parm)
        qualified at this point.
      UNIFY_ALLOW_OUTER_LESS_CV_QUAL:
        This is the outermost level of a deduction, and PARM can be less CV
-       qualified at this point.
-
-   The DEDUCE_REF parameter is true if a template type parameter should be
-   deduced as a reference.  */
+       qualified at this point.  */
 
 static int
-unify (tree tparms, tree targs, tree parm, tree arg, int strict,
-       bool deduce_ref)
+unify (tree tparms, tree targs, tree parm, tree arg, int strict)
 {
   int idx;
   tree targ;
@@ -10673,7 +10675,7 @@ unify (tree tparms, tree targs, tree parm, tree arg, int strict,
 		if (unify (tparms, targs,
 			   TREE_VEC_ELT (parmvec, i),
 			   TREE_VEC_ELT (argvec, i),
-			   UNIFY_ALLOW_NONE, false))
+			   UNIFY_ALLOW_NONE))
 		  return 1;
 	      }
 	  }
@@ -10709,12 +10711,6 @@ unify (tree tparms, tree targs, tree parm, tree arg, int strict,
 	    (arg, cp_type_quals (arg) & ~cp_type_quals (parm), tf_none);
 	  if (arg == error_mark_node)
 	    return 1;
-
-	  /* In C++0x, deduce_ref will be true when the template argument
-	     needs to be deduced as a reference to satisfy
-	     [14.8.2.1/3 temp.deduct.call], as quoted above. */
-	  if (deduce_ref)
-	    arg = build_reference_type (arg);
 
 	  /* Simple cases: Value already set, does match or doesn't.  */
 	  if (targ != NULL_TREE && same_type_p (targ, arg))
@@ -10804,7 +10800,7 @@ unify (tree tparms, tree targs, tree parm, tree arg, int strict,
 
 	 Unification of &A::x and &B::x must succeed.  */
       return unify (tparms, targs, PTRMEM_CST_MEMBER (parm),
-		    PTRMEM_CST_MEMBER (arg), strict, false);
+		    PTRMEM_CST_MEMBER (arg), strict);
      }
 
     case POINTER_TYPE:
@@ -10828,14 +10824,14 @@ unify (tree tparms, tree targs, tree parm, tree arg, int strict,
 	  strict |= (strict_in & UNIFY_ALLOW_DERIVED);
 
 	return unify (tparms, targs, TREE_TYPE (parm),
-		      TREE_TYPE (arg), strict, false);
+		      TREE_TYPE (arg), strict);
       }
 
     case REFERENCE_TYPE:
       if (TREE_CODE (arg) != REFERENCE_TYPE)
 	return 1;
       return unify (tparms, targs, TREE_TYPE (parm), TREE_TYPE (arg),
-		    strict & UNIFY_ALLOW_MORE_CV_QUAL, false);
+		    strict & UNIFY_ALLOW_MORE_CV_QUAL);
 
     case ARRAY_TYPE:
       if (TREE_CODE (arg) != ARRAY_TYPE)
@@ -10898,12 +10894,11 @@ unify (tree tparms, tree targs, tree parm, tree arg, int strict,
 				   arg_max,
 				   integer_one_node);
 
-	  if (unify (tparms, targs, parm_max, arg_max, UNIFY_ALLOW_INTEGER,
-		     false))
+	  if (unify (tparms, targs, parm_max, arg_max, UNIFY_ALLOW_INTEGER))
 	    return 1;
 	}
       return unify (tparms, targs, TREE_TYPE (parm), TREE_TYPE (arg),
-		    strict & UNIFY_ALLOW_MORE_CV_QUAL, false);
+		    strict & UNIFY_ALLOW_MORE_CV_QUAL);
 
     case REAL_TYPE:
     case COMPLEX_TYPE:
@@ -10944,7 +10939,7 @@ unify (tree tparms, tree targs, tree parm, tree arg, int strict,
 	for (i = 0; i < TREE_VEC_LENGTH (parm); ++i)
 	  if (unify (tparms, targs,
 		     TREE_VEC_ELT (parm, i), TREE_VEC_ELT (arg, i),
-		     UNIFY_ALLOW_NONE, false))
+		     UNIFY_ALLOW_NONE))
 	    return 1;
 	return 0;
       }
@@ -10962,7 +10957,7 @@ unify (tree tparms, tree targs, tree parm, tree arg, int strict,
 	  return unify (tparms, targs,
 			TYPE_PTRMEMFUNC_FN_TYPE (parm),
 			TYPE_PTRMEMFUNC_FN_TYPE (arg),
-			strict, false);
+			strict);
 	}
 
       if (CLASSTYPE_TEMPLATE_INFO (parm))
@@ -11003,7 +10998,7 @@ unify (tree tparms, tree targs, tree parm, tree arg, int strict,
 	    return 1;
 
 	  return unify (tparms, targs, CLASSTYPE_TI_ARGS (parm),
-			CLASSTYPE_TI_ARGS (t), UNIFY_ALLOW_NONE, false);
+			CLASSTYPE_TI_ARGS (t), UNIFY_ALLOW_NONE);
 	}
       else if (!same_type_ignoring_top_level_qualifiers_p (parm, arg))
 	return 1;
@@ -11026,7 +11021,7 @@ unify (tree tparms, tree targs, tree parm, tree arg, int strict,
 	return 1;
 
       if (unify (tparms, targs, TREE_TYPE (parm),
-		 TREE_TYPE (arg), UNIFY_ALLOW_NONE, false))
+		 TREE_TYPE (arg), UNIFY_ALLOW_NONE))
 	return 1;
       return type_unification_real (tparms, targs, TYPE_ARG_TYPES (parm),
 				    TYPE_ARG_TYPES (arg), 1, DEDUCE_EXACT,
@@ -11046,8 +11041,7 @@ unify (tree tparms, tree targs, tree parm, tree arg, int strict,
 	    return 1;
 
 	  if (unify (tparms, targs, TYPE_OFFSET_BASETYPE (parm),
-		     TYPE_PTRMEMFUNC_OBJECT_TYPE (arg), UNIFY_ALLOW_NONE,
-		     false))
+		     TYPE_PTRMEMFUNC_OBJECT_TYPE (arg), UNIFY_ALLOW_NONE))
 	    return 1;
 
 	  /* Determine the type of the function we are unifying against. */
@@ -11062,21 +11056,20 @@ unify (tree tparms, tree targs, tree parm, tree arg, int strict,
 	  cv_quals =
 	    cp_type_quals(TREE_TYPE (TREE_VALUE (TYPE_ARG_TYPES (method_type))));
 	  fntype = build_qualified_type (fntype, cv_quals);
-	  return unify (tparms, targs, TREE_TYPE (parm), fntype, strict, false);
+	  return unify (tparms, targs, TREE_TYPE (parm), fntype, strict);
 	}
 
       if (TREE_CODE (arg) != OFFSET_TYPE)
 	return 1;
       if (unify (tparms, targs, TYPE_OFFSET_BASETYPE (parm),
-		 TYPE_OFFSET_BASETYPE (arg), UNIFY_ALLOW_NONE, false))
+		 TYPE_OFFSET_BASETYPE (arg), UNIFY_ALLOW_NONE))
 	return 1;
       return unify (tparms, targs, TREE_TYPE (parm), TREE_TYPE (arg),
-		    strict, false);
+		    strict);
 
     case CONST_DECL:
       if (DECL_TEMPLATE_PARM_P (parm))
-	return unify (tparms, targs, DECL_INITIAL (parm), arg, strict,
-		      false);
+	return unify (tparms, targs, DECL_INITIAL (parm), arg, strict);
       if (arg != integral_constant_value (parm))
 	return 1;
       return 0;
@@ -11311,8 +11304,8 @@ more_specialized_fn (tree pat1, tree pat2, int len)
       arg1 = TYPE_MAIN_VARIANT (arg1);
       arg2 = TYPE_MAIN_VARIANT (arg2);
 
-      deduce1 = !unify (tparms1, targs1, arg1, arg2, UNIFY_ALLOW_NONE, false);
-      deduce2 = !unify (tparms2, targs2, arg2, arg1, UNIFY_ALLOW_NONE, false);
+      deduce1 = !unify (tparms1, targs1, arg1, arg2, UNIFY_ALLOW_NONE);
+      deduce2 = !unify (tparms2, targs2, arg2, arg1, UNIFY_ALLOW_NONE);
 
       if (!deduce1)
 	better2 = -1;
@@ -11484,7 +11477,7 @@ get_class_bindings (tree tparms, tree spec_args, tree args)
   if (unify (tparms, deduced_args,
 	     INNERMOST_TEMPLATE_ARGS (spec_args),
 	     INNERMOST_TEMPLATE_ARGS (args),
-	     UNIFY_ALLOW_NONE, false))
+	     UNIFY_ALLOW_NONE))
     return NULL_TREE;
 
   for (i =  0; i < ntparms; ++i)

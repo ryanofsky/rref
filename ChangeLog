@@ -1,4 +1,4 @@
-2006-02-20  Russell Yanofsky <russ@yanofsky.org>
+2007-02-20  Russell Yanofsky <russ@yanofsky.org>
             Pedro Lamarao <pedro.lamarao@mndfck.org>
             Doug Gregor <doug.gregor@gmail.com>
             Howard Hinnant <howard.hinnant@gmail.com>
@@ -34,14 +34,10 @@
 	(cp_parser_ptr_operator): parse "&&" tokens into rvalue reference
 	declarators
 	* gcc/cp/pt.c (tsubst): implement reference collapsing
-	(type_unification_real): implement special template parameter
-	deduction rule for rvalue references
-	(try_one_overload): update call to unify
-	(try_class_unification): same
-	(unify): new "deduce_ref" parameter and more logic to implement the
-	special rvalue reference template parameter deduction rule
-	(more_specialized_fn): update calls to unify
-	(get_class_bindings): same
+	(maybe_adjust_types_for_deduction): implement special template
+	parameter deduction rule for rvalue references
+	(type_unification_real, try_one_overload): update calls to
+	maybe_adjust_types_for_deduction
 	* gcc/cp/tree.c (lvalue_p_1): handle rvalue reference types
 	* gcc/cp/typeck.c (comptypes): don't consider rvalue and lvalue
 	reference types to be equivalent
