@@ -10040,11 +10040,13 @@ type_unification_real (tree tparms,
       arg = TREE_VALUE (args);
       args = TREE_CHAIN (args);
 
-      /* From C++0x [14.8.2.1/3 temp.deduct.call], "If P is an rvalue
-	 reference type and the argument is an lvalue, the type A& is
-	 used in place of A for type deduction."  */
+      /* From C++0x [14.8.2.1/3 temp.deduct.call] (after DR606), "If P is
+	 of the form T&&, where T is a template parameter, and the argument
+	 is an lvalue, T is deduced as A& */
       deduce_ref = (TREE_CODE (parm) == REFERENCE_TYPE
 		    && TYPE_REF_IS_RVALUE (parm)
+		    && TREE_CODE (TREE_TYPE (parm)) == TEMPLATE_TYPE_PARM
+		    && cp_type_quals (TREE_TYPE (parm)) == TYPE_UNQUALIFIED
 		    && real_lvalue_p (arg));
 
       if (arg == error_mark_node)
@@ -10711,7 +10713,7 @@ unify (tree tparms, tree targs, tree parm, tree arg, int strict,
 	  /* In C++0x, deduce_ref will be true when the template argument
 	     needs to be deduced as a reference to satisfy
 	     [14.8.2.1/3 temp.deduct.call], as quoted above. */
-	  if (deduce_ref && TREE_CODE (parm) == TEMPLATE_TYPE_PARM)
+	  if (deduce_ref)
 	    arg = build_reference_type (arg);
 
 	  /* Simple cases: Value already set, does match or doesn't.  */

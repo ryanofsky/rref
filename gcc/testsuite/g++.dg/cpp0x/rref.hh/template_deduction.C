@@ -60,7 +60,7 @@ int main()
 {
     test1<true, false>(a);
     test1<false, true>(source());
-    test2<true, false>(a);
+    test2<false, true>(a);
     test2<false, true>(source());
     test3<false, true>(&a);
     test3<false, true>(sourcep());
