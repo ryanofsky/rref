@@ -1621,7 +1621,7 @@ write_type (tree type)
 	  break;
 
 	case REFERENCE_TYPE:
-	  if TYPE_REF_IS_RVALUE(type)
+	  if TYPE_REF_IS_RVALUE (type)
 	    write_string("U6rvalue");
 	  write_char ('R');
 	  write_type (TREE_TYPE (type));

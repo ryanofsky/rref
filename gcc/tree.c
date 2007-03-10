@@ -5345,7 +5345,7 @@ build_rval_reference_type_for_mode (tree to_type, enum machine_mode mode,
      the proper mode, use it.  */
   for (t = TYPE_REFERENCE_TO (to_type); t; t = TYPE_NEXT_REF_TO (t))
     if (TYPE_MODE (t) == mode && TYPE_REF_CAN_ALIAS_ALL (t) == can_alias_all
-	&& TYPE_REF_IS_RVALUE(t) == rval)
+	&& TYPE_REF_IS_RVALUE (t) == rval)
       return t;
 
   t = make_node (REFERENCE_TYPE);
@@ -5353,7 +5353,7 @@ build_rval_reference_type_for_mode (tree to_type, enum machine_mode mode,
   TREE_TYPE (t) = to_type;
   TYPE_MODE (t) = mode;
   TYPE_REF_CAN_ALIAS_ALL (t) = can_alias_all;
-  TYPE_REF_IS_RVALUE(t) = rval;
+  TYPE_REF_IS_RVALUE (t) = rval;
   TYPE_NEXT_REF_TO (t) = TYPE_REFERENCE_TO (to_type);
   TYPE_REFERENCE_TO (to_type) = t;
 

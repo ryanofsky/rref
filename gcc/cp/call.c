@@ -1008,7 +1008,7 @@ convert_class_to_reference (tree reference_type, tree s, tree expr)
 		   (reference_type, identity_conv));
 	      cand->second_conv->valuedness_matches_p
 		= TYPE_REF_IS_RVALUE (TREE_TYPE (TREE_TYPE (cand->fn)))
-		  == TYPE_REF_IS_RVALUE(reference_type);
+		  == TYPE_REF_IS_RVALUE (reference_type);
 	      cand->second_conv->bad_p |= cand->convs[0]->bad_p;
 	    }
 	}
@@ -1137,7 +1137,7 @@ reference_binding (tree rto, tree rfrom, tree expr, int flags)
   if (compatible_p
       && (lvalue_p
 	  || (flag_cpp0x
-	      && (CP_TYPE_CONST_NON_VOLATILE_P(to) || TYPE_REF_IS_RVALUE(rto))
+	      && (CP_TYPE_CONST_NON_VOLATILE_P(to) || TYPE_REF_IS_RVALUE (rto))
 	      && CLASS_TYPE_P (from))))
     {
       /* [dcl.init.ref]
@@ -1242,7 +1242,7 @@ reference_binding (tree rto, tree rfrom, tree expr, int flags)
     {
       conv = build_identity_conv (from, expr);
       conv = direct_reference_binding (rto, conv);
-      conv->valuedness_matches_p = TYPE_REF_IS_RVALUE(rto);
+      conv->valuedness_matches_p = TYPE_REF_IS_RVALUE (rto);
       if (!(flags & LOOKUP_CONSTRUCTOR_CALLABLE))
 	conv->u.next->check_copy_constructor_p = true;
       return conv;
@@ -1267,7 +1267,7 @@ reference_binding (tree rto, tree rfrom, tree expr, int flags)
   /* This reference binding, unlike those above, requires the
      creation of a temporary.  */
   conv->need_temporary_p = true;
-  conv->valuedness_matches_p = TYPE_REF_IS_RVALUE(rto);
+  conv->valuedness_matches_p = TYPE_REF_IS_RVALUE (rto);
 
   return conv;
 }
@@ -4449,7 +4449,7 @@ convert_like_real (conversion *convs, tree expr, tree fn, int argnum,
 	    cp_lvalue_kind lvalue = real_lvalue_p (expr);
 
 	    if (!CP_TYPE_CONST_NON_VOLATILE_P (TREE_TYPE (ref_type))
-		&& !TYPE_REF_IS_RVALUE(ref_type))
+		&& !TYPE_REF_IS_RVALUE (ref_type))
 	      {
 		/* If the reference is volatile or non-const, we
 		   cannot create a temporary.  */
