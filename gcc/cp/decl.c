@@ -7793,7 +7793,14 @@ grokdeclarator (const cp_declarator *declarator,
 	      /* In C++0x, the type we are creating a reference to might be
 		 a typedef which is itself a reference type. In that case,
 		 we follow the reference collapsing rules in
-		 [7.1.3/8 dcl.typedef] to create the final reference type. */
+		 [7.1.3/8 dcl.typedef] to create the final reference type:
+
+		 "If a typedef TD names a type that is a reference to a type
+		 T, an attempt to create the type 'lvalue reference to cv TD'
+		 creates the type 'lvalue reference to T,' while an attempt
+		 to create the type "rvalue reference to cv TD' creates the
+		 type TD."
+              */
 	      if (!VOID_TYPE_P (type))
 		type = build_rval_reference_type
 		       ((TREE_CODE (type) == REFERENCE_TYPE

@@ -65,7 +65,9 @@ lvalue_p_1 (tree ref,
   cp_lvalue_kind op2_lvalue_kind = clk_none;
 
   /* Expressions of reference type are sometimes wrapped in
-     INDIRECT_REFs */
+     INDIRECT_REFs.  INDIRECT_REFs are just internal compiler
+     representation, not part of the language, so we have to look
+     through them.  */
   if (TREE_CODE (ref) == INDIRECT_REF
       && TREE_CODE (TREE_TYPE (TREE_OPERAND (ref, 0)))
 	  == REFERENCE_TYPE)

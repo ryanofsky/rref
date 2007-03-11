@@ -7668,7 +7668,14 @@ tsubst (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 	else if (TREE_CODE (type) == REFERENCE_TYPE)
 	  /* In C++0x, during template argument substitution, when there is an
 	     attempt to create a reference to a reference type, reference
-	     collapsing is applied as described in [14.3.1/4 temp.arg.type]. */
+	     collapsing is applied as described in [14.3.1/4 temp.arg.type]:
+
+	     "If a template-argument for a template-parameter T names a type
+	     that is a reference to a type A, an attempt to create the type
+	     'lvalue reference to cv T' creates the type 'lvalue reference to
+	     A,' while an attempt to create the type type rvalue reference to
+	     cv T' creates the type T"
+	  */
 	  r = build_rval_reference_type
 	      (TREE_TYPE (type),
 	       TYPE_REF_IS_RVALUE (t) && TYPE_REF_IS_RVALUE (type));
