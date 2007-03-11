@@ -100,7 +100,7 @@ struct conversion {
   /* If KIND is ck_ref_bind, true when either an lvalue reference is
      being bound to an lvalue expression or an rvalue reference is
      being bound to an rvalue expression. */
-  BOOL_BITFIELD valuedness_matches_p: 1;
+  BOOL_BITFIELD rvaluedness_matches_p: 1;
   /* The type of the expression resulting from the conversion.  */
   tree type;
   union {
@@ -1006,7 +1006,7 @@ convert_class_to_reference (tree reference_type, tree s, tree expr)
 	      cand->second_conv
 		= (direct_reference_binding
 		   (reference_type, identity_conv));
-	      cand->second_conv->valuedness_matches_p
+	      cand->second_conv->rvaluedness_matches_p
 		= TYPE_REF_IS_RVALUE (TREE_TYPE (TREE_TYPE (cand->fn)))
 		  == TYPE_REF_IS_RVALUE (reference_type);
 	      cand->second_conv->bad_p |= cand->convs[0]->bad_p;
@@ -1155,9 +1155,9 @@ reference_binding (tree rto, tree rfrom, tree expr, int flags)
       if (flags & LOOKUP_PREFER_RVALUE)
 	/* The top-level caller requested that we pretend that the lvalue
 	   be treated as an rvalue.  */
-	conv->valuedness_matches_p = TYPE_REF_IS_RVALUE (rto);
+	conv->rvaluedness_matches_p = TYPE_REF_IS_RVALUE (rto);
       else
-	conv->valuedness_matches_p
+	conv->rvaluedness_matches_p
 	  = ((lvalue_p && !TYPE_REF_IS_RVALUE (rto)))
 	     || (!lvalue_p && TYPE_REF_IS_RVALUE (rto));
 
@@ -1242,7 +1242,7 @@ reference_binding (tree rto, tree rfrom, tree expr, int flags)
     {
       conv = build_identity_conv (from, expr);
       conv = direct_reference_binding (rto, conv);
-      conv->valuedness_matches_p = TYPE_REF_IS_RVALUE (rto);
+      conv->rvaluedness_matches_p = TYPE_REF_IS_RVALUE (rto);
       if (!(flags & LOOKUP_CONSTRUCTOR_CALLABLE))
 	conv->u.next->check_copy_constructor_p = true;
       return conv;
@@ -1267,7 +1267,7 @@ reference_binding (tree rto, tree rfrom, tree expr, int flags)
   /* This reference binding, unlike those above, requires the
      creation of a temporary.  */
   conv->need_temporary_p = true;
-  conv->valuedness_matches_p = TYPE_REF_IS_RVALUE (rto);
+  conv->rvaluedness_matches_p = TYPE_REF_IS_RVALUE (rto);
 
   return conv;
 }
@@ -5685,7 +5685,7 @@ maybe_handle_implicit_object (conversion **ics)
 	t = t->u.next;
       t = build_identity_conv (TREE_TYPE (t->type), NULL_TREE);
       t = direct_reference_binding (reference_type, t);
-      t->valuedness_matches_p = 1;
+      t->rvaluedness_matches_p = 1;
       *ics = t;
     }
 }
@@ -6047,11 +6047,11 @@ compare_ics (conversion *ics1, conversion *ics2)
   if (ref_conv1 && ref_conv2
       && same_type_ignoring_top_level_qualifiers_p (to_type1, to_type2))
     {
-      if (ref_conv1->valuedness_matches_p
-	  && !ref_conv2->valuedness_matches_p)
+      if (ref_conv1->rvaluedness_matches_p
+	  && !ref_conv2->rvaluedness_matches_p)
 	return 1;
-      else if (!ref_conv1->valuedness_matches_p
-	  && ref_conv2->valuedness_matches_p)
+      else if (!ref_conv1->rvaluedness_matches_p
+	  && ref_conv2->rvaluedness_matches_p)
 	return -1;
 
       return comp_cv_qualification (TREE_TYPE (ref_conv2->type),
