@@ -4,16 +4,16 @@
             Howard Hinnant <howard.hinnant@gmail.com>
 
 	Add support for rvalue references to G++ under --std=c++0x mode
-	* gcc/cp/call.c (conversion): new "valuedness_matches_p" member
+	* gcc/cp/call.c (conversion): new "rvaluedness_matches_p" member
 	(convert_class_to_reference): require reference type as first
 	parameter instead of base type
 	(reference_binding): add logic to handle rvalue references
 	(implicit_conversion): update inaccurate comment
 	(convert_like_real): disable creation of temporaries that are
 	impossible to initialize for types with move constructors
-	(maybe_handle_implicit_object): set "valuedness_matches_p"
+	(maybe_handle_implicit_object): set "rvaluedness_matches_p"
 	(maybe_handle_ref_bind): return conversion instead of type node
-	(compare_ics): add logic to use "valuedness_matches_p" values to
+	(compare_ics): add logic to use "rvaluedness_matches_p" values to
 	determine preferred conversion sequences
 	* gcc/cp/cp-tree.h (declarator): new "rvalue_ref" flag
 	(LOOKUP_PREFER_RVALUE): new lookup flag
