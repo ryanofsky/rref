@@ -36,6 +36,18 @@ Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA
 gfc_option_t gfc_option;
 
 
+/* Set flags that control warnings and errors for different
+   Fortran standards to their default values.  */
+
+static void
+set_default_std_flags (void)
+{
+  gfc_option.allow_std = GFC_STD_F95_OBS | GFC_STD_F95_DEL
+    | GFC_STD_F2003 | GFC_STD_F95 | GFC_STD_F77 | GFC_STD_GNU
+    | GFC_STD_LEGACY;
+  gfc_option.warn_std = GFC_STD_F95_DEL | GFC_STD_LEGACY;
+}
+
 /* Get ready for options handling.  */
 
 unsigned int
@@ -82,6 +94,7 @@ gfc_init_options (unsigned int argc ATTRIBUTE_UNUSED,
   gfc_option.flag_preprocessed = 0;
   gfc_option.flag_automatic = 1;
   gfc_option.flag_backslash = 1;
+  gfc_option.flag_backtrace = 0;
   gfc_option.flag_allow_leading_underscore = 0;
   gfc_option.flag_dump_core = 0;
   gfc_option.flag_external_blas = 0;
@@ -97,19 +110,12 @@ gfc_init_options (unsigned int argc ATTRIBUTE_UNUSED,
 
   flag_errno_math = 0;
 
-  gfc_option.allow_std = GFC_STD_F95_OBS | GFC_STD_F95_DEL
-    | GFC_STD_F2003 | GFC_STD_F95 | GFC_STD_F77 | GFC_STD_GNU
-    | GFC_STD_LEGACY;
-  gfc_option.warn_std = GFC_STD_F95_DEL | GFC_STD_LEGACY;
+  set_default_std_flags ();
 
   gfc_option.warn_nonstd_intrinsics = 0;
 
   /* -fshort-enums can be default on some targets.  */
   gfc_option.fshort_enums = targetm.default_short_enums ();
-
-  /* Increase MAX_ALIASED_VOPS to account for different characteristics
-     of Fortran regarding VOPs.  */
-  MAX_ALIASED_VOPS = 50;
 
   return CL_Fortran;
 }
@@ -465,6 +471,10 @@ gfc_handle_option (size_t scode, const char *arg, int value)
       gfc_option.flag_backslash = value;
       break;
       
+    case OPT_fbacktrace:
+      gfc_option.flag_backtrace = value;
+      break;
+      
     case OPT_fdump_core:
       gfc_option.flag_dump_core = value;
       break;
@@ -624,17 +634,11 @@ gfc_handle_option (size_t scode, const char *arg, int value)
       break;
 
     case OPT_std_gnu:
-      gfc_option.allow_std = GFC_STD_F95_OBS | GFC_STD_F95_DEL
-	| GFC_STD_F77 | GFC_STD_F95 | GFC_STD_F2003
-	| GFC_STD_GNU | GFC_STD_LEGACY;
-      gfc_option.warn_std = GFC_STD_F95_OBS | GFC_STD_F95_DEL
-	| GFC_STD_LEGACY;
+      set_default_std_flags ();
       break;
 
     case OPT_std_legacy:
-      gfc_option.allow_std = GFC_STD_F95_OBS | GFC_STD_F95_DEL
-	| GFC_STD_F77 | GFC_STD_F95 | GFC_STD_F2003
-	| GFC_STD_GNU | GFC_STD_LEGACY;
+      set_default_std_flags ();
       gfc_option.warn_std = 0;
       break;
 

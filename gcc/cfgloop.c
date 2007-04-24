@@ -1038,6 +1038,9 @@ record_loop_exits (void)
   edge_iterator ei;
   edge e;
 
+  if (!current_loops)
+    return;
+
   if (current_loops->state & LOOPS_HAVE_RECORDED_EXITS)
     return;
   current_loops->state |= LOOPS_HAVE_RECORDED_EXITS;
@@ -1544,6 +1547,8 @@ loop_preheader_edge (const struct loop *loop)
 {
   edge e;
   edge_iterator ei;
+
+  gcc_assert ((current_loops->state & LOOPS_HAVE_PREHEADERS) != 0);
 
   FOR_EACH_EDGE (e, ei, loop->header->preds)
     if (e->src != loop->latch)

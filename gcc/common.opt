@@ -75,7 +75,7 @@ Common Var(warn_aggregate_return) Warning
 Warn about returning structures, unions or arrays
 
 Warray-bounds
-Common Var(warn_array_bounds)
+Common Var(warn_array_bounds) Warning
 Warn if an array is accessed out of bounds
 
 Wattributes
@@ -118,6 +118,10 @@ Wlarger-than-
 Common RejectNegative Joined UInteger Warning
 -Wlarger-than-<number>	Warn if an object is larger than <number> bytes
 
+Wlogical-op
+Common Warning Var(warn_logical_op)
+Warn when a logical operator is suspicously always evaluating to true or false
+
 Wunsafe-loop-optimizations
 Common Var(warn_unsafe_loop_optimizations) Warning
 Warn if the loop cannot be optimized due to nontrivial assumptions.
@@ -155,11 +159,11 @@ Common Joined UInteger Warning
 Warn about code which might break strict aliasing rules
 
 Wstrict-overflow
-Common
+Common Warning
 Warn about optimizations that assume that signed overflow is undefined
 
 Wstrict-overflow=
-Common Joined UInteger
+Common Joined UInteger Warning
 Warn about optimizations that assume that signed overflow is undefined
 
 Wswitch
@@ -215,7 +219,7 @@ Common Var(warn_register_var) Warning
 Warn when a register variable is declared volatile
 
 Wcoverage-mismatch
-Common RejectNegative Var(warn_coverage_mismatch)
+Common RejectNegative Var(warn_coverage_mismatch) Warning
 Warn instead of error in case profiles in -fprofile-use do not match
 
 aux-info
@@ -352,6 +356,10 @@ fcaller-saves
 Common Report Var(flag_caller_saves) Optimization
 Save registers around function calls
 
+fcheck-data-deps
+Common Report Var(flag_check_data_deps)
+Compare the results of several data dependence analyzers.
+
 fcommon
 Common Report Var(flag_no_common,0) Optimization
 Do not put uninitialized globals in the common section
@@ -463,8 +471,8 @@ fforce-addr
 Common Report Var(flag_force_addr) Optimization
 Copy memory address constants into registers before use
 
-fforward-propagate Optimization
-Common Report Var(flag_forward_propagate)
+fforward-propagate
+Common Report Var(flag_forward_propagate) Optimization
 Perform a forward propagation pass on RTL
 
 ; Nonzero means don't put addresses of constant functions in registers.
@@ -867,7 +875,7 @@ Common Report Var(flag_signaling_nans) Optimization
 Disable optimizations observable by IEEE signaling NaNs
 
 fsigned-zeros
-Common Report Var(flag_signed_zeros) Init(1)
+Common Report Var(flag_signed_zeros) Init(1) Optimization
 Disable floating point optimizations that ignore the IEEE signedness of zero
 
 fsingle-precision-constant
@@ -879,7 +887,7 @@ Common Report Var(flag_split_ivs_in_unroller) Init(1) Optimization
 Split lifetimes of induction variables when loops are unrolled
 
 fsplit-wide-types
-Common Report Var(flag_split_wide_types)
+Common Report Var(flag_split_wide_types) Optimization
 Split wide types into independent registers
 
 fvariable-expansion-in-unroller
@@ -1102,7 +1110,7 @@ Common RejectNegative Joined
 -ftree-vectorizer-verbose=<number>	Set the verbosity level of the vectorizer
 
 ftree-scev-cprop
-Common Report Var(flag_tree_scev_cprop) Init(1)
+Common Report Var(flag_tree_scev_cprop) Init(1) Optimization
 Enable copy propagation of scalar-evolution information.
 
 ; -fverbose-asm causes extra commentary information to be produced in

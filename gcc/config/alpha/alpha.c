@@ -1461,7 +1461,7 @@ get_aligned_mem (rtx ref, rtx *paligned_mem, rtx *pbitnum)
    Add EXTRA_OFFSET to the address we return.  */
 
 rtx
-get_unaligned_address (rtx ref, int extra_offset)
+get_unaligned_address (rtx ref)
 {
   rtx base;
   HOST_WIDE_INT offset = 0;
@@ -1481,7 +1481,23 @@ get_unaligned_address (rtx ref, int extra_offset)
   if (GET_CODE (base) == PLUS)
     offset += INTVAL (XEXP (base, 1)), base = XEXP (base, 0);
 
-  return plus_constant (base, offset + extra_offset);
+  return plus_constant (base, offset);
+}
+
+/* Compute a value X, such that X & 7 == (ADDR + OFS) & 7.
+   X is always returned in a register.  */
+
+rtx
+get_unaligned_offset (rtx addr, HOST_WIDE_INT ofs)
+{
+  if (GET_CODE (addr) == PLUS)
+    {
+      ofs += INTVAL (XEXP (addr, 1));
+      addr = XEXP (addr, 0);
+    }
+
+  return expand_simple_binop (Pmode, PLUS, addr, GEN_INT (ofs & 7),
+			      NULL_RTX, 1, OPTAB_LIB_WIDEN);
 }
 
 /* On the Alpha, all (non-symbolic) constants except zero go into
@@ -2230,7 +2246,7 @@ alpha_expand_mov_nobwx (enum machine_mode mode, rtx *operands)
 	  seq = ((mode == QImode
 		  ? gen_unaligned_loadqi
 		  : gen_unaligned_loadhi)
-		 (subtarget, get_unaligned_address (operands[1], 0),
+		 (subtarget, get_unaligned_address (operands[1]),
 		  temp1, temp2));
 	  alpha_set_memflags (seq, operands[1]);
 	  emit_insn (seq);
@@ -2269,7 +2285,7 @@ alpha_expand_mov_nobwx (enum machine_mode mode, rtx *operands)
 	  rtx seq = ((mode == QImode
 		      ? gen_unaligned_storeqi
 		      : gen_unaligned_storehi)
-		     (get_unaligned_address (operands[0], 0),
+		     (get_unaligned_address (operands[0]),
 		      operands[1], temp1, temp2, temp3));
 
 	  alpha_set_memflags (seq, operands[0]);
@@ -4781,7 +4797,7 @@ alpha_gp_save_rtx (void)
 
       seq = get_insns ();
       end_sequence ();
-      emit_insn_after (seq, entry_of_function ());
+      emit_insn_at_entry (seq);
 
       cfun->machine->gp_save_rtx = m;
     }
@@ -4988,13 +5004,6 @@ print_operand (FILE *file, rtx x, int code)
     case '-':
       /* Generates double precision instruction suffix.  */
       fputc ((TARGET_FLOAT_VAX ? 'g' : 't'), file);
-      break;
-
-    case '+':
-      /* Generates a nop after a noreturn call at the very end of the
-	 function.  */
-      if (next_real_insn (current_output_insn) == 0)
-	fprintf (file, "\n\tnop");
       break;
 
     case '#':
@@ -6629,8 +6638,8 @@ alpha_fold_builtin_zapnot (tree *op, unsigned HOST_WIDE_INT opint[],
 	return build_int_cst (long_integer_type_node, opint[0] & mask);
 
       if (op)
-	return fold (build2 (BIT_AND_EXPR, long_integer_type_node, op[0],
-			     build_int_cst (long_integer_type_node, mask)));
+	return fold_build2 (BIT_AND_EXPR, long_integer_type_node, op[0],
+			    build_int_cst (long_integer_type_node, mask));
     }
   else if ((op_const & 1) && opint[0] == 0)
     return build_int_cst (long_integer_type_node, 0);
@@ -6783,7 +6792,7 @@ alpha_fold_vector_minmax (enum tree_code code, tree op[], tree vtype)
 {
   tree op0 = fold_convert (vtype, op[0]);
   tree op1 = fold_convert (vtype, op[1]);
-  tree val = fold (build2 (code, vtype, op0, op1));
+  tree val = fold_build2 (code, vtype, op0, op1);
   return fold_convert (long_integer_type_node, val);
 }
 
@@ -8221,6 +8230,17 @@ alpha_expand_epilogue (void)
 void
 alpha_end_function (FILE *file, const char *fnname, tree decl ATTRIBUTE_UNUSED)
 {
+  rtx insn;
+
+  /* We output a nop after noreturn calls at the very end of the function to
+     ensure that the return address always remains in the caller's code range,
+     as not doing so might confuse unwinding engines.  */
+  insn = get_last_insn ();
+  if (!INSN_P (insn))
+    insn = prev_active_insn (insn);
+  if (GET_CODE (insn) == CALL_INSN)
+    output_asm_insn (get_insn_template (CODE_FOR_nop, NULL), NULL);
+
 #if TARGET_ABI_OPEN_VMS
   alpha_write_linkage (file, fnname, decl);
 #endif
@@ -9320,6 +9340,14 @@ alpha_file_start (void)
 #endif
 
 #ifdef OBJECT_FORMAT_ELF
+/* Since we don't have a .dynbss section, we should not allow global
+   relocations in the .rodata section.  */
+
+static int
+alpha_elf_reloc_rw_mask (void)
+{
+  return flag_pic ? 3 : 2;
+}
 
 /* Return a section for X.  The only special thing we do here is to
    honor small data.  */
@@ -9335,6 +9363,22 @@ alpha_elf_select_rtx_section (enum machine_mode mode, rtx x,
     return default_elf_select_rtx_section (mode, x, align);
 }
 
+static unsigned int
+alpha_elf_section_type_flags (tree decl, const char *name, int reloc)
+{
+  unsigned int flags = 0;
+
+  if (strcmp (name, ".sdata") == 0
+      || strncmp (name, ".sdata.", 7) == 0
+      || strncmp (name, ".gnu.linkonce.s.", 16) == 0
+      || strcmp (name, ".sbss") == 0
+      || strncmp (name, ".sbss.", 6) == 0
+      || strncmp (name, ".gnu.linkonce.sb.", 17) == 0)
+    flags = SECTION_SMALL;
+
+  flags |= default_section_type_flags (decl, name, reloc);
+  return flags;
+}
 #endif /* OBJECT_FORMAT_ELF */
 
 /* Structure to collect function names for final output in link section.  */
@@ -10568,8 +10612,12 @@ alpha_init_libfuncs (void)
 #endif
 
 #ifdef OBJECT_FORMAT_ELF
+#undef  TARGET_ASM_RELOC_RW_MASK
+#define TARGET_ASM_RELOC_RW_MASK  alpha_elf_reloc_rw_mask
 #undef	TARGET_ASM_SELECT_RTX_SECTION
 #define	TARGET_ASM_SELECT_RTX_SECTION  alpha_elf_select_rtx_section
+#undef  TARGET_SECTION_TYPE_FLAGS
+#define TARGET_SECTION_TYPE_FLAGS  alpha_elf_section_type_flags
 #endif
 
 #undef TARGET_ASM_FUNCTION_END_PROLOGUE
