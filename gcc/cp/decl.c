@@ -7802,7 +7802,7 @@ grokdeclarator (const cp_declarator *declarator,
 		 type TD."
               */
 	      if (!VOID_TYPE_P (type))
-		type = build_rval_reference_type
+		type = cp_build_reference_type
 		       ((TREE_CODE (type) == REFERENCE_TYPE
 			 ? TREE_TYPE (type) : type),
 			(declarator->u.pointer.rvalue_ref

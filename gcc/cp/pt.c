@@ -7676,11 +7676,11 @@ tsubst (tree t, tree args, tsubst_flags_t complain, tree in_decl)
 	     A,' while an attempt to create the type type rvalue reference to
 	     cv T' creates the type T"
 	  */
-	  r = build_rval_reference_type
+	  r = cp_build_reference_type
 	      (TREE_TYPE (type),
 	       TYPE_REF_IS_RVALUE (t) && TYPE_REF_IS_RVALUE (type));
 	else
-	  r = build_rval_reference_type (type, TYPE_REF_IS_RVALUE (t));
+	  r = cp_build_reference_type (type, TYPE_REF_IS_RVALUE (t));
 	r = cp_build_qualified_type_real (r, TYPE_QUALS (t), complain);
 
 	if (r != error_mark_node)

@@ -15,8 +15,10 @@
 	(maybe_handle_ref_bind): return conversion instead of type node
 	(compare_ics): add logic to use "rvaluedness_matches_p" values to
 	determine preferred conversion sequences
-	* gcc/cp/cp-tree.h (declarator): new "rvalue_ref" flag
+	* gcc/cp/cp-tree.h (TYPE_REF_IS_RVALUE): new macro
 	(LOOKUP_PREFER_RVALUE): new lookup flag
+	(declarator): new "rvalue_ref" flag
+	(cp_build_reference_type): new function
 	* gcc/cp/decl.c (grokdeclarator): implement reference collapsing
 	(copy_fn_p): don't consider constructors taking rvalue references
 	to be copy constructors
@@ -39,15 +41,10 @@
 	(type_unification_real, try_one_overload): update calls to
 	maybe_adjust_types_for_deduction
 	* gcc/cp/tree.c (lvalue_p_1): handle rvalue reference types
+	(cp_build_reference_type): new function
 	* gcc/cp/typeck.c (comptypes): don't consider rvalue and lvalue
 	reference types to be equivalent
 	(check_return_expr): move from certain lvalues when returning them
-	* gcc/tree.h
-	(TYPE_REF_IS_RVALUE): new macro for REFERENCE_TYPE nodes
-	(build_rval_reference_type_for_mode): new function
-	(build_rval_reference_type): new function
-	* gcc/tree.c (build_rval_reference_type_for_mode): new function
-	(build_rval_reference_type): new function
 
 2007-02-19  Kaz Kojima  <kkojima@gcc.gnu.org>
 
