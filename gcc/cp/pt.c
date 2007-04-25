@@ -11935,7 +11935,7 @@ unify_pack_expansion (tree tparms, tree targs, tree packed_parms,
 
             if (!subr)
               arg_strict |= 
-                maybe_adjust_types_for_deduction (strict, &parm, &arg);
+                maybe_adjust_types_for_deduction (strict, &parm, &arg, NULL);
           }
 
         if (!skip_arg_p)
