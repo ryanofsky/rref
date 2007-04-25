@@ -1511,6 +1511,7 @@ destroy_loop_vec_info (loop_vec_info loop_vinfo)
   VEC_free (tree, heap, LOOP_VINFO_MAY_MISALIGN_STMTS (loop_vinfo));
 
   free (loop_vinfo);
+  loop->aux = NULL;
 }
 
 
@@ -1714,15 +1715,6 @@ vect_is_simple_use (tree operand, loop_vec_info loop_vinfo, tree *def_stmt,
       return false;
     }
 
-  /* stmts inside the loop that have been identified as performing
-     a reduction operation cannot have uses in the loop.  */
-  if (*dt == vect_reduction_def && TREE_CODE (*def_stmt) != PHI_NODE)
-    {
-      if (vect_print_dump_info (REPORT_DETAILS))
-        fprintf (vect_dump, "reduction used in loop.");
-      return false;
-    }
-
   if (vect_print_dump_info (REPORT_DETAILS))
     fprintf (vect_dump, "type of def: %d.",*dt);
 
@@ -1731,12 +1723,11 @@ vect_is_simple_use (tree operand, loop_vec_info loop_vinfo, tree *def_stmt,
     case PHI_NODE:
       *def = PHI_RESULT (*def_stmt);
       gcc_assert (*dt == vect_induction_def || *dt == vect_reduction_def
-                  || *dt == vect_invariant_def);
+		  || *dt == vect_invariant_def);
       break;
 
     case GIMPLE_MODIFY_STMT:
       *def = GIMPLE_STMT_OPERAND (*def_stmt, 0);
-      gcc_assert (*dt == vect_loop_def || *dt == vect_invariant_def);
       break;
 
     default:
@@ -1782,7 +1773,7 @@ supportable_widening_operation (enum tree_code code, tree stmt, tree vectype,
   tree wide_vectype = get_vectype_for_scalar_type (type);
   enum tree_code c1, c2;
 
-  /* The result of a vectorized widening operation usually requires two vectors 
+  /* The result of a vectorized widening operation usually requires two vectors
      (because the widened results do not fit int one vector). The generated 
      vector results would normally be expected to be generated in the same 
      order as in the original scalar computation. i.e. if 8 results are 
@@ -1935,14 +1926,35 @@ vect_is_simple_reduction (struct loop *loop, tree phi)
   int op_type;
   tree operation, op1, op2;
   tree type;
+  int nloop_uses;
+  tree name;
+  imm_use_iterator imm_iter;
+  use_operand_p use_p;
+
+  name = PHI_RESULT (phi);
+  nloop_uses = 0;
+  FOR_EACH_IMM_USE_FAST (use_p, imm_iter, name)
+    {
+      tree use_stmt = USE_STMT (use_p);
+      if (flow_bb_inside_loop_p (loop, bb_for_stmt (use_stmt))
+	  && vinfo_for_stmt (use_stmt)
+	  && !is_pattern_stmt_p (vinfo_for_stmt (use_stmt)))
+        nloop_uses++;
+      if (nloop_uses > 1)
+        {
+          if (vect_print_dump_info (REPORT_DETAILS))
+            fprintf (vect_dump, "reduction used in loop.");
+          return NULL_TREE;
+        }
+    }
 
   if (TREE_CODE (loop_arg) != SSA_NAME)
     {
       if (vect_print_dump_info (REPORT_DETAILS))
-        {
-          fprintf (vect_dump, "reduction: not ssa_name: ");
-          print_generic_expr (vect_dump, loop_arg, TDF_SLIM);
-        }
+	{
+	  fprintf (vect_dump, "reduction: not ssa_name: ");
+	  print_generic_expr (vect_dump, loop_arg, TDF_SLIM);
+	}
       return NULL_TREE;
     }
 
@@ -1950,17 +1962,32 @@ vect_is_simple_reduction (struct loop *loop, tree phi)
   if (!def_stmt)
     {
       if (vect_print_dump_info (REPORT_DETAILS))
-        fprintf (vect_dump, "reduction: no def_stmt.");
+	fprintf (vect_dump, "reduction: no def_stmt.");
       return NULL_TREE;
     }
 
   if (TREE_CODE (def_stmt) != GIMPLE_MODIFY_STMT)
     {
       if (vect_print_dump_info (REPORT_DETAILS))
-        {
-          print_generic_expr (vect_dump, def_stmt, TDF_SLIM);
-        }
+        print_generic_expr (vect_dump, def_stmt, TDF_SLIM);
       return NULL_TREE;
+    }
+
+  name = GIMPLE_STMT_OPERAND (def_stmt, 0);
+  nloop_uses = 0;
+  FOR_EACH_IMM_USE_FAST (use_p, imm_iter, name)
+    {
+      tree use_stmt = USE_STMT (use_p);
+      if (flow_bb_inside_loop_p (loop, bb_for_stmt (use_stmt))
+	  && vinfo_for_stmt (use_stmt)
+	  && !is_pattern_stmt_p (vinfo_for_stmt (use_stmt)))
+	nloop_uses++;
+      if (nloop_uses > 1)
+	{
+	  if (vect_print_dump_info (REPORT_DETAILS))
+	    fprintf (vect_dump, "reduction used in loop.");
+	  return NULL_TREE;
+	}
     }
 
   operation = GIMPLE_STMT_OPERAND (def_stmt, 1);
@@ -2160,6 +2187,12 @@ vectorize_loops (void)
   loop_iterator li;
   struct loop *loop;
 
+  vect_loops_num = number_of_loops ();
+
+  /* Bail out if there are no loops.  */
+  if (vect_loops_num <= 1)
+    return 0;
+
   /* Fix the verbosity level if not defined explicitly by the user.  */
   vect_set_dump_settings ();
 
@@ -2172,7 +2205,6 @@ vectorize_loops (void)
   /* If some loop was duplicated, it gets bigger number 
      than all previously defined loops. This fact allows us to run 
      only over initial loops skipping newly generated ones.  */
-  vect_loops_num = number_of_loops ();
   FOR_EACH_LOOP (li, loop, 0)
     {
       loop_vec_info loop_vinfo;
@@ -2189,7 +2221,9 @@ vectorize_loops (void)
     }
   vect_loop_location = UNKNOWN_LOC;
 
-  if (vect_print_dump_info (REPORT_VECTORIZED_LOOPS))
+  if (vect_print_dump_info (REPORT_UNVECTORIZED_LOOPS)
+      || (vect_print_dump_info (REPORT_VECTORIZED_LOOPS)
+	  && num_vectorized_loops > 0))
     fprintf (vect_dump, "vectorized %u loops in function.\n",
 	     num_vectorized_loops);
 

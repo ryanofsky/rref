@@ -41,6 +41,7 @@ Software Foundation, 51 Franklin Street, Fifth Floor, Boston, MA
 #include "tree-pass.h"
 #include "ggc.h"
 #include "except.h"
+#include "splay-tree.h"
 
 
 /* Lowering of OpenMP parallel and workshare constructs proceeds in two 
@@ -441,17 +442,17 @@ is_reference (tree decl)
 static inline tree
 lookup_decl (tree var, omp_context *ctx)
 {
-  splay_tree_node n;
-  n = splay_tree_lookup (ctx->cb.decl_map, (splay_tree_key) var);
-  return (tree) n->value;
+  tree *n;
+  n = (tree *) pointer_map_contains (ctx->cb.decl_map, var);
+  return *n;
 }
 
 static inline tree
 maybe_lookup_decl (tree var, omp_context *ctx)
 {
-  splay_tree_node n;
-  n = splay_tree_lookup (ctx->cb.decl_map, (splay_tree_key) var);
-  return n ? (tree) n->value : NULL_TREE;
+  tree *n;
+  n = (tree *) pointer_map_contains (ctx->cb.decl_map, var);
+  return n ? *n : NULL_TREE;
 }
 
 static inline tree
@@ -844,7 +845,7 @@ new_omp_context (tree stmt, omp_context *outer_ctx)
       ctx->depth = 1;
     }
 
-  ctx->cb.decl_map = splay_tree_new (splay_tree_compare_pointers, 0, 0);
+  ctx->cb.decl_map = pointer_map_create ();
 
   return ctx;
 }
@@ -857,7 +858,7 @@ delete_omp_context (splay_tree_value value)
 {
   omp_context *ctx = (omp_context *) value;
 
-  splay_tree_delete (ctx->cb.decl_map);
+  pointer_map_destroy (ctx->cb.decl_map);
 
   if (ctx->field_map)
     splay_tree_delete (ctx->field_map);
@@ -2408,6 +2409,7 @@ expand_omp_parallel (struct omp_region *region)
   block_stmt_iterator si;
   tree entry_stmt;
   edge e;
+  bool do_cleanup_cfg = false;
 
   entry_stmt = last_stmt (region->entry);
   child_fn = OMP_PARALLEL_FN (entry_stmt);
@@ -2443,6 +2445,7 @@ expand_omp_parallel (struct omp_region *region)
 	  exit_succ_e = single_succ_edge (exit_bb);
 	  make_edge (new_bb, exit_succ_e->dest, EDGE_FALLTHRU);
 	}
+      do_cleanup_cfg = true;
     }
   else
     {
@@ -2492,7 +2495,7 @@ expand_omp_parallel (struct omp_region *region)
       /* Declare local variables needed in CHILD_CFUN.  */
       block = DECL_INITIAL (child_fn);
       BLOCK_VARS (block) = list2chain (child_cfun->unexpanded_var_list);
-      DECL_SAVED_TREE (child_fn) = single_succ (entry_bb)->stmt_list;
+      DECL_SAVED_TREE (child_fn) = bb_stmt_list (single_succ (entry_bb));
 
       /* Reset DECL_CONTEXT on locals and function arguments.  */
       for (t = BLOCK_VARS (block); t; t = TREE_CHAIN (t))
@@ -2536,6 +2539,14 @@ expand_omp_parallel (struct omp_region *region)
 
   /* Emit a library call to launch the children threads.  */
   expand_parallel_call (region, new_bb, entry_stmt, ws_args);
+
+  if (do_cleanup_cfg)
+    {
+      /* Clean up the unreachable sub-graph we created above.  */
+      free_dominance_info (CDI_DOMINATORS);
+      free_dominance_info (CDI_POST_DOMINATORS);
+      cleanup_tree_cfg ();
+    }
 }
 
 
